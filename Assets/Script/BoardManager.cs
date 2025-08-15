@@ -1,9 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEngine.Rendering; // ← ファイル先頭の using 群に置く。ここではダメ（C#の構文的にNG）
-#endif
+
 public enum CellType { Floor, Wall, Exit }
 
 [ExecuteAlways] // エディタでもプレビュー用に動かす
@@ -20,7 +18,7 @@ public class BoardManager : MonoBehaviour
     public struct GuardType
     {
         [Tooltip("ASCIIマップ上の記号（例: G, H, I など）")]
-        public string symbol;
+        public string symbol;                       // ← 1文字を入れる想定
         [Tooltip("この記号で配置するガードのPrefab（GuardControllerを付けておく）")]
         public GameObject prefab;
         [Tooltip("Level Painter のボタン名や説明に使うラベル（任意）")]
@@ -29,40 +27,29 @@ public class BoardManager : MonoBehaviour
         public Color previewColor;
     }
 
-    // ==== Item用のミニGizmo形状 ====
-    public enum MiniGizmoShape { Square, Circle, Diamond, Cross }
-
-    [Header("Guard Types (symbol → prefab)")]
-    [NonReorderable]public List<GuardType> guardTypes = new List<GuardType>()
-    {
-        new GuardType{ symbol="G", prefab=null, label="Guard A", previewColor = new Color(1f,0.35f,0.35f,1f) },
-        // 例: new GuardType{ symbol='H', prefab=pfGuardPingPong, label="PingPong R5", previewColor = new Color(1f,0.6f,0.2f,1f) },
-        //     new GuardType{ symbol='I', prefab=pfGuardLoop,     label="Loop Square", previewColor = new Color(0.3f,1f,0.4f,1f) },
-    };
     [System.Serializable]
     public struct ItemType
     {
         [Tooltip("ASCIIマップ上の記号（例: i, j, k など小文字推奨）")]
-        public string symbol;
-        public GameObject prefab;          // アイテムのPrefab（今は効果なしでOK）
-        public string label;               // UI表示用
-        public Color previewColor;         // Sceneプレビュー色
-
-        public MiniGizmoShape previewShape;   // 形（Square/Circle/Diamond/Cross）
-        public float previewSize;             // 視覚サイズ（セル基準）。
+        public string symbol;                       // ← 1文字を入れる想定
+        public GameObject prefab;                   // アイテムのPrefab（今は効果なしでOK）
+        public string label;                        // UI表示用
+        public Color previewColor;                  // Sceneプレビュー色
     }
 
-    [Header("Item Types (symbol → prefab)")]
-    [NonReorderable]public List<ItemType> itemTypes = new List<ItemType>()
-{
-    new ItemType{ symbol="i", prefab=null, label="Item",
-        previewColor = new Color(0.25f,1f,0.9f,1f) ,
-        previewShape = MiniGizmoShape.Circle,  // ★丸
-        previewSize = 0.35f,}                    // ★サイズ
-    // 例: new ItemType{ symbol='k', prefab=pfKey, label="Key", previewColor = new Color(1f,0.8f,0.2f,1f) },
-};
+    [Header("Guard Types (symbol → prefab)")]
+    public List<GuardType> guardTypes = new List<GuardType>()
+    {
+        new GuardType{ symbol="G", prefab=null, label="Guard A", previewColor = new Color(1f,0.35f,0.35f,1f) },
+    };
 
-    public Transform itemsRoot; // ★アイテムの親
+    [Header("Item Types (symbol → prefab)")]
+    public List<ItemType> itemTypes = new List<ItemType>()
+    {
+        new ItemType{ symbol="i", prefab=null, label="Item", previewColor = new Color(0.25f,1f,0.9f,1f) },
+    };
+
+    public Transform itemsRoot; // アイテムの親
 
     [Header("Ghost Materials (optional)")]
     public Material ghostOkMat;
@@ -96,7 +83,7 @@ public class BoardManager : MonoBehaviour
     public Color previewWall = new Color(0.20f, 0.20f, 0.20f, 1f);
     public Color previewExit = new Color(1.00f, 0.85f, 0.20f, 1f);
     public Color previewP = new Color(0.20f, 0.60f, 1.00f, 1f);
-
+    [HideInInspector] public Dictionary<Vector2Int, GameObject> itemAt = new Dictionary<Vector2Int, GameObject>();
     [Header("Level (ASCII)")]
     [TextArea(6, 20)]
     public string[] level = new string[]
@@ -114,11 +101,13 @@ public class BoardManager : MonoBehaviour
         "#......#...#",
         "############",
     };
+
     [Header("Overlay Heights")]
     public float previewY = 0.0001f; // 選択プレビュー用（床ほぼベタ）
-    public float visionY = 0.0002f; // 敵視界用（少しだけ上）
+    public float visionY = 0.0002f;  // 敵視界用（少しだけ上）
     public Vector3 CellCenter(Vector2Int p, float y)
     {
+        // ※ 当初の仕様に合わせて+0.0f（中心補正が不要な表現）
         return new Vector3(p.x + 0.0f, y, p.y + 0.0f);
     }
 
@@ -127,38 +116,6 @@ public class BoardManager : MonoBehaviour
 
     public CellType[,] cells;
     private GameObject[,] tileGOs;  // 1マス=1オブジェクト（Floor/Wall/Exit）
-    [Header("Overlay/Gizmo Y")]
-    public float overlayPad = 0.0005f;     // 床の天面より、これだけ上に描く
-
-    float cachedFloorTopY = 0f;            // 床の実天面 (Build時に計測)
-
-    // 床タイルから実際の天面Yを取る（見つからなければ floorY を返す）
-    float ComputeFloorTopY()
-    {
-        if (tileGOs != null)
-        {
-            int h = Height, w = Width;
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                    if (tileGOs[y, x] != null)
-                        return GetWorldBounds(tileGOs[y, x]).max.y;
-        }
-        return floorY;
-    }
-
-    // どこからでも使える“オーバーレイY”
-    public float OverlayY => cachedFloorTopY + overlayPad;
-
-    public float GetOverlayYForGizmos()
-    {
-#if UNITY_EDITOR
-        if (!Application.isPlaying)
-        {
-            return ComputeFloorTopY() + overlayPad; // タイルが無ければ floorY を返す実装になっている想定
-        }
-#endif
-        return OverlayY;
-    }
 
     // ルート
     public Transform tilesRoot;
@@ -178,7 +135,7 @@ public class BoardManager : MonoBehaviour
 #if UNITY_EDITOR
         tilesRoot.hideFlags = HideFlags.HideInHierarchy;
         actorsRoot.hideFlags = HideFlags.HideInHierarchy;
-        itemsRoot.hideFlags = HideFlags.HideInHierarchy;                              // ★
+        itemsRoot.hideFlags = HideFlags.HideInHierarchy;
 #endif
         Build();
     }
@@ -225,10 +182,13 @@ public class BoardManager : MonoBehaviour
             for (int i = actorsRoot.childCount - 1; i >= 0; --i)
                 SafeDestroy(actorsRoot.GetChild(i).gameObject);
 
-        if (itemsRoot != null)                                                      
-            for (int i = itemsRoot.childCount - 1; i >= 0; --i) SafeDestroy(itemsRoot.GetChild(i).gameObject);
+        if (itemsRoot != null)
+            for (int i = itemsRoot.childCount - 1; i >= 0; --i)
+                SafeDestroy(itemsRoot.GetChild(i).gameObject);
+
         guards.Clear();
         player = null;
+        itemAt.Clear();
     }
 
     // ===== Y合わせユーティリティ =====
@@ -286,7 +246,6 @@ public class BoardManager : MonoBehaviour
             }
         }
     }
-
 
     public void SetLevel(string[] newRows)
     {
@@ -387,7 +346,7 @@ public class BoardManager : MonoBehaviour
 
         // Guard/Item スポーン情報
         var guardSpawns = new List<(Vector2Int pos, GuardType type)>();
-        var itemSpawns = new List<(Vector2Int pos, ItemType type)>(); // ★
+        var itemSpawns = new List<(Vector2Int pos, ItemType type)>();
 
         for (int y = 0; y < h; y++)
         {
@@ -414,10 +373,13 @@ public class BoardManager : MonoBehaviour
                 }
                 // アイテム
                 for (int ii = 0; ii < itemTypes.Count; ii++)
-                    if(!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
-                    { 
-                        itemSpawns.Add((p, itemTypes[ii])); break; 
+                {
+                    if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
+                    {
+                        itemSpawns.Add((p, itemTypes[ii]));
+                        break;
                     }
+                }
             }
         }
 
@@ -455,7 +417,6 @@ public class BoardManager : MonoBehaviour
             }
 
             g.Init(this, gs.pos);
-            // GuardController 側で useBoardDefaultViewRange=true なら Init 内で defaultGuardViewRange を使う想定
             guards.Add(g);
         }
 
@@ -466,6 +427,7 @@ public class BoardManager : MonoBehaviour
             var go = Instantiate(it.type.prefab, GridToWorld(it.pos), Quaternion.identity, itemsRoot);
             go.name = $"Item_{it.pos.x}_{it.pos.y}_{it.type.symbol}";
             AutoAlign2DObject(go, true /*見た目少し浮かす*/, new Vector2(0.8f, 0.8f)); // 見た目縮小は好みで
+            itemAt[it.pos] = go;
         }
 
         // TurnManager（未存在なら生成）
@@ -485,18 +447,19 @@ public class BoardManager : MonoBehaviour
         }
 
         RefreshAllGuardVision();
-        cachedFloorTopY = ComputeFloorTopY();
     }
-#if UNITY_EDITOR
-    // Handles の zTest を一時的に切替
-    static void WithZ(UnityEngine.Rendering.CompareFunction z, System.Action draw)
+    // プレイヤーが p を踏んだときに呼ぶ
+    public bool TryPickup(Vector2Int p)
     {
-        var prev = UnityEditor.Handles.zTest;
-        UnityEditor.Handles.zTest = z;
-        try { draw?.Invoke(); }
-        finally { UnityEditor.Handles.zTest = prev; }
+        if (itemAt.TryGetValue(p, out var go) && go != null)
+        {
+            itemAt.Remove(p);
+            SafeDestroy(go);      // エディタ/実行の両対応破棄
+      // TODO: SEやエフェクト、インベントリ加算などはここで
+            return true;
+        }
+        return false;
     }
-#endif
     // ========= エディタプレビュー描画（GameObject生成なし） =========
     void OnDrawGizmos()
     {
@@ -540,7 +503,7 @@ public class BoardManager : MonoBehaviour
                     DrawActorDot(new Vector2Int(x, y), y2 + 0.001f);
                 }
 
-        // 各 GuardType 記号のマーカー
+        // 各 GuardType 記号のマーカー（四角ドット）
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
@@ -558,27 +521,24 @@ public class BoardManager : MonoBehaviour
             }
         }
 
-        // 各 Item 記号のマーカー
+        // 各 Item 記号のマーカー（四角ドットに戻す）
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
             {
                 char ch = level[y][x];
-                // Items
                 for (int ii = 0; ii < itemTypes.Count; ii++)
                 {
                     if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
                     {
-                        var it = itemTypes[ii];
-                        // ★ 四角ではなく、選んだ形で描画
-                        DrawItemGizmo(new Vector2Int(x, y), GetOverlayYForGizmos(), it.previewColor,
-                            it.previewShape, Mathf.Max(0.2f, it.previewSize));
+                        Gizmos.color = itemTypes[ii].previewColor;
+                        DrawActorDot(new Vector2Int(x, y), y2 + 0.001f);
                         break;
                     }
                 }
             }
         }
-        }
+    }
 
     void DrawCellGizmo(Vector2Int p, float y)
     {
@@ -589,85 +549,6 @@ public class BoardManager : MonoBehaviour
     {
         Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
         Gizmos.DrawCube(c, new Vector3(0.35f, 0.002f, 0.35f));
-    }
-    // === 汎用：アイテム用の形を描く ===
-    void DrawItemGizmo(Vector2Int p, float y, Color col, MiniGizmoShape shape, float size)
-    {
-        Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
-
-#if UNITY_EDITOR
-        // Editorではフラットな図形を綺麗に出したいので Handles を使用
-        UnityEditor.Handles.zTest = UnityEngine.Rendering.CompareFunction.Always;
-
-        switch (shape)
-        {
-            case MiniGizmoShape.Circle:
-                UnityEditor.Handles.color = new Color(col.r, col.g, col.b, col.a * 0.9f);
-                UnityEditor.Handles.DrawSolidDisc(c, Vector3.up, size * 0.5f);
-                break;
-
-            case MiniGizmoShape.Diamond:
-                {
-                    var m = Matrix4x4.TRS(c, Quaternion.Euler(0, 45, 0), Vector3.one);
-                    using (new UnityEditor.Handles.DrawingScope(m))
-                    {
-                        var v = new Vector3[]{
-                    new Vector3(-size/2,0,-size/2),
-                    new Vector3( size/2,0,-size/2),
-                    new Vector3( size/2,0, size/2),
-                    new Vector3(-size/2,0, size/2),
-                };
-                        var fill = new Color(col.r, col.g, col.b, col.a * 0.9f);
-                        UnityEditor.Handles.DrawSolidRectangleWithOutline(v, fill, col);
-                        }
-                    break;
-                }
-
-            case MiniGizmoShape.Cross:
-                {
-                    float half = size * 0.5f;
-                    float t = Mathf.Max(0.06f, size * 0.18f); // 十字の太さ
-                    var fill = new Color(col.r, col.g, col.b, col.a * 0.9f);
-
-                    // 横棒
-                    var h = new Vector3[]{
-                c + new Vector3(-half, 0, -t/2),
-                c + new Vector3( half, 0, -t/2),
-                c + new Vector3( half, 0,  t/2),
-                c + new Vector3(-half, 0,  t/2),
-            };
-                    UnityEditor.Handles.DrawSolidRectangleWithOutline(h, fill, col);
-
-                    // 縦棒
-                    var v = new Vector3[]{
-                c + new Vector3(-t/2, 0, -half),
-                c + new Vector3( t/2, 0, -half),
-                c + new Vector3( t/2, 0,  half),
-                c + new Vector3(-t/2, 0,  half),
-            };
-                    UnityEditor.Handles.DrawSolidRectangleWithOutline(v, fill, col);
-                    break;
-                }
-
-            default: // Square（従来通り）
-                {
-                    var v = new Vector3[]{
-                c + new Vector3(-size/2,0,-size/2),
-                c + new Vector3( size/2,0,-size/2),
-                c + new Vector3( size/2,0, size/2),
-                c + new Vector3(-size/2,0, size/2),
-            };
-                    var fill = new Color(col.r, col.g, col.b, col.a * 0.9f);
-                    UnityEditor.Handles.DrawSolidRectangleWithOutline(v, fill, col);
-                    break;
-                }
-        }
-#else
-    // Runtime は Gizmos で簡易表示（丸は球、他は薄い箱）
-    Gizmos.color = col;
-    if (shape == MiniGizmoShape.Circle) Gizmos.DrawSphere(c, size * 0.5f);
-    else Gizmos.DrawCube(c, new Vector3(size, 0.002f, size));
-#endif
     }
 
     // ========= 回転（任意マス・部分回転対応） ===========
@@ -687,12 +568,12 @@ public class BoardManager : MonoBehaviour
                 if (InBounds(p))
                 {
                     hasAnyInBounds = true;
-                    //Exit移動不可
-                    if (cells[p.y, p.x] == CellType.Exit) hasExit = true;
+                    if (cells[p.y, p.x] == CellType.Exit) hasExit = true; // Exit含むと回転禁止
                 }
             }
         if (!hasAnyInBounds) return res;
-        if (hasExit) return res;         // Exit を含む範囲は回転禁止（valid=falseのまま返す）
+        if (hasExit) return res;
+
         bool safeCW = WouldBeSafePartial(center, size, +1);
         bool safeCCW = WouldBeSafePartial(center, size, -1);
         res.valid = safeCW && safeCCW;
@@ -714,7 +595,7 @@ public class BoardManager : MonoBehaviour
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            int gdir = -dir; // ★追加：配列側は符号反転
+            int gdir = -dir; // 配列側は符号反転
 
             int sx, sy;
             if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 時計回り（配列）
@@ -728,6 +609,7 @@ public class BoardManager : MonoBehaviour
         }
         return true;
     }
+
     bool AreaHasExit(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
@@ -735,7 +617,7 @@ public class BoardManager : MonoBehaviour
             for (int i = -k; i <= k; i++)
             {
                 var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;                 // ← BoardManagerのメンバをそのまま使える
+                if (!InBounds(p)) continue;
                 if (cells[p.y, p.x] == CellType.Exit) return true;
             }
         return false;
@@ -744,7 +626,7 @@ public class BoardManager : MonoBehaviour
     public void RotateArea(Vector2Int center, int size, int dir, System.Action onDone)
     {
         if (IsAnimating) return;
-        if (AreaHasExit(center, size)) { onDone?.Invoke(); return; } //  実行自体を禁止
+        if (AreaHasExit(center, size)) { onDone?.Invoke(); return; }
         if (!WouldBeSafePartial(center, size, dir)) { onDone?.Invoke(); return; }
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
@@ -788,8 +670,7 @@ public class BoardManager : MonoBehaviour
                 var dest = new Vector2Int(gx, gy);
                 if (!InBounds(dest)) continue;
 
-                // ★★★ 配列側は符号を反転して扱う（これがポイント）
-                int gdir = -dir;
+                int gdir = -dir; // 配列側は符号反転
 
                 int sx, sy; // 逆写像（dest→src）
                 if (gdir > 0) { sx = j; sy = size - 1 - i; } // 時計回り（配列）
@@ -869,7 +750,7 @@ public class BoardManager : MonoBehaviour
     public void RefreshAllGuardVision()
     {
 #if UNITY_EDITOR
-        if (!Application.isPlaying) { } // 置き忘れ防止用（実害なし）
+        if (!Application.isPlaying) { } // 実害なしの置き忘れ防止
         if (!Application.isPlaying) return; // エディタでは作らない（Hierarchy汚さない）
 #endif
         foreach (var g in guards)

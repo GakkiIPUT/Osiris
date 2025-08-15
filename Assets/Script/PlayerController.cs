@@ -66,6 +66,7 @@ public class PlayerController : MonoBehaviour
             {
                 pos = np;
                 transform.position = board.GridToWorldActor(pos);
+                board.TryPickup(pos);
                 // ƒNƒŠƒA”»’è
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
@@ -184,5 +185,37 @@ public class PlayerController : MonoBehaviour
                 var mr = tf.GetComponent<MeshRenderer>();
                 if (mat != null) mr.material = mat;
             }
+    }
+
+    // === UI ‚©‚çŒÄ‚Ô‚½‚ß ===
+public void UI_RotateCW()
+    {
+        if (turn == null || !turn.IsPlayerTurn()) return;
+        if (!aiming) { aimCenter = pos; aiming = true; ShowGhost(true); }
+        TryRotate(+1);
+    }
+
+    public void UI_RotateCCW()
+    {
+        if (turn == null || !turn.IsPlayerTurn()) return;
+        if (!aiming) { aimCenter = pos; aiming = true; ShowGhost(true); }
+        TryRotate(-1);
+    }
+
+    public void UI_ToggleAreaSize()
+    {
+        areaSize = (areaSize == 3) ? 5 : 3;
+        if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
+    }
+
+    public void UI_ToggleVision()
+    {
+        board.ToggleAllGuardVision();
+    }
+
+    public void UI_CancelAim()
+    {
+        aiming = false;
+        ShowGhost(false);
     }
 }

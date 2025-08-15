@@ -1,71 +1,55 @@
-using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class StageManager : MonoBehaviour
 {
-    [Header("Refs")]
-    public BoardManager board;
-
-    [Header("Stages (drag LevelAsset here)")]
-    public List<LevelAsset> levels = new List<LevelAsset>();
-
-    [Header("Runtime")]
+    public StageSet stageSet;
     public int currentIndex = 0;
+    public BoardManager board;
 
     void Awake()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+        if (stageSet != null) Load(currentIndex);
     }
 
-    void Start()
+    public void Load(int index)
     {
-        if (levels.Count > 0) LoadIndex(currentIndex);
-    }
+        if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0) return;
+        currentIndex = Mathf.Clamp(index, 0, stageSet.stages.Count - 1);
 
-    public void LoadIndex(int idx)
-    {
-        if (levels == null || levels.Count == 0) return;
-        idx = Mathf.Clamp(idx, 0, levels.Count - 1);
-        currentIndex = idx;
-
-        var lv = levels[idx];
-        if (lv == null || lv.rows == null || lv.rows.Length == 0) return;
-
-        board.SetLevel(lv.rows);     // ★ BoardManagerに追加するAPI（下で説明）
-        Debug.Log($"Loaded stage: {(string.IsNullOrEmpty(lv.id) ? $"#{idx}" : lv.id)}");
-    }
-
-    public void LoadById(string id)
-    {
-        if (string.IsNullOrEmpty(id)) return;
-        for (int i = 0; i < levels.Count; i++)
+        var entry = stageSet.stages[currentIndex];
+        var rows = ParseAscii(entry.asciiLevel);
+        if (rows != null && rows.Length > 0)
         {
-            if (levels[i] != null && levels[i].id == id)
-            {
-                LoadIndex(i);
-                return;
-            }
+            board.SetLevel(rows); // BoardManagerがBuildまで面倒を見ます
         }
-        Debug.LogWarning($"Stage id '{id}' not found.");
     }
 
-    public void Next()
+    public void ReloadCurrent() => Load(currentIndex);
+    public void Next() => Load(currentIndex + 1);
+    public void Prev() => Load(currentIndex - 1);
+
+    public string GetDisplayName()
     {
-        if (levels == null || levels.Count == 0) return;
-        if (currentIndex + 1 < levels.Count) LoadIndex(currentIndex + 1);
+        if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0) return "-";
+        return stageSet.stages[Mathf.Clamp(currentIndex, 0, stageSet.stages.Count - 1)].displayName;
     }
 
-    public void Prev()
+    public string[] GetAllNames()
     {
-        if (levels == null || levels.Count == 0) return;
-        if (currentIndex - 1 >= 0) LoadIndex(currentIndex - 1);
+        if (stageSet == null || stageSet.stages == null) return new string[0];
+        return stageSet.stages.Select(s => s.displayName).ToArray();
     }
 
-    // デバッグ操作（任意）
-    void Update()
+    static string[] ParseAscii(TextAsset ta)
     {
-        // , で前 / . で次
-        if (Input.GetKeyDown(KeyCode.Comma)) Prev();
-        if (Input.GetKeyDown(KeyCode.Period)) Next();
+        if (ta == null) return null;
+        var lines = ta.text
+            .Replace("\r", "")
+            .Split('\n')
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToArray();
+        return lines;
     }
 }
