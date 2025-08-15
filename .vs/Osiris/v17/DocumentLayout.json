@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\UnityPrj\\Osiris\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|c:\\unityprj\\osiris\\assets\\script\\boardmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\boardmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "BoardManager.cs",
+              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\BoardManager.cs",
+              "RelativeDocumentMoniker": "Assets\\Script\\BoardManager.cs",
+              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\BoardManager.cs",
+              "RelativeToolTip": "Assets\\Script\\BoardManager.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-15T06:36:32.737Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
