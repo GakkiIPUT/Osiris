@@ -4,15 +4,20 @@ using UnityEngine.UI;
 public class GameFlow : MonoBehaviour
 {
     [Header("Esc Menu")]
-    public GameObject escMenuPanel;     // ← Canvas の子にあること
+    public GameObject escMenuPanel;
     public Button escCloseButton;
     public Button escToStageButton;
     public bool pauseOnEsc = true;
 
     [Header("Game Over")]
-    public GameObject gameOverPanel;    // ← Canvas の子にあること
+    public GameObject gameOverPanel;
     public Button retryButton;
     public Button toMenuButton;
+
+    [Header("Clear (Goal)")]
+    public GameObject clearPanel;           // ← 追加
+    public Button clearToStageButton;       // ← 追加
+    public bool pauseOnClear = true;        // ← 追加
 
     StageManager stage;
     TurnManager turn;
@@ -27,15 +32,18 @@ public class GameFlow : MonoBehaviour
         stage.stageSet = world.stageSet;
         stage.Load(gs.stageIndex);
 
-        // ★最小ロジック：初期は消す（SetActiveのみ）
+        // 初期は非表示（SetActiveのみ）
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
+        if (clearPanel) clearPanel.SetActive(false);
 
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
 
         if (retryButton) retryButton.onClick.AddListener(HardReset);
         if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoMain(); });
+
+        if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
     }
 
     void Update()
@@ -43,19 +51,34 @@ public class GameFlow : MonoBehaviour
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
         bool isOver = (turn && turn.gameOver);
+        bool isClear = (turn && turn.cleared);
 
-        // ESC（GameOver中は無効）
-        if (!isOver && Input.GetKeyDown(KeyCode.Escape))
+        // クリア中・ゲームオーバー中は ESC を無効（誤操作防止）
+        if (!isOver && !isClear && Input.GetKeyDown(KeyCode.Escape))
         {
             if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
             else OpenEscMenu();
         }
 
-        // GameOver：出す/消すを明示（SetActiveのみ）
+        // Game Over オーバーレイ
         if (gameOverPanel)
         {
             if (isOver && !gameOverPanel.activeSelf) ShowOnTop(gameOverPanel);
             if (!isOver && gameOverPanel.activeSelf) gameOverPanel.SetActive(false);
+        }
+
+        // Clear オーバーレイ（ここで自動遷移はしない）
+        if (clearPanel)
+        {
+            if (isClear && !clearPanel.activeSelf)
+            {
+                ShowOnTop(clearPanel);
+                if (pauseOnClear) Time.timeScale = 0f;
+            }
+            if (!isClear && clearPanel.activeSelf)
+            {
+                clearPanel.SetActive(false);
+            }
         }
     }
 
@@ -63,11 +86,8 @@ public class GameFlow : MonoBehaviour
     void ShowOnTop(GameObject panel)
     {
         panel.SetActive(true);
-        // 同じ Canvas 内で最前面へ
         panel.transform.SetAsLastSibling();
-        // もし別Canvasを使っているなら、そのCanvasの Sorting Order を上げる
-        var ownCanvas = panel.GetComponentInParent<Canvas>();
-        if (ownCanvas) ownCanvas.sortingOrder = 100; // HUDが0なら十分上
+        // （別Canvasに置いた場合は、そのCanvas.sortingOrder をHUDより上に）
     }
 
     void OpenEscMenu()
@@ -82,9 +102,10 @@ public class GameFlow : MonoBehaviour
         escMenuPanel.SetActive(false);
         ResumeIfPaused();
     }
+
     void ResumeIfPaused()
     {
-        if (pauseOnEsc && Time.timeScale == 0f) Time.timeScale = 1f;
+        if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
     public void HardReset()
@@ -92,6 +113,7 @@ public class GameFlow : MonoBehaviour
         ResumeIfPaused();
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
+        if (clearPanel) clearPanel.SetActive(false);
         SceneNavigator.GoGame();
     }
 }

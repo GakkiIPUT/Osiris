@@ -7,6 +7,14 @@
       "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\gameflow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\script\\stageselectui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\stageselectui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|c:\\unityprj\\osiris\\assets\\level\\stage_txt\\1-10.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\level\\stage_txt\\1-10.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\script\\gameui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\gameui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -27,16 +35,8 @@
       "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\scenenavigator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\level\\1-1.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\level\\1-1.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\script\\guardcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\guardcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\script\\stageselectui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\script\\stageselectui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\script\\mainmenuui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -57,6 +57,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|C:\\UnityPrj\\Osiris\\assets\\level\\stageset.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{B9A8473B-F67E-6E54-70D8-5D901CA22712}|Assembly-CSharp.csproj|solutionrelative:assets\\level\\stageset.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\UnityPrj\\Osiris\\Assets\\Level\\1-1.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Assets\\Level\\1-1.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
     }
   ],
   "DocumentGroupContainers": [
@@ -66,8 +70,46 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 3,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "1-10.txt",
+              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Level\\Stage_txt\\1-10.txt",
+              "RelativeDocumentMoniker": "Assets\\Level\\Stage_txt\\1-10.txt",
+              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Level\\Stage_txt\\1-10.txt",
+              "RelativeToolTip": "Assets\\Level\\Stage_txt\\1-10.txt",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003109|",
+              "WhenOpened": "2025-08-18T05:47:23.418Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "GameUI.cs",
+              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GameUI.cs",
+              "RelativeDocumentMoniker": "Assets\\Script\\GameUI.cs",
+              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GameUI.cs",
+              "RelativeToolTip": "Assets\\Script\\GameUI.cs",
+              "ViewState": "AgIAAA0AAAAAAAAAAAAgwB0AAABIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-15T07:02:30.254Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "StageSelectUI.cs",
+              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\StageSelectUI.cs",
+              "RelativeDocumentMoniker": "Assets\\Script\\StageSelectUI.cs",
+              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\StageSelectUI.cs",
+              "RelativeToolTip": "Assets\\Script\\StageSelectUI.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-08-15T08:13:17.82Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -76,14 +118,14 @@
               "RelativeDocumentMoniker": "Assets\\Script\\GameFlow.cs",
               "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GameFlow.cs",
               "RelativeToolTip": "Assets\\Script\\GameFlow.cs",
-              "ViewState": "AgIAAEcAAAAAAAAAAAAUwGEAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAFwAAAAAAAAAAAA7wHAAAAAZAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-15T08:13:41.07Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "BoardManager.cs",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\BoardManager.cs",
               "RelativeDocumentMoniker": "Assets\\Script\\BoardManager.cs",
@@ -91,25 +133,11 @@
               "RelativeToolTip": "Assets\\Script\\BoardManager.cs",
               "ViewState": "AgIAAM8CAAAAAAAAAAAUwOcCAAAZAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-15T06:36:32.737Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-08-15T06:36:32.737Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "GameUI.cs",
-              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GameUI.cs",
-              "RelativeDocumentMoniker": "Assets\\Script\\GameUI.cs",
-              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GameUI.cs",
-              "RelativeToolTip": "Assets\\Script\\GameUI.cs",
-              "ViewState": "AgIAAA0AAAAAAAAAAAAgwB0AAABIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-15T07:02:30.254Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "PlayerController.cs",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\PlayerController.cs",
               "RelativeDocumentMoniker": "Assets\\Script\\PlayerController.cs",
@@ -117,12 +145,11 @@
               "RelativeToolTip": "Assets\\Script\\PlayerController.cs",
               "ViewState": "AgIAAMwAAAAAAAAAAAAswNMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-15T06:51:47.368Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-08-15T06:51:47.368Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 8,
               "Title": "GuardController.cs",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\GuardController.cs",
               "RelativeDocumentMoniker": "Assets\\Script\\GuardController.cs",
@@ -134,7 +161,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 7,
               "Title": "SceneNavigator.cs",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\SceneNavigator.cs",
               "RelativeDocumentMoniker": "Assets\\Script\\SceneNavigator.cs",
@@ -146,7 +173,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 14,
               "Title": "1-1.txt",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Level\\1-1.txt",
               "RelativeDocumentMoniker": "Assets\\Level\\1-1.txt",
@@ -158,7 +185,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 6,
               "Title": "TurnManager.cs",
               "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\TurnManager.cs",
               "RelativeDocumentMoniker": "Assets\\Script\\TurnManager.cs",
@@ -167,18 +194,6 @@
               "ViewState": "AgIAACoAAAAAAAAAAAAmwDwAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-08-15T09:40:17.208Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "StageSelectUI.cs",
-              "DocumentMoniker": "C:\\UnityPrj\\Osiris\\Assets\\Script\\StageSelectUI.cs",
-              "RelativeDocumentMoniker": "Assets\\Script\\StageSelectUI.cs",
-              "ToolTip": "C:\\UnityPrj\\Osiris\\Assets\\Script\\StageSelectUI.cs",
-              "RelativeToolTip": "Assets\\Script\\StageSelectUI.cs",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAgwA4AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-08-15T08:13:17.82Z"
             },
             {
               "$type": "Document",
