@@ -1,69 +1,43 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class GameUI : MonoBehaviour
 {
-    [Header("Refs")]
-    public StageManager stage;
-    public BoardManager board;
-    public PlayerController player;
-    public TurnManager turn;
-
-    [Header("Buttons")]
-    public Button btnRotateL;
-    public Button btnRotateR;
-    public Button btnRangeToggle;
-    public Button btnVision;
-    public Button btnReset;
-    public Button btnPrev;
-    public Button btnNext;
-
-    [Header("Stage Select (optional)")]
-    public TMP_Dropdown stageDropdown; // TextMeshPro 推奨（なければ UnityEngine.UI.Dropdown でもOK）
-    public TMP_Text stageLabel;
+    public Button btnRotateL, btnRotateR, btnRangeToggle, btnReset;
+    StageManager stage; PlayerController player; TurnManager turn;
 
     void Awake()
     {
-        if (stage == null) stage = UnityCompat.FindFirst<StageManager>();
-        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
-        if (player == null) player = UnityCompat.FindFirst<PlayerController>();
-        if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
-
-        // ボタンイベント
-        if (btnRotateL) btnRotateL.onClick.AddListener(() => player?.UI_RotateCCW());
-        if (btnRotateR) btnRotateR.onClick.AddListener(() => player?.UI_RotateCW());
-        if (btnRangeToggle) btnRangeToggle.onClick.AddListener(() => player?.UI_ToggleAreaSize());
-        if (btnVision) btnVision.onClick.AddListener(() => player?.UI_ToggleVision());
-        if (btnReset) btnReset.onClick.AddListener(() => stage?.ReloadCurrent());
-        if (btnPrev) btnPrev.onClick.AddListener(() => { stage?.Prev(); RefreshStageUI(); });
-        if (btnNext) btnNext.onClick.AddListener(() => { stage?.Next(); RefreshStageUI(); });
-
-        if (stageDropdown)
-        {
-            stageDropdown.onValueChanged.AddListener((i) =>
-            {
-                if (stage == null) return;
-                stage.Load(i);
-                RefreshStageUI();
-            });
-        }
-
-        RefreshStageUI();
+        // ここでは結線だけ（参照はまだnullでもOK）
+        if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
+        if (btnRotateR) btnRotateR.onClick.AddListener(ActionRotateR);
+        if (btnRangeToggle) btnRangeToggle.onClick.AddListener(ActionToggleRange);
+        if (btnReset) btnReset.onClick.AddListener(ActionReset);
     }
 
-    void RefreshStageUI()
-    {
-        if (stage == null) return;
+    void OnEnable() { ResolveRefs(); }  // 画面に戻った時も掴み直す
 
-        var names = stage.GetAllNames();
-        if (stageDropdown)
-        {
-            stageDropdown.ClearOptions();
-            stageDropdown.AddOptions(new System.Collections.Generic.List<string>(names));
-            stageDropdown.value = Mathf.Clamp(stage.currentIndex, 0, Mathf.Max(0, names.Length - 1));
-            stageDropdown.RefreshShownValue();
-        }
-        if (stageLabel) stageLabel.text = stage.GetDisplayName();
+    void ResolveRefs()
+    {
+        if (!stage) stage = UnityCompat.FindFirst<StageManager>();
+        if (!player) player = UnityCompat.FindFirst<PlayerController>();
+        if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
+    }
+
+    void ActionRotateL() { ResolveRefs(); player?.UI_RotateCCW(); }
+    void ActionRotateR() { ResolveRefs(); player?.UI_RotateCW(); }
+    void ActionToggleRange() { ResolveRefs(); player?.UI_ToggleAreaSize(); }
+    void ActionReset() { UnityCompat.FindFirst<GameFlow>()?.HardReset(); }
+
+    void Update()
+    {
+        // Rキーでリセット
+        if (Input.GetKeyDown(KeyCode.R)) { ResolveRefs(); stage?.ReloadCurrent(); }
+
+        // 回転ボタンは「プレイヤーターン かつ エイム中」だけ有効
+        ResolveRefs();
+        bool canRotate = player && turn != null && turn.IsPlayerTurn() && player.IsAiming;
+        if (btnRotateL) btnRotateL.interactable = canRotate;
+        if (btnRotateR) btnRotateR.interactable = canRotate;
     }
 }

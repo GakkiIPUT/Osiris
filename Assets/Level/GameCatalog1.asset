@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd8232689dbe8df41b03763f963f589b, type: 3}
+  m_Name: GameCatalog1
+  m_EditorClassIdentifier: 
+  worlds:
+  - displayName: 1
+    stageSet: {fileID: 11400000, guid: 459b9260e84f1384c84e5533630a11d8, type: 2}
+  - displayName: 2
+    stageSet: {fileID: 11400000, guid: a2ba728d41605d849a0d326a3221ad7e, type: 2}

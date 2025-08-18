@@ -48,4 +48,15 @@ public class TurnManager : MonoBehaviour
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
         }
     }
+
+    public void ResetForRetry()
+    {
+        // private set のプロパティでも、クラス内部なら代入できます
+        gameOver = false;
+        cleared = false;
+
+        // 必要なら、ターンや一時停止系もここで初期化
+        // Time.timeScale = 1f;           // もし TurnManager が時間停止を管理しているなら
+        // currentState = State.Player;    // あなたの状態名に合わせて
+    }
 }

@@ -10,10 +10,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1465ba96c3675a84da6173010962c611, type: 3}
-  m_Name: StageSet
+  m_Name: StageSet2
   m_EditorClassIdentifier: 
-  stages:
-  - displayName: 1-1
-    asciiLevel: {fileID: 4900000, guid: 9d0ec58b3ae2d5043928f23c39fa48b3, type: 3}
-  - displayName: 1-10
-    asciiLevel: {fileID: 4900000, guid: 13c8d53ae215dd14b998d9802727b60e, type: 3}
+  stages: []

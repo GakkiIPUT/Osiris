@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class PlayerController : MonoBehaviour
 {
@@ -12,6 +13,22 @@ public class PlayerController : MonoBehaviour
     Vector2Int aimCenter;
 
     GameObject ghostRoot;
+
+    bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null) return false;
+
+        // マウス（PC）
+        if (EventSystem.current.IsPointerOverGameObject()) return true;
+
+        // タッチ（将来モバイル対応する場合の保険）
+        for (int i = 0; i < Input.touchCount; i++)
+            if (EventSystem.current.IsPointerOverGameObject(Input.GetTouch(i).fingerId))
+                return true;
+
+        return false;
+    }
+
 
     public void Init(BoardManager b, Vector2Int start)
     {
@@ -35,19 +52,18 @@ public class PlayerController : MonoBehaviour
             board.ToggleAllGuardVision();
         }
 
-        // クリックでエイム開始/更新
-        if (Input.GetMouseButtonDown(0))
+        // クリックでエイム開始/更新（UI上では無視）
+        if (Input.GetMouseButtonDown(0) && !IsPointerOverUI())
         {
-            Vector2Int g;
-            if (TryGetMouseGrid(out g))
+            if (TryGetMouseGrid(out var g))
             {
                 aiming = true;
                 aimCenter = g;
                 ShowGhost(true);
             }
         }
-        // 右クリック or Esc で解除
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
+        // 右クリック/ESCで解除（UI上では無視）
+        if ((Input.GetMouseButtonDown(1) && !IsPointerOverUI()) || Input.GetKeyDown(KeyCode.Escape))
         {
             aiming = false;
             ShowGhost(false);
@@ -77,18 +93,22 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // エイム中：Q/E or ホイールで回転実行（1手消費）
+        // エイム中：Q/E で回転実行（1手消費）
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {
             int dirRot = Input.GetKeyDown(KeyCode.Q) ? -1 : +1;
             TryRotate(dirRot);
         }
-        if (aiming && Input.mouseScrollDelta.y != 0f)
+        if (Input.mouseScrollDelta.y != 0f)
         {
-            int dirRot = Input.mouseScrollDelta.y > 0 ? +1 : -1;
-            TryRotate(dirRot);
+            // 上スクロールで5、下で3（お好みでトグルでもOK）
+            int target = Input.mouseScrollDelta.y > 0 ? 5 : 3;
+            if (areaSize != target)
+            {
+                areaSize = target;
+                if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
+            }
         }
-
         // エイム中はゴースト更新（OK/NG色）
         if (aiming) UpdateGhostVisual();
     }
@@ -188,20 +208,10 @@ public class PlayerController : MonoBehaviour
     }
 
     // === UI から呼ぶため ===
-public void UI_RotateCW()
-    {
-        if (turn == null || !turn.IsPlayerTurn()) return;
-        if (!aiming) { aimCenter = pos; aiming = true; ShowGhost(true); }
-        TryRotate(+1);
-    }
+    public bool IsAiming => aiming;
 
-    public void UI_RotateCCW()
-    {
-        if (turn == null || !turn.IsPlayerTurn()) return;
-        if (!aiming) { aimCenter = pos; aiming = true; ShowGhost(true); }
-        TryRotate(-1);
-    }
-
+    public void UI_RotateCW() { if (turn == null || !turn.IsPlayerTurn() || !aiming) return; TryRotate(+1); }
+    public void UI_RotateCCW() { if (turn == null || !turn.IsPlayerTurn() || !aiming) return; TryRotate(-1); }
     public void UI_ToggleAreaSize()
     {
         areaSize = (areaSize == 3) ? 5 : 3;

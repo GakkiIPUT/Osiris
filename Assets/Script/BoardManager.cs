@@ -638,6 +638,7 @@ public class BoardManager : MonoBehaviour
         pivotGO.transform.position = GridToWorld(center) + new Vector3(0, 0.05f, 0);
 
         List<GameObject> targets = new();
+
         int k = (size - 1) / 2;
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -653,7 +654,7 @@ public class BoardManager : MonoBehaviour
 
         float t = 0f, dur = 0.15f;
         Quaternion from = pivotGO.transform.rotation;
-        Quaternion to = Quaternion.AngleAxis(90f * dir, Vector3.up) * from; // ←アニメはこのままでOK
+        Quaternion to = Quaternion.AngleAxis(90f * dir, Vector3.up) * from;
         while (t < 1f)
         {
             t += Time.deltaTime / dur;
@@ -661,6 +662,7 @@ public class BoardManager : MonoBehaviour
             yield return null;
         }
 
+        // ====== タイルの新配置（既存） ======
         var newCells = new Dictionary<Vector2Int, CellType>();
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -671,8 +673,7 @@ public class BoardManager : MonoBehaviour
                 if (!InBounds(dest)) continue;
 
                 int gdir = -dir; // 配列側は符号反転
-
-                int sx, sy; // 逆写像（dest→src）
+                int sx, sy;      // 逆写像（dest→src）
                 if (gdir > 0) { sx = j; sy = size - 1 - i; } // 時計回り（配列）
                 else { sx = size - 1 - j; sy = i; } // 反時計（配列）
 
@@ -683,6 +684,45 @@ public class BoardManager : MonoBehaviour
                 newCells[dest] = after;
             }
 
+        // ====== アイテムの新配置（追加） ======
+        // 同じ逆写像を用いて、範囲内の itemAt を src→dest へ移す
+        var movedItems = new List<(Vector2Int from, Vector2Int to, GameObject go)>();
+        var newItemAt = new Dictionary<Vector2Int, GameObject>(itemAt);
+
+        for (int j = 0; j < size; j++)
+            for (int i = 0; i < size; i++)
+            {
+                int gx = center.x + i - k;
+                int gy = center.y + j - k;
+                var dest = new Vector2Int(gx, gy);
+                if (!InBounds(dest)) continue;
+
+                int gdir = -dir; // 配列側は符号反転
+                int sx, sy;      // 逆写像（dest→src）
+                if (gdir > 0) { sx = j; sy = size - 1 - i; }
+                else { sx = size - 1 - j; sy = i; }
+
+                int sgx = center.x - k + sx;
+                int sgy = center.y - k + sy;
+                var src = new Vector2Int(sgx, sgy);
+                if (!InBounds(src)) continue; // 盤外ソースからは来ない=現状維持
+
+                if (itemAt.TryGetValue(src, out var go) && go != null)
+                {
+                    movedItems.Add((src, dest, go));
+                }
+            }
+
+        // まとめて反映（to が被ったら後勝ち。必要ならマージ処理に変える）
+        foreach (var m in movedItems)
+        {
+            newItemAt.Remove(m.from);
+            newItemAt[m.to] = m.go;
+            m.go.transform.position = GridToWorldActor(m.to);
+        }
+        itemAt = newItemAt;
+
+        // ====== 既存のタイル再生成 ======
         foreach (var go in targets) SafeDestroy(go);
         SafeDestroy(pivotGO);
 
