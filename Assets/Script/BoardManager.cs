@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum CellType { Floor, Wall, Exit }
+public enum CellType { Floor, Wall, Exit, Anchor }
 
 [ExecuteAlways] // エディタでもプレビュー用に動かす
 public class BoardManager : MonoBehaviour
@@ -11,6 +11,7 @@ public class BoardManager : MonoBehaviour
     public GameObject pfFloor;
     public GameObject pfWall;
     public GameObject pfExit;
+    public GameObject pfAnchor;   // 回転不可マス（@）
     public GameObject pfPlayer;   // PlayerはAddComponentでPlayerController付与（Prefab側にあってもOK）
 
     // ===== Guard 種類のマッピング（記号 → Prefab） =====
@@ -49,7 +50,7 @@ public class BoardManager : MonoBehaviour
         new ItemType{ symbol="i", prefab=null, label="Item", previewColor = new Color(0.25f,1f,0.9f,1f) },
     };
 
-    public Transform itemsRoot; // アイテムの親
+    public Transform itemsRoot; // アイテムの親（未設定ならAwakeで作る）
 
     [Header("Ghost Materials (optional)")]
     public Material ghostOkMat;
@@ -83,7 +84,7 @@ public class BoardManager : MonoBehaviour
     public Color previewWall = new Color(0.20f, 0.20f, 0.20f, 1f);
     public Color previewExit = new Color(1.00f, 0.85f, 0.20f, 1f);
     public Color previewP = new Color(0.20f, 0.60f, 1.00f, 1f);
-    [HideInInspector] public Dictionary<Vector2Int, GameObject> itemAt = new Dictionary<Vector2Int, GameObject>();
+
     [Header("Level (ASCII)")]
     [TextArea(6, 20)]
     public string[] level = new string[]
@@ -115,7 +116,7 @@ public class BoardManager : MonoBehaviour
     public int Height => level.Length;
 
     public CellType[,] cells;
-    private GameObject[,] tileGOs;  // 1マス=1オブジェクト（Floor/Wall/Exit）
+    private GameObject[,] tileGOs;  // 1マス=1オブジェクト（Floor/Wall/Exit/Anchor）
 
     // ルート
     public Transform tilesRoot;
@@ -123,6 +124,9 @@ public class BoardManager : MonoBehaviour
 
     [HideInInspector] public PlayerController player;
     [HideInInspector] public List<GuardController> guards = new();
+
+    // ★ マップ上のアイテム：位置 → (記号, 実体)
+    public Dictionary<Vector2Int, (char sym, GameObject go)> itemAt = new();
 
     public bool IsAnimating { get; private set; }
 
@@ -160,7 +164,8 @@ public class BoardManager : MonoBehaviour
     public bool BlocksVision(Vector2Int p)
     {
         if (!InBounds(p)) return true;
-        return cells[p.y, p.x] == CellType.Wall;
+        var c = cells[p.y, p.x];
+        return (c == CellType.Wall || c == CellType.Anchor);
     }
 
     // 破棄ヘルパー：エディタ停止中は DestroyImmediate
@@ -278,7 +283,14 @@ public class BoardManager : MonoBehaviour
                     if (!string.IsNullOrEmpty(guardTypes[gi].symbol) && guardTypes[gi].symbol[0] == ch) { isGuardSymbol = true; break; }
                 }
 
-                if (isGuardSymbol)
+                // ItemType の記号も床扱い（実生成はBuildで）
+                bool isItemSymbol = false;
+                for (int ii = 0; ii < itemTypes.Count; ii++)
+                {
+                    if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch) { isItemSymbol = true; break; }
+                }
+
+                if (isGuardSymbol || isItemSymbol)
                 {
                     cells[y, x] = CellType.Floor;
                 }
@@ -289,6 +301,7 @@ public class BoardManager : MonoBehaviour
                         case '#': cells[y, x] = CellType.Wall; break;
                         case 'E': cells[y, x] = CellType.Exit; break;
                         case 'P': cells[y, x] = CellType.Floor; break; // プレイヤーの足元は床
+                        case '@': cells[y, x] = CellType.Anchor; break; // 回転不可マス
                         default: cells[y, x] = CellType.Floor; break;
                     }
                 }
@@ -296,10 +309,18 @@ public class BoardManager : MonoBehaviour
         }
     }
 
+    bool IsRotateLockedCell(Vector2Int p)
+    {
+        if (!InBounds(p)) return false;
+        var c = cells[p.y, p.x];
+        return (c == CellType.Exit || c == CellType.Anchor);
+    }
+
     void PlaceTile(CellType t, Vector2Int p)
     {
         GameObject prefab = (t == CellType.Wall) ? pfWall :
-                            (t == CellType.Exit) ? pfExit : pfFloor;
+                            (t == CellType.Exit) ? pfExit :
+                            (t == CellType.Anchor) ? pfAnchor : pfFloor;
         var go = Instantiate(prefab, GridToWorld(p), Quaternion.identity, tilesRoot);
         go.name = $"{t}_{p.x}_{p.y}";
         tileGOs[p.y, p.x] = go;
@@ -348,6 +369,9 @@ public class BoardManager : MonoBehaviour
         var guardSpawns = new List<(Vector2Int pos, GuardType type)>();
         var itemSpawns = new List<(Vector2Int pos, ItemType type)>();
 
+        // ★ 上部UI用：このマップに存在するアイテムを「左→右→次の行…」で列挙
+        var requiredSymbols = new List<char>();
+
         for (int y = 0; y < h; y++)
         {
             var row = level[y];
@@ -371,12 +395,13 @@ public class BoardManager : MonoBehaviour
                         break;
                     }
                 }
-                // アイテム
+                // アイテム（記号→ItemType解決）＋ 並び順に記録
                 for (int ii = 0; ii < itemTypes.Count; ii++)
                 {
                     if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
                     {
                         itemSpawns.Add((p, itemTypes[ii]));
+                        requiredSymbols.Add(itemTypes[ii].symbol[0]); // ★ 上部UI表示用に順序そのまま記録
                         break;
                     }
                 }
@@ -427,15 +452,24 @@ public class BoardManager : MonoBehaviour
             var go = Instantiate(it.type.prefab, GridToWorld(it.pos), Quaternion.identity, itemsRoot);
             go.name = $"Item_{it.pos.x}_{it.pos.y}_{it.type.symbol}";
             AutoAlign2DObject(go, true /*見た目少し浮かす*/, new Vector2(0.8f, 0.8f)); // 見た目縮小は好みで
-            itemAt[it.pos] = go;
+
+            // ★ 位置 → (記号, 実体) を保存（拾得とUI更新に使う）
+            itemAt[it.pos] = (it.type.symbol[0], go);
         }
 
-        // TurnManager（未存在なら生成）
-        if (UnityCompat.FindFirst<TurnManager>() == null)
+        // TurnManager（未存在なら生成）＋収集UIへ「このマップの全アイテム並び」を渡す
+        var tm = UnityCompat.FindFirst<TurnManager>();
+        if (tm == null)
         {
-            var tm = new GameObject("TurnManager").AddComponent<TurnManager>();
+            tm = new GameObject("TurnManager").AddComponent<TurnManager>();
             tm.board = this;
         }
+        else
+        {
+            tm.board = this; // 念のため再割当て
+        }
+        tm.ResetGoalState();
+        tm.InitRequiredItems(requiredSymbols);
 
         // カメラ追従
         var camFollow = UnityCompat.FindFirst<CameraFollow>();
@@ -446,20 +480,27 @@ public class BoardManager : MonoBehaviour
             camFollow.Snap();
         }
 
+        // 生成後に視界可視化を更新
         RefreshAllGuardVision();
     }
-    // プレイヤーが p を踏んだときに呼ぶ
-    public bool TryPickup(Vector2Int p)
+
+    // プレイヤーが p を踏んだときに呼ぶ（アイテム取得してUI更新）
+    public bool TryPickupItemAt(Vector2Int p)
     {
-        if (itemAt.TryGetValue(p, out var go) && go != null)
+        if (itemAt.TryGetValue(p, out var t) && t.go != null)
         {
             itemAt.Remove(p);
-            SafeDestroy(go);      // エディタ/実行の両対応破棄
-      // TODO: SEやエフェクト、インベントリ加算などはここで
+            SafeDestroy(t.go); // エディタ/実行の両対応破棄
+
+            // ★ TurnManagerへ「この記号を1つ取得」と通知（左から不透明化）
+            var turn = UnityCompat.FindFirst<TurnManager>();
+            if (turn != null) turn.OnItemPicked(t.sym);
+
             return true;
         }
         return false;
     }
+
     // ========= エディタプレビュー描画（GameObject生成なし） =========
     void OnDrawGizmos()
     {
@@ -521,7 +562,7 @@ public class BoardManager : MonoBehaviour
             }
         }
 
-        // 各 Item 記号のマーカー（四角ドットに戻す）
+        // 各 Item 記号のマーカー（四角ドット）
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
@@ -557,9 +598,7 @@ public class BoardManager : MonoBehaviour
     public RotatePreview GetPreview(Vector2Int center, int size)
     {
         var res = new RotatePreview { valid = false, area = new List<Vector2Int>() };
-        int k = (size - 1) / 2;
-        bool hasAnyInBounds = false;
-        bool hasExit = false;
+        int k = (size - 1) / 2; bool hasAnyIn = false;
         for (int dy = -k; dy <= k; dy++)
             for (int dx = -k; dx <= k; dx++)
             {
@@ -567,19 +606,18 @@ public class BoardManager : MonoBehaviour
                 res.area.Add(p);
                 if (InBounds(p))
                 {
-                    hasAnyInBounds = true;
-                    if (cells[p.y, p.x] == CellType.Exit) hasExit = true; // Exit含むと回転禁止
+                    hasAnyIn = true;
+                    if (IsRotateLockedCell(p)) return res; // ★NG即返し（Exit/@含む）
                 }
             }
-        if (!hasAnyInBounds) return res;
-        if (hasExit) return res;
-
+        if (!hasAnyIn) return res;
         bool safeCW = WouldBeSafePartial(center, size, +1);
         bool safeCCW = WouldBeSafePartial(center, size, -1);
         res.valid = safeCW && safeCCW;
         return res;
     }
 
+    // 回転後にプレイヤー/衛兵位置へWallが来ないか（部分回転対応）
     bool WouldBeSafePartial(Vector2Int center, int size, int dir)
     {
         int k = (size - 1) / 2;
@@ -595,7 +633,7 @@ public class BoardManager : MonoBehaviour
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            int gdir = -dir; // 配列側は符号反転
+            int gdir = -dir; // 配列側は符号反転（見た目と逆）
 
             int sx, sy;
             if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 時計回り（配列）
@@ -662,7 +700,7 @@ public class BoardManager : MonoBehaviour
             yield return null;
         }
 
-        // ====== タイルの新配置（既存） ======
+        // ====== タイルの新配置 ======
         var newCells = new Dictionary<Vector2Int, CellType>();
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -684,10 +722,9 @@ public class BoardManager : MonoBehaviour
                 newCells[dest] = after;
             }
 
-        // ====== アイテムの新配置（追加） ======
-        // 同じ逆写像を用いて、範囲内の itemAt を src→dest へ移す
-        var movedItems = new List<(Vector2Int from, Vector2Int to, GameObject go)>();
-        var newItemAt = new Dictionary<Vector2Int, GameObject>(itemAt);
+        // ====== アイテムの新配置（記号も保持して移動） ======
+        var movedItems = new List<(Vector2Int from, Vector2Int to, (char sym, GameObject go) it)>();
+        var newItemAt = new Dictionary<Vector2Int, (char sym, GameObject go)>(itemAt);
 
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -707,9 +744,9 @@ public class BoardManager : MonoBehaviour
                 var src = new Vector2Int(sgx, sgy);
                 if (!InBounds(src)) continue; // 盤外ソースからは来ない=現状維持
 
-                if (itemAt.TryGetValue(src, out var go) && go != null)
+                if (itemAt.TryGetValue(src, out var it) && it.go != null)
                 {
-                    movedItems.Add((src, dest, go));
+                    movedItems.Add((src, dest, it));
                 }
             }
 
@@ -717,8 +754,8 @@ public class BoardManager : MonoBehaviour
         foreach (var m in movedItems)
         {
             newItemAt.Remove(m.from);
-            newItemAt[m.to] = m.go;
-            m.go.transform.position = GridToWorldActor(m.to);
+            newItemAt[m.to] = m.it;
+            if (m.it.go) m.it.go.transform.position = GridToWorldActor(m.to);
         }
         itemAt = newItemAt;
 
@@ -732,7 +769,8 @@ public class BoardManager : MonoBehaviour
             cells[p.y, p.x] = kv.Value;
             var go2 = Instantiate(
                 (cells[p.y, p.x] == CellType.Wall) ? pfWall :
-                (cells[p.y, p.x] == CellType.Exit) ? pfExit : pfFloor,
+                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
+                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
                 GridToWorld(p), Quaternion.identity, tilesRoot);
             go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
             AutoAlign2DObject(go2, false);
@@ -744,7 +782,7 @@ public class BoardManager : MonoBehaviour
         onDone?.Invoke();
     }
 
-    // =========== LoS ===========
+    // =========== LoS（角抜け防止のsupercover版） ===========
     public bool HasLineOfSight(Vector2Int from, Vector2Int to)
     {
         int x0 = from.x, y0 = from.y, x1 = to.x, y1 = to.y;
@@ -790,7 +828,6 @@ public class BoardManager : MonoBehaviour
     public void RefreshAllGuardVision()
     {
 #if UNITY_EDITOR
-        if (!Application.isPlaying) { } // 実害なしの置き忘れ防止
         if (!Application.isPlaying) return; // エディタでは作らない（Hierarchy汚さない）
 #endif
         foreach (var g in guards)

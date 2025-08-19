@@ -82,17 +82,21 @@ public class PlayerController : MonoBehaviour
             {
                 pos = np;
                 transform.position = board.GridToWorldActor(pos);
-                board.TryPickup(pos);
-                // クリア判定
+
+                // ★ 足元のアイテムを拾う
+                board.TryPickupItemAt(pos);
+
+                // ★ Exit なら“全回収済みか”でクリア判定
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
-                    turn.TriggerClear();
+                    var turn = UnityCompat.FindFirst<TurnManager>();
+                    if (turn != null) turn.TryClearAtExit();
                 }
+
                 turn.EndPlayerTurn();
                 return;
             }
         }
-
         // エイム中：Q/E で回転実行（1手消費）
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {

@@ -1813,6 +1813,7 @@ MonoBehaviour:
   pfFloor: {fileID: 6402523551426997718, guid: 371d710c378a7f94195ec2fdd42f3eac, type: 3}
   pfWall: {fileID: 6402523551426997718, guid: 1617e76d261af654f9dd54d4cf697ab7, type: 3}
   pfExit: {fileID: 6402523551426997718, guid: 2800085f3445866448e6d5600ba24207, type: 3}
+  pfAnchor: {fileID: 6402523551426997718, guid: 4de17f9bdb0f776408540b6c16ec732e, type: 3}
   pfPlayer: {fileID: 4622758450830481564, guid: fbe1a31f2aaa6654da2f5fcf64ffd4fb, type: 3}
   guardTypes:
   - symbol: G
@@ -1874,19 +1875,56 @@ MonoBehaviour:
   previewExit: {r: 0.19999999, g: 0.6331078, b: 1, a: 1}
   previewP: {r: 1, g: 1, b: 1, a: 1}
   level:
-  - '##################################'
-  - '#P....#..i#...........#..........#'
-  - '#.....#...#..G........#...H..l...#'
-  - '#.....#...#..........##...G......#'
-  - '#.....#..L#...#####....#......#..#'
-  - '#.....#...#...#j..#....#..#I..#..#'
-  - '#.....###.#...###.###..#..###.#..#'
-  - '#...G.#...#...#K..#....#....G.#..#'
-  - '#.....#...#...#####....#.........#'
-  - '#.....#...#..........##.....E....#'
-  - '#.....#...#..G.......#........H..#'
-  - '#H...............#...............#'
-  - '##################################'
+  - .......................#...............wwwwwwwwwww
+  - .......................#..................w.w.w...
+  - .......................#........................w.
+  - ............G..........#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - ..................G....#..........................
+  - .............E.........#..........................
+  - .......................#..............E...........
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..i..j..k..l..............
+  - .......................#..........................
+  - .......................#..i..j..k..l..............
+  - .......................#..........................
+  - .......................#..i..j..k..l..............
+  - w......................#..........................
+  - w......................#..i..j..k..l..............
+  - .......................#..........................
+  - w.............@........#@@@.......................
+  - .w............@E.......#.....@....................
+  - .w............@........@.....@....................
+  - .w............@........@P...E@....................
+  - .w.....................@@@@@######################
+  - .......................@......#....#....#....#....
+  - .w.....................#..I.J.#..H.#..K.#.L..#....
+  - .ww..............E.....#...E..#..G.#....#....#....
+  - ...............@@@@....##@@@@@################....
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - ..........E............#..........................
+  - .......................#.............E............
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
+  - .......................#..........................
   previewY: 0.0001
   visionY: 0.0002
   tilesRoot: {fileID: 114234969}
@@ -2027,6 +2065,7 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 2034643271}
   - {fileID: 1792733887}
   - {fileID: 1990025452}
   - {fileID: 425631213}
@@ -2956,6 +2995,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3008afa2241fe0640943b34e2289daa5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  turn: {fileID: 0}
 --- !u!4 &1402713487
 Transform:
   m_ObjectHideFlags: 0
@@ -4128,6 +4168,100 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!1 &2034643270
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2034643271}
+  - component: {fileID: 2034643272}
+  - component: {fileID: 2034643273}
+  m_Layer: 5
+  m_Name: RequiredItemsBar
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &2034643271
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034643270}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 977650116}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -180}
+  m_SizeDelta: {x: 1000, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &2034643272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034643270}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebf1cc4f36425024ea65ac3c91529448, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  container: {fileID: 2034643271}
+  iconPrefab: {fileID: 8193571484458128685, guid: f89e877920f9c884092c9fbdc5d5193a, type: 3}
+  icons:
+  - symbol: 105
+    sprite: {fileID: 21300000, guid: 56b4d993fd1d2234e88e682164983ff0, type: 3}
+    label: bangles
+  - symbol: 106
+    sprite: {fileID: 21300000, guid: 73863d890ded76f4f9d90d8d2e1aedad, type: 3}
+    label: earring
+  - symbol: 107
+    sprite: {fileID: 21300000, guid: 8c32d313ef53a274d808b9aa907e77d7, type: 3}
+    label: jewely
+  - symbol: 108
+    sprite: {fileID: 21300000, guid: 946ecacf36669394f8c28e5cfeae2edc, type: 3}
+    label: wand
+  fallbackSprite: {fileID: 21300000, guid: ca789ae9867c15d40ab758ea5e3ed48d, type: 3}
+  uncollectedAlpha: 0.35
+  groupGap: 16
+  iconPreferredSize: 56
+--- !u!114 &2034643273
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034643270}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30649d3a9faa99c48a7b1166b86bf2a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Padding:
+    m_Left: 0
+    m_Right: 0
+    m_Top: 0
+    m_Bottom: 0
+  m_ChildAlignment: 0
+  m_Spacing: 0
+  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandHeight: 1
+  m_ChildControlWidth: 0
+  m_ChildControlHeight: 0
+  m_ChildScaleWidth: 0
+  m_ChildScaleHeight: 0
+  m_ReverseArrangement: 0
 --- !u!1 &2137398841
 GameObject:
   m_ObjectHideFlags: 0

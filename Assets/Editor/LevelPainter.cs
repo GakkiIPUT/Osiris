@@ -73,6 +73,7 @@ public class LevelPainter : EditorWindow
                 if (ToggleBrush('#', "2 Wall (#)")) { }
                 if (ToggleBrush('E', "3 Exit (E)")) { }
                 if (ToggleBrush('P', "4 Player (P)")) { }
+                if (ToggleBrush('@', "5 Anchor (@)")) { }
             }
         }
 
