@@ -122,6 +122,8 @@ public class RequiredItemsUI : MonoBehaviour
 
         if (list == null || list.Count == 0) return;
 
+        AddFlexibleSpacer("LeftFlex");
+
         // 1) 集計：total / collected / firstIndex（初出順で並べる）
         var total = new Dictionary<char, int>();
         var collected = new Dictionary<char, int>();
@@ -175,8 +177,19 @@ public class RequiredItemsUI : MonoBehaviour
                 SetAlpha(go, (i < got) ? 1f : uncollectedAlpha);
             }
         }
-    }
 
+        AddFlexibleSpacer("RightFlex");
+
+    }
+    void AddFlexibleSpacer(string name)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(LayoutElement));
+        go.transform.SetParent(container, false);
+        var le = go.GetComponent<LayoutElement>();
+        le.minWidth = 0f;
+        le.preferredWidth = 0f;
+        le.flexibleWidth = 1f; // 残り幅を等分で吸収
+    }
     void SetAlpha(GameObject go, float a)
     {
         foreach (var g in go.GetComponentsInChildren<Graphic>(true))

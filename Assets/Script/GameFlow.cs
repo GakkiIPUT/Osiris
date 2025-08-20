@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameFlow : MonoBehaviour
 {
@@ -15,9 +16,17 @@ public class GameFlow : MonoBehaviour
     public Button toMenuButton;
 
     [Header("Clear (Goal)")]
-    public GameObject clearPanel;           // ← 追加
-    public Button clearToStageButton;       // ← 追加
-    public bool pauseOnClear = true;        // ← 追加
+    public GameObject clearPanel;
+    public Button clearToStageButton;
+    public bool pauseOnClear = true;
+
+    [Header("Clear Result (optional)")]
+    [Tooltip("想定回転（パー）: ステージ毎に調整")]
+    public int parRot = 6;
+    public TMP_Text rankText;          // 例: "S"
+    public TMP_Text scoreText;         // 例: "92"
+    public TMP_Text detailRotText;     // 例: "回転 8 / 6（+2）"
+    public TMP_Text detailRetryText;   // 例: "リトライ 1"
 
     StageManager stage;
     TurnManager turn;
@@ -26,24 +35,54 @@ public class GameFlow : MonoBehaviour
     {
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
+
+        // ステージロード（StageManager 側が Board/Turn を生成）
+        if (gs != null && stage != null)
+        {
+            var world = gs.catalog.worlds[gs.worldIndex];
+            stage.stageSet = world.stageSet;
+            stage.Load(gs.stageIndex);
+        }
+
+        // 参照を取る（Load の直後なら同期的に見つかる想定）
         turn = UnityCompat.FindFirst<TurnManager>();
 
-        var world = gs.catalog.worlds[gs.worldIndex];
-        stage.stageSet = world.stageSet;
-        stage.Load(gs.stageIndex);
-
-        // 初期は非表示（SetActiveのみ）
+        // まず全パネル非表示
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
 
+        // ボタン配線
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
 
-        if (retryButton) retryButton.onClick.AddListener(HardReset);
+        if (retryButton) retryButton.onClick.AddListener(RequestRetry);
         if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoMain(); });
 
         if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
+
+        // TurnManager イベント購読 & カウンタ初期化
+        HookTurnManager();
+    }
+
+    void OnDestroy()
+    {
+        if (turn != null)
+        {
+            turn.onStageCleared -= OnStageCleared;
+        }
+    }
+
+    void HookTurnManager()
+    {
+        if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
+        if (turn != null)
+        {
+            turn.onStageCleared -= OnStageCleared;
+            turn.onStageCleared += OnStageCleared;
+            // ステージ開始時にスコアカウンタをクリア
+            turn.ResetScoreCounters();
+        }
     }
 
     void Update()
@@ -67,7 +106,7 @@ public class GameFlow : MonoBehaviour
             if (!isOver && gameOverPanel.activeSelf) gameOverPanel.SetActive(false);
         }
 
-        // Clear オーバーレイ（ここで自動遷移はしない）
+        // Clear オーバーレイ（自動遷移はしない）
         if (clearPanel)
         {
             if (isClear && !clearPanel.activeSelf)
@@ -82,12 +121,22 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    // ---- 表示/非表示（SetActive + 最前面化） ----
+    // ==== クリア結果の受取 ====
+    void OnStageCleared(TurnManager.ScoreResult res)
+    {
+        // 表示（Textは未割当なら無視）
+        if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
+        //if (scoreText) scoreText.text = $"スコア： {res.score.ToString()}点"; 
+        if (detailRotText) detailRotText.text = $"回転数： {res.rot}回";
+        if (detailRetryText) detailRetryText.text = $"リトライ数： {res.retries}回";
+    }
+
+    // ==== UIユーティリティ ====
     void ShowOnTop(GameObject panel)
     {
         panel.SetActive(true);
         panel.transform.SetAsLastSibling();
-        // （別Canvasに置いた場合は、そのCanvas.sortingOrder をHUDより上に）
+        // ※ 別Canvasなら sortingOrder を HUD より上にしてください
     }
 
     void OpenEscMenu()
@@ -108,12 +157,18 @@ public class GameFlow : MonoBehaviour
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
-    public void HardReset()
+    // ==== リトライ：ここ経由に統一 ====
+    public void RequestRetry()
     {
         ResumeIfPaused();
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
+
+        // リトライ回数を加算
+        if (turn != null) turn.RegisterRetry();
+
+        // あなたのゲーム再読み込みルート
         SceneNavigator.GoGame();
     }
 }

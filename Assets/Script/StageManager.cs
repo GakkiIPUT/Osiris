@@ -15,41 +15,57 @@ public class StageManager : MonoBehaviour
 
     public void Load(int index)
     {
-        if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0) return;
+        if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0)
+        {
+            Debug.LogError("StageManager.Load: stageSet is not assigned or empty.");
+            return;
+        }
+
+        // 安全にクランプして currentIndex を更新
         currentIndex = Mathf.Clamp(index, 0, stageSet.stages.Count - 1);
 
         var entry = stageSet.stages[currentIndex];
-        var rows = ParseAscii(entry.asciiLevel);
-        if (rows != null && rows.Length > 0)
+
+        // Board参照を確保（見つかったらキャッシュ）
+        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+        if (board == null)
         {
-            board.SetLevel(rows); // BoardManagerがBuildまで面倒を見ます
+            Debug.LogError("BoardManager not found.");
+            return;
         }
+
+        // TextAsset から直接読み込み
+        if (entry.mapTxt != null)
+        {
+            board.SetLevelFromText(entry.mapTxt.text, rebuild: true);
+        }
+        else
+        {
+            Debug.LogWarning($"Stage '{entry.id}' has no mapTxt assigned. Using existing BoardManager.level.");
+            board.Build();
+        }
+
+        // parRot を GameFlow に反映（任意）
+        var gf = UnityCompat.FindFirst<GameFlow>();
+        if (gf != null) gf.parRot = entry.parRot;
     }
 
     public void ReloadCurrent() => Load(currentIndex);
     public void Next() => Load(currentIndex + 1);
     public void Prev() => Load(currentIndex - 1);
 
-    public string GetDisplayName()
+    public string Getid()
     {
         if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0) return "-";
-        return stageSet.stages[Mathf.Clamp(currentIndex, 0, stageSet.stages.Count - 1)].displayName;
+        return stageSet.stages[Mathf.Clamp(currentIndex, 0, stageSet.stages.Count - 1)].id;
     }
 
     public string[] GetAllNames()
     {
         if (stageSet == null || stageSet.stages == null) return new string[0];
-        return stageSet.stages.Select(s => s.displayName).ToArray();
+        return stageSet.stages.Select(s => s.id).ToArray();
     }
 
-    static string[] ParseAscii(TextAsset ta)
-    {
-        if (ta == null) return null;
-        var lines = ta.text
-            .Replace("\r", "")
-            .Split('\n')
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .ToArray();
-        return lines;
-    }
+    // 旧Ascii読みは不要になったので使わない（残すなら staticユーティリティとしてどうぞ）
+    // static string[] ParseAscii(TextAsset ta) { ... }
 }

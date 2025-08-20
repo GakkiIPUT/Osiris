@@ -8,14 +8,14 @@ public class GameUI : MonoBehaviour
 
     void Awake()
     {
-        // ここでは結線だけ（参照はまだnullでもOK）
+        // ボタン配線
         if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
         if (btnRotateR) btnRotateR.onClick.AddListener(ActionRotateR);
         if (btnRangeToggle) btnRangeToggle.onClick.AddListener(ActionToggleRange);
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
     }
 
-    void OnEnable() { ResolveRefs(); }  // 画面に戻った時も掴み直す
+    void OnEnable() { ResolveRefs(); }  // 画面復帰時も参照掴み直し
 
     void ResolveRefs()
     {
@@ -27,16 +27,28 @@ public class GameUI : MonoBehaviour
     void ActionRotateL() { ResolveRefs(); player?.UI_RotateCCW(); }
     void ActionRotateR() { ResolveRefs(); player?.UI_RotateCW(); }
     void ActionToggleRange() { ResolveRefs(); player?.UI_ToggleAreaSize(); }
-    void ActionReset() { UnityCompat.FindFirst<GameFlow>()?.HardReset(); }
+
+    void ActionReset()
+    {
+        ResolveRefs();
+        var gf = UnityCompat.FindFirst<GameFlow>();
+        if (gf != null) gf.RequestRetry();
+        else stage?.ReloadCurrent(); // フォールバック（カウントは増えない）
+    }
 
     void Update()
     {
-        // Rキーでリセット
-        if (Input.GetKeyDown(KeyCode.R)) { ResolveRefs(); stage?.ReloadCurrent(); }
+        // Rキーでリセット：カウントを正しく増やすため RequestRetry に統一
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            var gf = UnityCompat.FindFirst<GameFlow>();
+            if (gf != null) gf.RequestRetry();
+            else stage?.ReloadCurrent(); // フォールバック
+        }
 
         // 回転ボタンは「プレイヤーターン かつ エイム中」だけ有効
         ResolveRefs();
-        bool canRotate = player && turn != null && turn.IsPlayerTurn() && player.IsAiming;
+        bool canRotate = (player && turn != null && turn.IsPlayerTurn() && player.IsAiming);
         if (btnRotateL) btnRotateL.interactable = canRotate;
         if (btnRotateR) btnRotateR.interactable = canRotate;
     }

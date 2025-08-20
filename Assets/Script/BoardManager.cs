@@ -776,10 +776,53 @@ public class BoardManager : MonoBehaviour
             AutoAlign2DObject(go2, false);
             tileGOs[p.y, p.x] = go2;
         }
+        var tm = UnityCompat.FindFirst<TurnManager>();
+        tm?.RegisterRotation();
 
         IsAnimating = false;
         RefreshAllGuardVision();
         onDone?.Invoke();
+    }
+
+    public void SetLevelFromText(string text, bool rebuild = true)
+    {
+        level = ParseRows(text);
+        level = NormalizeRows(level, pad: '.');
+        if (rebuild) Build();
+    }
+    static string[] NormalizeRows(string[] rows, char pad = '.')
+    {
+        if (rows == null || rows.Length == 0) return new string[0];
+        int w = 0;
+        for (int i = 0; i < rows.Length; i++)
+            w = Mathf.Max(w, rows[i].Length);
+
+        var outRows = new string[rows.Length];
+        for (int y = 0; y < rows.Length; y++)
+        {
+            var s = rows[y];
+            if (s.Length == w) { outRows[y] = s; continue; }
+            // 足りないぶんを床('.')でパディング（右側）
+            if (s.Length < w) outRows[y] = s + new string(pad, w - s.Length);
+            else outRows[y] = s.Substring(0, w); // 長すぎる場合は右端をカット
+        }
+        return outRows;
+    }
+    // 改行コードや空行トリムに強い行分割
+    public static string[] ParseRows(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return new string[0];
+        text = text.Replace("\r", "");
+        var lines = text.Split('\n');
+        var rows = new List<string>(lines.Length);
+
+        foreach (var raw in lines)
+        {
+            var s = raw.TrimEnd();            // 末尾スペース除去（行長の不揃い対策）
+            if (s.Length == 0) continue;      // 空行はスキップ（お好みで残してもOK）
+            rows.Add(s);
+        }
+        return rows.ToArray();
     }
 
     // =========== LoS（角抜け防止のsupercover版） ===========

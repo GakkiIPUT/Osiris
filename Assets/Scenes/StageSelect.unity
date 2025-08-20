@@ -203,10 +203,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 342414178}
+  - component: {fileID: 342414179}
   - component: {fileID: 342414177}
   - component: {fileID: 342414176}
   - component: {fileID: 342414175}
-  - component: {fileID: 342414179}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -317,11 +317,10 @@ MonoBehaviour:
   backToMainButton: {fileID: 1559124640}
   columns: 2
   spacing: {x: 24, y: 24}
-  padding:
-    m_Left: 0
-    m_Right: 0
-    m_Top: 0
-    m_Bottom: 0
+  padLeft: 16
+  padRight: 16
+  padTop: 16
+  padBottom: 16
   minCellW: 0
   minCellH: 0
 --- !u!1 &391000841
@@ -382,10 +381,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 8
+  m_text: 
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
+  m_sharedMaterial: {fileID: -7786892333198751292, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -478,11 +477,10 @@ MonoBehaviour:
   backToMainButton: {fileID: 1559124640}
   columns: 2
   spacing: {x: 24, y: 24}
-  padding:
-    m_Left: 0
-    m_Right: 0
-    m_Top: 0
-    m_Bottom: 0
+  padLeft: 16
+  padRight: 16
+  padTop: 16
+  padBottom: 16
   minCellW: 0
   minCellH: 0
 --- !u!1 &616062728
@@ -1138,8 +1136,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: buck
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
+  m_sharedMaterial: {fileID: -7786892333198751292, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []

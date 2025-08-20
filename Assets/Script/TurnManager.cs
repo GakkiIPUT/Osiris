@@ -1,133 +1,211 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class TurnManager : MonoBehaviour
 {
-    public BoardManager board;
-    bool playerTurn = true;
+    [Header("Board Reference")]
+    public BoardManager board; // BoardManager.Build() 側で代入される想定
+
+    // ======= ターン/状態 =======
     public bool gameOver { get; private set; }
     public bool cleared { get; private set; }
 
-    public bool IsPlayerTurn() => playerTurn && !board.IsAnimating && !gameOver && !cleared;
+    bool playerTurn = true;
+    bool runningGuards = false;
+
+    // ======= スコア用カウンタ（サイズ差なし） =======
+    [Header("Score Counters")]
+    public int rotCount { get; private set; } // 成功した回転回数のみ加算
+    public int retryCount { get; private set; } // リトライボタン/キー操作で加算
+
+    public void ResetScoreCounters()
+    {
+        rotCount = 0;
+        retryCount = 0;
+    }
+    public void RegisterRotation() => rotCount++;
+    public void RegisterRetry() => retryCount++;
+
+    // ======= 必須アイテム（全回収でゴール可） =======
+    [Serializable]
+    public struct RequiredItem
+    {
+        public char sym;        // 記号（i/j/k/l...将来増えてもOK）
+        public bool collected;  // 取得済み
+    }
+
+    // 必須アイテムのフラット配列（重複あり）
+    readonly List<RequiredItem> required = new List<RequiredItem>();
+    public IReadOnlyList<RequiredItem> CurrentRequired => required;
+
+    // UIへ更新を通知
+    public event Action<IReadOnlyList<RequiredItem>> onRequiredChanged;
+
+    // クリア結果（スコア/ランク）
+    public struct ScoreResult
+    {
+        public int score;
+        public char rank;
+        public int rot;
+        public int parRot;
+        public int overRot;
+        public int retries;
+    }
+    // クリアイベント（GameFlow が購読してUI表示に使う）
+    public event Action<ScoreResult> onStageCleared;
+
+    // GameOverイベント（必要ならUI側で購読）
+    public event Action onGameOver;
+
+    void Start()
+    {
+        // BoardManager から代入されていない場合に備え
+        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+        playerTurn = true;
+        gameOver = false;
+        cleared = false;
+    }
+
+    // ======= ターン制制御 =======
+    public bool IsPlayerTurn()
+    {
+        // 盤回転アニメ中などは入力抑制
+        if (gameOver || cleared) return false;
+        if (board != null && board.IsAnimating) return false;
+        return playerTurn && !runningGuards;
+    }
 
     public void EndPlayerTurn()
     {
-        if (!playerTurn || gameOver || cleared) return;
+        if (gameOver || cleared) return;
+        if (runningGuards) return;
+        StartCoroutine(GuardsTurnCoro());
+    }
+
+    IEnumerator GuardsTurnCoro()
+    {
+        runningGuards = true;
         playerTurn = false;
-        StartCoroutine(GuardsPhase());
-    }
+        yield return null; // フレームまたぎで安定
 
-    IEnumerator GuardsPhase()
-    {
-        var guards = board.guards;
-        foreach (var g in guards)
+        if (board != null)
         {
-            g.DoTurn(); // 1歩
-            yield return new WaitForSeconds(0.05f);
-            if (gameOver) yield break;
+            // ガードの行動（順不同・単純に直列）
+            var guards = board.guards;
+            for (int i = 0; i < guards.Count; i++)
+            {
+                if (gameOver || cleared) break;
+                var g = guards[i];
+                if (g == null) continue;
+                g.DoTurn();
+                // 演出を入れるなら適宜 yield return null;
+            }
         }
-        yield return new WaitForSeconds(0.05f);
-        playerTurn = true;
+
+        runningGuards = false;
+        if (!gameOver && !cleared) playerTurn = true;
     }
 
-    public void TriggerGameOver()
-    {
-        if (!gameOver && !cleared) gameOver = true;
-    }
-
-    public void TriggerClear()
-    {
-        if (!cleared && !gameOver) cleared = true;
-    }
-
-    void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            UnityEngine.SceneManagement.SceneManager.LoadScene(
-                UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-        }
-    }
-
-    public void ResetForRetry()
-    {
-        // private set のプロパティでも、クラス内部なら代入できます
-        gameOver = false;
-        cleared = false;
-
-        // 必要なら、ターンや一時停止系もここで初期化
-        // Time.timeScale = 1f;           // もし TurnManager が時間停止を管理しているなら
-        // currentState = State.Player;    // あなたの状態名に合わせて
-    }
-
-    // === 収集ゴール用 ===
-    public struct RequiredItem
-    {
-        public char sym;       // 記号（例：i/j/k/l）
-        public bool collected; // 左から順に点灯
-    }
-
-    readonly List<RequiredItem> required = new();   // 表示順そのまま
-
-    public IReadOnlyList<RequiredItem> CurrentRequired => required;
-
-    public System.Action<IReadOnlyList<RequiredItem>> onRequiredChanged; // UIへ通知
-
+    // ======= アイテム関連 =======
     public void ResetGoalState()
     {
         required.Clear();
-        cleared = false;
-        gameOver = false;
         NotifyRequired();
     }
 
-    // マップ解析結果（左→右→次の行…の順）で呼ぶ
-    public void InitRequiredItems(IList<char> symbolsInOrder)
+    // BoardManager.Build() から初期化
+    public void InitRequiredItems(IReadOnlyList<char> symbolsInReadingOrder)
     {
         required.Clear();
-        if (symbolsInOrder != null)
+        if (symbolsInReadingOrder != null)
         {
-            for (int i = 0; i < symbolsInOrder.Count; i++)
-                required.Add(new RequiredItem { sym = symbolsInOrder[i], collected = false });
+            for (int i = 0; i < symbolsInReadingOrder.Count; i++)
+            {
+                required.Add(new RequiredItem { sym = symbolsInReadingOrder[i], collected = false });
+            }
         }
         NotifyRequired();
     }
 
-    // アイテム取得時：同じ記号の「未収集の一番左」を点灯
+    // プレイヤーがアイテム記号 sym を取得したときに呼ぶ
     public void OnItemPicked(char sym)
     {
         for (int i = 0; i < required.Count; i++)
         {
             if (required[i].sym == sym && !required[i].collected)
             {
-                var e = required[i]; e.collected = true; required[i] = e;
-                break;
+                var ri = required[i];
+                ri.collected = true;
+                required[i] = ri;
+                NotifyRequired();
+                break; // 同種の未取得のうち一つだけマーク
             }
         }
-        NotifyRequired();
     }
 
-    public bool AllItemsCollected()
+    void NotifyRequired()
+    {
+        onRequiredChanged?.Invoke(required);
+    }
+
+    bool AllRequiredCollected()
     {
         for (int i = 0; i < required.Count; i++)
             if (!required[i].collected) return false;
         return true;
     }
 
+    // ======= クリア/ゲームオーバー =======
+    // 互換用（古い呼び出しから来た場合も、全回収チェックを通す）
+    public void TriggerClear() => TryClearAtExit();
+
+    // Exit 上で呼ぶ。全回収していればクリア確定
     public void TryClearAtExit()
     {
-        if (AllItemsCollected())
-        {
-            cleared = true;
-            NotifyRequired(); // 最終状態で再通知（任意）
-        }
-        else
-        {
-            // 未収集あり：ここでUI点滅などのフィードバックを出すならイベントをぶら下げてもOK
-        }
+        if (gameOver || cleared) return;
+        if (!AllRequiredCollected()) return;
+
+        cleared = true;
+        playerTurn = false;
+
+        // parRot は GameFlow 側の設定を採用
+        int par = 0;
+        var gf = UnityCompat.FindFirst<GameFlow>();
+        if (gf != null) par = Mathf.Max(0, gf.parRot);
+
+        var res = ComputeScore(par);
+        onStageCleared?.Invoke(res);
     }
 
-    void NotifyRequired() => onRequiredChanged?.Invoke(required);
+    public void TriggerGameOver()
+    {
+        if (gameOver || cleared) return;
+        gameOver = true;
+        playerTurn = false;
+        onGameOver?.Invoke();
+    }
 
+    // ======= スコア計算（回転差/リトライのみ・100点満点の減点式） =======
+    public ScoreResult ComputeScore(int parRot, int ROT_PEN = 3, int RETRY_PEN = 10)
+    {
+        int over = Mathf.Max(0, rotCount - parRot);
+        int penalty = over * ROT_PEN + retryCount * RETRY_PEN;
+        int s = Mathf.Clamp(100 - penalty, 0, 100);
+        char r = (s >= 95) ? 'S' :
+                 (s >= 85) ? 'A' :
+                 (s >= 70) ? 'B' :
+                 (s >= 50) ? 'C' : 'D';
+
+        return new ScoreResult
+        {
+            score = s,
+            rank = r,
+            rot = rotCount,
+            parRot = Mathf.Max(0, parRot),
+            overRot = over,
+            retries = retryCount
+        };
+    }
 }

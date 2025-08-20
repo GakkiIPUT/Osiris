@@ -1,16 +1,17 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Game/Stage Set", fileName = "StageSet")]
+[CreateAssetMenu(menuName = "Game/Stage Set")]
 public class StageSet : ScriptableObject
 {
-    [System.Serializable]
+    [Serializable]
     public class Entry
     {
-        public string displayName = "1-1";
-        [Tooltip("ASCII マップ（テキストアセット）")]
-        public TextAsset asciiLevel;
+        public string id = "1-1";   // 表示用・任意
+        public TextAsset mapTxt;    // ← ここに .txt を割り当てる
+        public int parRot = 6;      // 想定回転数（UI/スコア用）
     }
 
-    public List<Entry> stages = new();
+    public List<Entry> stages = new List<Entry>();
 }

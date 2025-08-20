@@ -254,8 +254,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: 1st
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
+  m_sharedMaterial: {fileID: -7786892333198751292, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -511,8 +511,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: 2nd
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
+  m_sharedMaterial: {fileID: -7786892333198751292, guid: c7d680e9ec92a8e488db3f2958fcee02, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -679,6 +679,7 @@ GameObject:
   - component: {fileID: 832902924}
   - component: {fileID: 832902923}
   - component: {fileID: 832902922}
+  - component: {fileID: 832902926}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -770,6 +771,21 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &832902926
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 832902921}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b98785ef9c89ce4b8917831f9b268c8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  worldButtons:
+  - {fileID: 151628927}
+  - {fileID: 1257842505}
 --- !u!1 &1251231665
 GameObject:
   m_ObjectHideFlags: 0
@@ -992,7 +1008,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1493526294}
-  - component: {fileID: 1493526295}
   m_Layer: 5
   m_Name: GameObject
   m_TagString: Untagged
@@ -1019,21 +1034,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1493526295
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1493526293}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1b98785ef9c89ce4b8917831f9b268c8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  worldButtons:
-  - {fileID: 151628927}
-  - {fileID: 1257842505}
 --- !u!1 &1521269578
 GameObject:
   m_ObjectHideFlags: 0
