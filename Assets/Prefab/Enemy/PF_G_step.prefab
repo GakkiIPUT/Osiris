@@ -77,7 +77,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: c5c34b5e121a0cf43a83b446fba2b583, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5635f07f2ef9f4d4f9158af63d3a751f, type: 3}
   m_Color: {r: 0.2702713, g: 1, b: 0, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -108,4 +108,5 @@ MonoBehaviour:
   patternIsRelative: 1
   debugDrawPath: 0
   useBoardDefaultViewRange: 1
+  startFacing: 1
   showVision: 1

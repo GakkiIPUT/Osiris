@@ -51,6 +51,16 @@ public class BoardManager : MonoBehaviour
     };
 
     public Transform itemsRoot; // アイテムの親（未設定ならAwakeで作る）
+    [Header("Realtime / Rotation Limits")]
+    public bool realtime = true;                   // ← リアルタイムモードON
+    [Tooltip("回転中心として選べる最大距離（プレイヤーからのマンハッタン距離 or チェビシェフ距離）")]
+    public int rotationCenterMaxDistance = 2;      // 1～2 推奨
+    [Tooltip("回転範囲にアンカー(@)が含まれる場合は回転を禁止")]
+    public bool forbidAnchorInArea = true;
+
+    // アンカーの記録（@）
+    public HashSet<Vector2Int> anchors = new HashSet<Vector2Int>();
+    public bool IsAnchor(Vector2Int p) => anchors.Contains(p);
 
     [Header("Ghost Materials (optional)")]
     public Material ghostOkMat;
@@ -65,7 +75,7 @@ public class BoardManager : MonoBehaviour
     [Header("Y Alignment")]
     public float floorY = 0f;           // 床の天面を合わせるY
     public float exitTopOffset = 0.01f; // Exitは床より少し上
-    public float ghostY = 0.01f;        // ゴースト表示Y（床より少し上）
+    public float ghostY = 0.000001f;        // ゴースト表示Y（床より少し上）
 
     [Header("2D Assets Auto-Align")]
     [Tooltip("QuadやSpriteを自動でX=90°回転し、上から見えるように整列します")]
@@ -440,6 +450,8 @@ public class BoardManager : MonoBehaviour
                 SafeDestroy(go);
                 continue;
             }
+            char sym = !string.IsNullOrEmpty(gs.type.symbol) ? gs.type.symbol[0] : 'G';
+            ConfigureGuardFromSymbol(g, sym);
 
             g.Init(this, gs.pos);
             guards.Add(g);
@@ -482,6 +494,49 @@ public class BoardManager : MonoBehaviour
 
         // 生成後に視界可視化を更新
         RefreshAllGuardVision();
+    }
+
+    void ConfigureGuardFromSymbol(GuardController g, char sym)
+    {
+        if (g == null) return;
+
+        // まずデフォルトを明示的に（フォールバック無効化のため）
+        g.patrolMode = GuardController.PatrolMode.PingPong;
+        g.patternIsRelative = true;
+        g.pattern = ""; // 記号に応じて必ず上書き
+
+        switch (sym)
+        {
+            case 'G': // R5
+                g.pattern = "R5";
+                break;
+
+            case 'H': // L5
+                g.pattern = "L5";
+                break;
+
+            case 'I': // U5
+                g.pattern = "U5";
+                break;
+
+            case 'J': // D5
+                g.pattern = "D5";
+                break;
+
+            case 'K': // 四角巡回 R3,U3,L3,D3
+                g.patrolMode = GuardController.PatrolMode.Loop;
+                g.pattern = "R3,U3,L3,D3";
+                break;
+
+            case 'L': // 小さめ巡回（2マス）※四角にしたい場合はD2も足します
+                g.patrolMode = GuardController.PatrolMode.Loop;
+                g.pattern = "R2,U2,L2,D2"; // ←三角にしたいなら ",D2" を外す
+                break;
+
+            default:
+                // 記号未定義 → プレハブの設定をそのまま使う
+                break;
+        }
     }
 
     // プレイヤーが p を踏んだときに呼ぶ（アイテム取得してUI更新）

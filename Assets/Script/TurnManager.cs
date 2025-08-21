@@ -15,18 +15,22 @@ public class TurnManager : MonoBehaviour
     bool playerTurn = true;
     bool runningGuards = false;
 
+    // ======= リアルタイム駆動 =======
+    [Header("Realtime Guards")]
+    [Tooltip("ONでガードが一定間隔で常時行動。OFFで従来のターン制（プレイヤー行動後に1回だけ）")]
+    public bool realtimeGuards = true;
+    [Tooltip("ガードが1歩進む間隔（秒）")]
+    public float guardStepInterval = 0.35f;
+    float guardTimer = 0f;
+
     // ======= スコア用カウンタ（サイズ差なし） =======
     [Header("Score Counters")]
-    public int rotCount { get; private set; } // 成功した回転回数のみ加算
+    public int rotCount { get; private set; }   // 成功した回転回数のみ加算
     public int retryCount { get; private set; } // リトライボタン/キー操作で加算
 
-    public void ResetScoreCounters()
-    {
-        rotCount = 0;
-        retryCount = 0;
-    }
-    public void RegisterRotation() => rotCount++;
-    public void RegisterRetry() => retryCount++;
+    public void ResetScoreCounters() { rotCount = 0; retryCount = 0; }
+    public void RegisterRotation() { rotCount++; }
+    public void RegisterRetry() { retryCount++; }
 
     // ======= 必須アイテム（全回収でゴール可） =======
     [Serializable]
@@ -61,25 +65,48 @@ public class TurnManager : MonoBehaviour
 
     void Start()
     {
-        // BoardManager から代入されていない場合に備え
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
         playerTurn = true;
         gameOver = false;
         cleared = false;
+        guardTimer = 0f;
+    }
+
+    void Update()
+    {
+        if (gameOver || cleared) return;
+
+        if (realtimeGuards)
+        {
+            // 回転アニメ中は歩かせない方が破綻しにくい
+            if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+            if (board != null && board.IsAnimating) return;
+
+            guardTimer += Time.deltaTime;
+            if (guardTimer >= guardStepInterval)
+            {
+                guardTimer = 0f;
+                StepAllGuards();
+            }
+        }
     }
 
     // ======= ターン制制御 =======
     public bool IsPlayerTurn()
     {
-        // 盤回転アニメ中などは入力抑制
         if (gameOver || cleared) return false;
         if (board != null && board.IsAnimating) return false;
+
+        // リアルタイム時は常時入力可（UI側の「エイム中かつゲーム中」だけでボタン活性を制御）
+        if (realtimeGuards) return true;
+
         return playerTurn && !runningGuards;
     }
 
     public void EndPlayerTurn()
     {
         if (gameOver || cleared) return;
+        if (realtimeGuards) return; // リアルタイム時は何もしない
         if (runningGuards) return;
         StartCoroutine(GuardsTurnCoro());
     }
@@ -90,22 +117,26 @@ public class TurnManager : MonoBehaviour
         playerTurn = false;
         yield return null; // フレームまたぎで安定
 
-        if (board != null)
-        {
-            // ガードの行動（順不同・単純に直列）
-            var guards = board.guards;
-            for (int i = 0; i < guards.Count; i++)
-            {
-                if (gameOver || cleared) break;
-                var g = guards[i];
-                if (g == null) continue;
-                g.DoTurn();
-                // 演出を入れるなら適宜 yield return null;
-            }
-        }
+        StepAllGuards();
 
         runningGuards = false;
         if (!gameOver && !cleared) playerTurn = true;
+    }
+
+    public void StepAllGuards()
+    {
+        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+        if (board == null) return;
+
+        var guards = board.guards;
+        for (int i = 0; i < guards.Count; i++)
+        {
+            if (gameOver || cleared) break;
+            var g = guards[i];
+            if (g == null) continue;
+            // GuardController 側は DoTurn() を1ステップとして実装しておけばOK
+            g.DoTurn();
+        }
     }
 
     // ======= アイテム関連 =======
@@ -122,9 +153,7 @@ public class TurnManager : MonoBehaviour
         if (symbolsInReadingOrder != null)
         {
             for (int i = 0; i < symbolsInReadingOrder.Count; i++)
-            {
                 required.Add(new RequiredItem { sym = symbolsInReadingOrder[i], collected = false });
-            }
         }
         NotifyRequired();
     }
@@ -145,10 +174,7 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    void NotifyRequired()
-    {
-        onRequiredChanged?.Invoke(required);
-    }
+    void NotifyRequired() => onRequiredChanged?.Invoke(required);
 
     bool AllRequiredCollected()
     {
@@ -158,7 +184,6 @@ public class TurnManager : MonoBehaviour
     }
 
     // ======= クリア/ゲームオーバー =======
-    // 互換用（古い呼び出しから来た場合も、全回収チェックを通す）
     public void TriggerClear() => TryClearAtExit();
 
     // Exit 上で呼ぶ。全回収していればクリア確定

@@ -48,7 +48,9 @@ public class GameUI : MonoBehaviour
 
         // 回転ボタンは「プレイヤーターン かつ エイム中」だけ有効
         ResolveRefs();
-        bool canRotate = (player && turn != null && turn.IsPlayerTurn() && player.IsAiming);
+        //ターン制　bool canRotate = (player && turn != null && turn.IsPlayerTurn() && player.IsAiming);
+        bool canRotate = player && turn != null && !turn.gameOver && !turn.cleared && player.IsAiming;
+
         if (btnRotateL) btnRotateL.interactable = canRotate;
         if (btnRotateR) btnRotateR.interactable = canRotate;
     }

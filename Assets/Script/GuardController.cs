@@ -1,13 +1,14 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 public class GuardController : MonoBehaviour
 {
     public enum PatrolMode
     {
-        AutoEdgePingPong, // Šù‘¶F’Ê˜H‚Ì’[`’[‚ğ©“®ŒŸo‚µ‚Ä‰•œ
-        PingPong,         // ƒpƒ^[ƒ“‚Å’è‹`‚µ‚½Œo˜H‚ğ‰•œi’[‚ÅÜ‚è•Ô‚µj
-        Loop              // ƒpƒ^[ƒ“‚Å’è‹`‚µ‚½Œo˜H‚ğ„‰ñi‚®‚é‚®‚éj
+        Static,
+        AutoEdgePingPong, // æ—¢å­˜ï¼šé€šè·¯ã®ç«¯ï½ç«¯ã‚’è‡ªå‹•æ¤œå‡ºã—ã¦å¾€å¾©
+        PingPong,         // ãƒ‘ã‚¿ãƒ¼ãƒ³ã§å®šç¾©ã—ãŸçµŒè·¯ã‚’å¾€å¾©ï¼ˆç«¯ã§æŠ˜ã‚Šè¿”ã—ï¼‰
+        Loop              // ãƒ‘ã‚¿ãƒ¼ãƒ³ã§å®šç¾©ã—ãŸçµŒè·¯ã‚’å·¡å›ï¼ˆãã‚‹ãã‚‹ï¼‰
     }
 
     [Header("Refs")]
@@ -25,22 +26,25 @@ public class GuardController : MonoBehaviour
     [Header("Patrol")]
     public PatrolMode patrolMode = PatrolMode.AutoEdgePingPong;
 
-    [Tooltip("—á: R5 ‚Å‰E‚É5ƒ}ƒX‰•œ / R3,U2,L3,D2 ‚ÅlŠpŒ`„‰ñ‚È‚Ç")]
-    public string pattern = "";                 // —á: "R5" / "R3,U2,L3,D2" / "R4,U3"
-    public bool patternIsRelative = true;       // Start ‚©‚ç‚Ì‘Š‘Îw’èi„§j
+    [Tooltip("ä¾‹: R5 ã§å³ã«5ãƒã‚¹å¾€å¾© / R3,U2,L3,D2 ã§å››è§’å½¢å·¡å›ãªã©")]
+    public string pattern = "";                 // ä¾‹: "R5" / "R3,U2,L3,D2" / "R4,U3"
+    public bool patternIsRelative = true;       // Start ã‹ã‚‰ã®ç›¸å¯¾æŒ‡å®šï¼ˆæ¨å¥¨ï¼‰
     public bool debugDrawPath = false;
     public bool useBoardDefaultViewRange = true;
+    public enum Facing { Up, Right, Down, Left }   
+    public Facing startFacing = Facing.Right;
 
-    // Œo˜Hî•ñ
-    readonly List<Vector2Int> path = new();     // â‘ÎÀ•W‚ÌƒEƒFƒCƒ|ƒCƒ“ƒgistart‚ÍŠÜ‚ß‚È‚¢j
-    int pathIndex = 0;                          // Œ»İ‚Ìƒ^[ƒQƒbƒgindex
-    int pingDir = +1;                           // PingPong‚Ìis•ûŒüi+1/-1j
+    // çµŒè·¯æƒ…å ±
+    readonly List<Vector2Int> path = new();     // çµ¶å¯¾åº§æ¨™ã®ã‚¦ã‚§ã‚¤ãƒã‚¤ãƒ³ãƒˆï¼ˆstartã¯å«ã‚ãªã„ï¼‰
+    int pathIndex = 0;                          // ç¾åœ¨ã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆindex
+    int pingDir = +1;                           // PingPongæ™‚ã®é€²è¡Œæ–¹å‘ï¼ˆ+1/-1ï¼‰
 
-    // ‰Â‹‰»
+    // å¯è¦–åŒ–
     public bool showVision = true;
     GameObject visionRoot;
 
-    // ====== ‰Šú‰» ======
+    // ====== åˆæœŸåŒ– ======
+
     public void Init(BoardManager b, Vector2Int start)
     {
         board = b;
@@ -48,27 +52,39 @@ public class GuardController : MonoBehaviour
         transform.position = b.GridToWorldActor(pos);
         turn = UnityCompat.FindFirst<TurnManager>();
 
-        BuildPatrolPath(start);
-        if (path.Count == 0 && patrolMode != PatrolMode.AutoEdgePingPong)
+        if (patrolMode == PatrolMode.Static)
         {
-            // ƒpƒ^[ƒ“‰ğß‚É¸”s‚µ‚½‚ç©“®‰•œ‚ÖƒtƒH[ƒ‹ƒoƒbƒN
-            patrolMode = PatrolMode.AutoEdgePingPong;
+            //  Static ã¯çµŒè·¯ã‚’ä½œã‚‰ãšã€å‘ãã ã‘è¨­å®š
+            forward = FacingToVec(startFacing);   
+        }
+        else
+        {
+            BuildPatrolPath(start);               // çµŒè·¯æ§‹ç¯‰
+
+            // Static ä»¥å¤–ã§ãƒ‘ã‚¿ãƒ¼ãƒ³è§£é‡ˆå¤±æ•—æ™‚ã®ã¿ AutoEdge ã«ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯
+            if (path.Count == 0 && patrolMode != PatrolMode.AutoEdgePingPong)
+            {
+                patrolMode = PatrolMode.AutoEdgePingPong;
+            }
+
+            // æœ€åˆã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã¨ forward ã‚’æ±ºå®š
+            Vector2Int tgt = GetCurrentTargetOrFallback(start);
+            forward = DirToStep(tgt - pos);
         }
 
-        // Å‰‚Ìƒ^[ƒQƒbƒg‚Æforward‚ğŒˆ’è
-        Vector2Int tgt = GetCurrentTargetOrFallback(start);
-        forward = DirToStep(tgt - pos);
         UpdateVisionOverlay();
         if (useBoardDefaultViewRange) viewRange = board.defaultGuardViewRange;
     }
 
-    // ====== ƒpƒ^[ƒ“\’z ======
+
+    // ====== ãƒ‘ã‚¿ãƒ¼ãƒ³æ§‹ç¯‰ ======
     void BuildPatrolPath(Vector2Int start)
     {
         path.Clear();
+        if (patrolMode == PatrolMode.Static) return;        // Static ã¯çµŒè·¯ã‚’æŒãŸãªã„
+        // AutoEdge or ãƒ‘ã‚¿ãƒ¼ãƒ³æœªæŒ‡å®š â†’ æ—¢å­˜ã®è‡ªå‹•å¾€å¾©
         if (patrolMode == PatrolMode.AutoEdgePingPong || string.IsNullOrWhiteSpace(pattern))
         {
-            // ‹Œd—lF’Ê˜H‚Ì’[“¯m‚ğ©“®ŒŸo‚µ‚Ä’·‚¢•û‚ğÌ—p
             var hA = FindEdge(start, Vector2Int.left);
             var hB = FindEdge(start, Vector2Int.right);
             var vA = FindEdge(start, Vector2Int.down);
@@ -79,13 +95,12 @@ public class GuardController : MonoBehaviour
             if (lenV > lenH) { path.Add(vA); path.Add(vB); }
             else { path.Add(hA); path.Add(hB); }
 
-            // ƒXƒ^[ƒg‚ª’[“_‚Ìê‡‚ÍAƒXƒ^[ƒg‚ğŠÜ‚Ş•Ğ•û‚ğÅ‰‚Ìƒ^[ƒQƒbƒg‚É‚µ‚â‚·‚¢
-            pathIndex = (path.Count > 0) ? 0 : 0;
+            pathIndex = 0;
             pingDir = +1;
             return;
         }
 
-        // ƒpƒ^[ƒ“š‹å‰ğÍi—á: "R5", "U3", "L10", "D1" ‚ğƒJƒ“ƒ}/ƒXƒy[ƒX‹æØ‚è‚Å•À‚×‚éj
+        // ãƒ‘ã‚¿ãƒ¼ãƒ³è§£é‡ˆï¼ˆR5, L5, U5, D5 / ã‚«ãƒ³ãƒåŒºåˆ‡ã‚Šï¼‰
         var tokens = pattern.Split(new char[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
         Vector2Int curr = start;
 
@@ -94,11 +109,7 @@ public class GuardController : MonoBehaviour
             if (tk.Length == 0) continue;
             char c = char.ToUpperInvariant(tk[0]);
             int n = 1;
-            if (tk.Length > 1)
-            {
-                int.TryParse(tk.Substring(1), out n);
-                if (n <= 0) n = 1;
-            }
+            if (tk.Length > 1) { int.TryParse(tk.Substring(1), out n); if (n <= 0) n = 1; }
 
             Vector2Int delta = Vector2Int.zero;
             if (c == 'R') delta = new Vector2Int(+n, 0);
@@ -108,15 +119,20 @@ public class GuardController : MonoBehaviour
             else continue;
 
             Vector2Int next = patternIsRelative ? (curr + delta) : (start + delta);
-            // ”Õ“à‚ÉƒNƒ‰ƒ“ƒvi•Ç‚Í–³‹F“®ì‚É‘Îˆj
             next = new Vector2Int(Mathf.Clamp(next.x, 0, board.Width - 1),
                                   Mathf.Clamp(next.y, 0, board.Height - 1));
             path.Add(next);
             curr = next;
         }
 
-        // ƒCƒ“ƒfƒbƒNƒX‰Šú‰»
-        pathIndex = (path.Count > 0) ? 0 : 0;
+        // â˜…ã“ã“ãŒãƒã‚¤ãƒ³ãƒˆï¼šPingPong ã§ waypoint ãŒ1ã¤ã—ã‹ç„¡ã„ï¼ˆ=ç›´ç·šå¾€å¾©R5/L5/U5/D5ç­‰ï¼‰
+        //   â†’ "start â†” endpoint" ã®2ç«¯ç‚¹ã§å¾€å¾©ã§ãã‚‹ã‚ˆã†ã« start ã‚’è¿½åŠ 
+        if (patrolMode == PatrolMode.PingPong && path.Count == 1)
+        {
+            path.Insert(0, start); // ç«¯ç‚¹A=start, ç«¯ç‚¹B=path[1]
+        }
+
+        pathIndex = 0;
         pingDir = +1;
     }
 
@@ -131,17 +147,118 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    // ====== 1ƒ^[ƒ“ˆ— ======
-    public void DoTurn()
+    // ====== 1ã‚¿ãƒ¼ãƒ³å‡¦ç† ======
+    //public void DoTurn()
+    //{
+    //    if (turn == null || turn.gameOver || turn.cleared) return;
+
+    //    Vector2Int tgt = GetCurrentTargetOrFallback(pos);
+
+    //    // ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã«1æ­©è¿‘ã¥ã
+    //    Vector2Int step = DirToStep(tgt - pos);
+
+    //    // ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã«æ—¢ã«åˆ°é”ã—ã¦ã„ãŸã‚‰ã€æ¬¡ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚’é¸ã³ç›´ã—
+    //    if (step == Vector2Int.zero)
+    //    {
+    //        AdvanceTarget();
+    //        tgt = GetCurrentTargetOrFallback(pos);
+    //        step = DirToStep(tgt - pos);
+    //    }
+
+    //    bool moved = false;
+
+    //    if (step != Vector2Int.zero)
+    //    {
+    //        Vector2Int np = pos + step;
+    //        if (board.IsWalkable(np))
+    //        {
+    //            // é€šå¸¸å‰é€²
+    //            pos = np;
+    //            transform.position = board.GridToWorldActor(pos);
+    //            forward = step;
+    //            moved = true;
+    //        }
+    //        else
+    //        {
+    //            // â˜…ãƒ–ãƒ­ãƒƒã‚¯æ™‚ï¼šã¾ãšå³æ™‚ãƒã‚¦ãƒ³ãƒ‰ï¼ˆ1ãƒã‚¹å¾Œé€€ï¼‹å‘ãåè»¢ï¼‰ã‚’è©¦ã™
+    //            if (TryImmediateBounce(step))
+    //            {
+    //                moved = true; // æˆåŠŸï¼ˆå¾Œé€€ï¼‰
+    //            }
+    //            else
+    //            {
+    //                // ãã‚Œã§ã‚‚ç„¡ç†ãªã‚‰å¾“æ¥ã®åè»¢/ã‚¹ã‚­ãƒƒãƒ—å‡¦ç†ã«å§”ã­ã‚‹
+    //                moved = HandleBlocked(ref step);
+    //            }
+    //        }
+    //    }
+
+    //    // è¦–ç•Œãƒã‚§ãƒƒã‚¯
+    //    if (board.player != null && CanSeePlayer()) turn.TriggerGameOver();
+
+    //    // å¯è¦–åŒ–æ›´æ–°
+    //    UpdateVisionOverlay();
+    //}
+
+    /*
+    /// é€²è¡Œæ–¹å‘ãŒå¡ãŒã‚Œã¦ã„ã‚‹ã¨ãã€1ãƒã‚¹ã ã‘å¾Œé€€ã—ã¦å‘ãã‚’åè»¢ã™ã‚‹ã€‚
+    /// å¾Œé€€å…ˆã‚‚å¡ãŒã‚Œã¦ã„ã‚Œã°ä½•ã‚‚ã—ãªã„ï¼ˆ=è¢‹å°è·¯ãªã®ã§åœæ­¢ï¼‰ã€‚
+    */
+
+    bool TryImmediateBounce(Vector2Int intendedStep)
     {
-        if (turn == null || turn.gameOver || turn.cleared) return;
+        if (intendedStep == Vector2Int.zero) return false;
+
+        Vector2Int back = -intendedStep;
+        Vector2Int np = pos + back;
+
+        // å¾Œé€€ã§ããªã‘ã‚Œã°å¤±æ•—ï¼ˆ1ãƒã‚¹ã®è¢‹å°è·¯ï¼‰
+        if (!board.IsWalkable(np)) return false;
+
+        // å¾Œé€€ã—ã¦å‘ãåè»¢
+        pos = np;
+        transform.position = board.GridToWorldActor(pos);
+        forward = back;
+
+        // â˜…PingPongç³»ã¯é€²è¡Œå‘ãã‚‚åè»¢ã—ã€ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚’å¯¾å‘ç«¯ç‚¹ã«åˆ‡æ›¿
+        if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
+        {
+            pingDir *= -1;
+            AdvanceTarget(); // â† ã“ã‚ŒãŒé‡è¦ï¼ˆpathIndexæ‰‹å‹•æ“ä½œã¯ã‚„ã‚ã‚‹ï¼‰
+        }
+        return true;
+    }
+
+    // ãƒ–ãƒ­ãƒƒã‚¯æ™‚ã®å¯¾å‡¦ï¼šPingPongã¯åè»¢ã€Loopã¯æ¬¡ã‚¦ã‚§ã‚¤ãƒã‚¤ãƒ³ãƒˆã¸ã‚¹ã‚­ãƒƒãƒ—ã—ã¦è©¦è¡Œ
+    /*
+    /// ãƒã‚¦ãƒ³ãƒ‰ã§ã‚‚é€²ã‚ãªã„å ´åˆã®æœ€çµ‚æ‰‹æ®µã€‚
+    /// PingPongç³»ï¼šåè»¢ã—ã¦1æ­©ã‚’è©¦ã™ã€‚Loopï¼šæ¬¡WPã¸ã‚¹ã‚­ãƒƒãƒ—ã—ãªãŒã‚‰å‹•ã‘ã‚‹æ–¹å‘ã‚’æ¢ã™ã€‚
+    */
+
+    public void StepAI()
+    {
+        if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
+        if (turn == null) return;
+        if (turn.gameOver || turn.cleared) return;
+
+        // å›è»¢ã‚¢ãƒ‹ãƒ¡ä¸­ã¯å‹•ã‹ã•ãªã„ï¼ˆç ´ç¶»å›é¿ã—ãŸã„å ´åˆï¼‰
+        if (board != null && board.IsAnimating) return;
+
+        // Static ã¯ç§»å‹•ã—ãªã„ã€‚è¦–ç•Œãƒã‚§ãƒƒã‚¯ï¼†å¯è¦–åŒ–ã®ã¿ã€‚
+        if (patrolMode == PatrolMode.Static)                  
+        {                                                     
+            if (board.player != null && CanSeePlayer())       
+                turn.TriggerGameOver();                       
+            UpdateVisionOverlay();                            
+            return;                                           
+        }
 
         Vector2Int tgt = GetCurrentTargetOrFallback(pos);
 
-        // ƒ^[ƒQƒbƒg‚É1•à‹ß‚Ã‚­
+        // ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã«1æ­©è¿‘ã¥ã
         Vector2Int step = DirToStep(tgt - pos);
 
-        // ƒ^[ƒQƒbƒg‚ÉŠù‚É“’B‚µ‚Ä‚¢‚½‚çAŸ‚Ìƒ^[ƒQƒbƒg‚ğ‘I‚ñ‚Å‚©‚çÄŒvZ
+        // æ—¢ã«åˆ°é”ã—ã¦ã„ãŸã‚‰ã€æ¬¡ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã¸åˆ‡æ›¿
         if (step == Vector2Int.zero)
         {
             AdvanceTarget();
@@ -163,26 +280,33 @@ public class GuardController : MonoBehaviour
             }
             else
             {
-                // šƒuƒƒbƒN‚Ì‹““®
+                // ãƒ–ãƒ­ãƒƒã‚¯æ™‚ã®å‡¦ç†ï¼ˆæŠ˜ã‚Šè¿”ã— or ãƒ«ãƒ¼ãƒ—ã§æ¬¡WPã¸ï¼‰
                 moved = HandleBlocked(ref step);
             }
         }
 
-        // ‹ŠEƒ`ƒFƒbƒN
-        if (board.player != null && CanSeePlayer()) turn.TriggerGameOver();
+        // è¦–ç•Œãƒã‚§ãƒƒã‚¯ï¼ˆè¦‹ãˆãŸã‚‰å³ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼ï¼‰
+        if (board.player != null && CanSeePlayer())
+        {
+            turn.TriggerGameOver();
+        }
 
-        // ‰Â‹‰»XV
+        // å¯è¦–åŒ–æ›´æ–°
         UpdateVisionOverlay();
     }
 
-    // ƒuƒƒbƒN‚Ì‘ÎˆFPingPong‚Í”½“]ALoop‚ÍŸƒEƒFƒCƒ|ƒCƒ“ƒg‚ÖƒXƒLƒbƒv‚µ‚Äs
+    // äº’æ›: æ—¢å­˜å‘¼ã³å‡ºã—ãŒæ®‹ã£ã¦ã„ã¦ã‚‚å‹•ãã‚ˆã†ã«
+    public void DoTurn() => StepAI();
+
+
     bool HandleBlocked(ref Vector2Int step)
     {
+        // PingPongï¼ˆAutoEdgeå«ã‚€ï¼‰ï¼šåè»¢ã—ã¦è©¦ã™
         if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
         {
-            // Ü‚è•Ô‚µ‚ÄÄs
-            pingDir *= -1;
-            StepIndex(pingDir); // ‚Ğ‚Æ‚Â–ß‚é
+            pingDir *= -1;            // é€²è¡Œæ–¹å‘åè»¢
+            StepIndex(pingDir);       // ãƒ‘ã‚¹ç«¯ç‚¹ç®¡ç†ï¼ˆå¿…è¦ãªã‚‰1ã¤æˆ»ã‚‹/é€²ã‚€ï¼‰
+
             Vector2Int tgt = GetCurrentTargetOrFallback(pos);
             step = DirToStep(tgt - pos);
 
@@ -193,11 +317,10 @@ public class GuardController : MonoBehaviour
                 forward = step;
                 return true;
             }
-            return false; // ‚Ç‚¤‚µ‚Ä‚à“®‚¯‚È‚¢
+            return false; // ã©ã†ã—ã¦ã‚‚å‹•ã‘ãªã„ï¼ˆ1ãƒã‚¹è¢‹å°è·¯ãªã©ï¼‰
         }
-        else // Loop
+        else // Loopï¼šæ¬¡ã®ã‚¦ã‚§ã‚¤ãƒã‚¤ãƒ³ãƒˆã¸é †ã«ã‚¹ã‚­ãƒƒãƒ—ã—ã¦å‹•ã‘ã‚‹1æ­©ã‚’æ¢ã™
         {
-            // Ÿ‚ÌƒEƒFƒCƒ|ƒCƒ“ƒg‚Ö‡‚ÉƒXƒLƒbƒv‚µ‚È‚ª‚çA“®‚¯‚é1•à‚ğ’T‚·
             int tries = Mathf.Max(1, path.Count);
             for (int i = 0; i < tries; i++)
             {
@@ -213,16 +336,16 @@ public class GuardController : MonoBehaviour
                     return true;
                 }
             }
-            return false; // ‚Ç‚±‚Ö‚ài‚ß‚È‚¢
+            return false;
         }
     }
 
-    // ====== ƒ^[ƒQƒbƒgŠÇ— ======
+    // ====== ã‚¿ãƒ¼ã‚²ãƒƒãƒˆç®¡ç† ======
     Vector2Int GetCurrentTargetOrFallback(Vector2Int fallback)
     {
         if (path.Count == 0)
         {
-            // AutoEdge‚ªƒpƒ^[ƒ“‚È‚µ‚ÉƒtƒH[ƒ‹ƒoƒbƒN‚µ‚½ƒP[ƒX
+            // AutoEdgeãŒãƒ‘ã‚¿ãƒ¼ãƒ³ãªã—ã«ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ãŸã‚±ãƒ¼ã‚¹
             if (patrolMode == PatrolMode.AutoEdgePingPong)
             {
                 var a = FindEdge(fallback, Vector2Int.left);
@@ -247,7 +370,7 @@ public class GuardController : MonoBehaviour
             if ((pathIndex == path.Count - 1 && pingDir > 0) ||
                 (pathIndex == 0 && pingDir < 0))
             {
-                pingDir *= -1; // ’[‚Å”½“]
+                pingDir *= -1; // ç«¯ã§åè»¢
             }
             StepIndex(pingDir);
         }
@@ -274,7 +397,7 @@ public class GuardController : MonoBehaviour
         else return new Vector2Int(0, (d.y > 0) ? 1 : -1);
     }
 
-    // ====== ‹ŠE ======
+    // ====== è¦–ç•Œ ======
     bool CanSeePlayer()
     {
         Vector2Int p = board.player.pos;
@@ -357,6 +480,17 @@ public class GuardController : MonoBehaviour
                 if (mat != null) mr.material = mat;
                 Destroy(q.GetComponent<MeshCollider>());
             }
+        }
+    }
+
+    Vector2Int FacingToVec(Facing f)
+    {
+        switch (f)
+        {
+            case Facing.Up: return Vector2Int.up;
+            case Facing.Down: return Vector2Int.down;
+            case Facing.Left: return Vector2Int.left;
+            default: return Vector2Int.right;
         }
     }
 
