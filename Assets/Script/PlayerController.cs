@@ -70,21 +70,34 @@ public class PlayerController : MonoBehaviour
         if (dir != Vector2Int.zero)
         {
             var np = pos + dir;
-            if (board.IsWalkable(np))
+            //if (board.IsWalkable(np))
+            //{
+            //    pos = np;
+            //    transform.position = board.GridToWorldActor(pos);
+
+            //    if (board.cells[pos.y, pos.x] == CellType.Exit)
+            //    {
+            //        turn.TriggerClear();
+            //    }
+            //    else
+            //    {
+            //        // アイテムがあれば取得
+            //        board.TryPickupItemAt(pos);
+            //    }
+
+            //    turn.EndPlayerTurn();
+            //    return;
+            //}
+            if (board.IsWalkable(np, true))
             {
                 pos = np;
                 transform.position = board.GridToWorldActor(pos);
 
+                // クリア判定（出口は通行可のまま）
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
                     turn.TriggerClear();
                 }
-                else
-                {
-                    // アイテムがあれば取得
-                    board.TryPickupItemAt(pos);
-                }
-
                 turn.EndPlayerTurn();
                 return;
             }

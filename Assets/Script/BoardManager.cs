@@ -94,6 +94,8 @@ public class BoardManager : MonoBehaviour
     public Color previewWall = new Color(0.20f, 0.20f, 0.20f, 1f);
     public Color previewExit = new Color(1.00f, 0.85f, 0.20f, 1f);
     public Color previewP = new Color(0.20f, 0.60f, 1.00f, 1f);
+    public Color previewAnchor = Color.black;
+
 
     [Header("Level (ASCII)")]
     [TextArea(6, 20)]
@@ -164,6 +166,31 @@ public class BoardManager : MonoBehaviour
     public Vector3 GridToWorldActor(Vector2Int p) => GridToWorld(p) + new Vector3(0, actorYOffset, 0f);
     public bool InBounds(Vector2Int p) => p.x >= 0 && p.x < Width && p.y >= 0 && p.y < Height;
 
+    // ★ガードがこのマスにいるか
+    public bool IsOccupiedByGuard(Vector2Int p)
+    {
+        for (int i = 0; i < guards.Count; i++)
+        {
+            var g = guards[i];
+            if (g != null && g.pos == p) return true;
+        }
+        return false;
+    }
+
+    // ★プレイヤー用：敵をブロッカーとして扱うWalkable判定
+    public bool IsWalkable(Vector2Int p, bool blockGuardsForPlayer)
+    {
+        if (!InBounds(p)) return false;
+
+        var c = cells[p.y, p.x];
+        // 床 or 出口は歩行可。壁/アンカーは不可。
+        bool tileOK = (c == CellType.Floor || c == CellType.Exit);
+        if (!tileOK) return false;
+
+        if (blockGuardsForPlayer && IsOccupiedByGuard(p)) return false;
+
+        return true;
+    }
     public bool IsWalkable(Vector2Int p)
     {
         if (!InBounds(p)) return false;
@@ -508,7 +535,7 @@ public class BoardManager : MonoBehaviour
         switch (sym)
         {
             case 'G': // R5
-                g.pattern = "R5";
+                g.pattern = "R9";
                 break;
 
             case 'H': // L5
@@ -630,6 +657,13 @@ public class BoardManager : MonoBehaviour
                 if (cells[y, x] == CellType.Wall)
                     DrawCellGizmo(new Vector2Int(x, y), y1);
 
+        // アンカー（@ / CellType.Anchor）…黒で塗る
+        Gizmos.color = previewAnchor; // ← ここで黒に
+        for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+                if (cells[y, x] == CellType.Anchor)
+                    DrawCellGizmo(new Vector2Int(x, y), y1 /* or y1 + 0.0001f */);
+        
         // 出口
         Gizmos.color = previewExit;
         for (int y = 0; y < Height; y++)
@@ -779,6 +813,8 @@ public class BoardManager : MonoBehaviour
 
         List<GameObject> targets = new();
 
+        bool playerInArea = false;
+
         int k = (size - 1) / 2;
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -791,6 +827,16 @@ public class BoardManager : MonoBehaviour
                 tile.transform.SetParent(pivotGO.transform, true);
                 targets.Add(tile);
             }
+        if (player != null)
+        {
+            var p = player.pos;
+            if (p.x >= center.x - k && p.x <= center.x + k &&
+                p.y >= center.y - k && p.y <= center.y + k)
+            {
+                playerInArea = true;
+                player.transform.SetParent(pivotGO.transform, true);
+            }
+        }
 
         float t = 0f, dur = 0.15f;
         Quaternion from = pivotGO.transform.rotation;
@@ -860,6 +906,33 @@ public class BoardManager : MonoBehaviour
             if (m.it.go) m.it.go.transform.position = GridToWorldActor(m.to);
         }
         itemAt = newItemAt;
+
+        // ★プレイヤーのグリッド座標を回転
+        if (playerInArea && player != null)
+        {
+            // ローカル(0..size-1)座標に変換
+            int i = player.pos.x - (center.x - k);
+            int j = player.pos.y - (center.y - k);
+            int id, jd;
+
+            if (dir > 0)
+            {          // 90°時計回り
+                id = j;             // i' = j
+                jd = size - 1 - i;  // j' = N-1 - i
+            }
+            else
+            {                // 90°反時計回り
+                id = size - 1 - j;  // i' = N-1 - j
+                jd = i;             // j' = i
+            }
+            var newP = new Vector2Int(center.x - k + id, center.y - k + jd);
+
+            // 念のため外してから確定位置へ
+            player.transform.SetParent(null, true);
+            player.pos = newP;
+            player.transform.position = GridToWorldActor(newP);
+        }
+
 
         // ====== 既存のタイル再生成 ======
         foreach (var go in targets) SafeDestroy(go);

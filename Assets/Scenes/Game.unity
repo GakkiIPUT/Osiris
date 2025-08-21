@@ -2251,7 +2251,7 @@ MonoBehaviour:
   - symbol: M
     prefab: {fileID: 3842610496939543256, guid: cdc6d424cd646504ab1359f5a3c3ccda, type: 3}
     label: Left
-    previewColor: {r: 0, g: 0, b: 0, a: 1}
+    previewColor: {r: 0.6226415, g: 0.6226415, b: 0.6226415, a: 1}
   - symbol: N
     prefab: {fileID: 3842610496939543256, guid: 931cf9e0b1504e945b12e5285f05b621, type: 3}
     label: Right
@@ -2317,8 +2317,8 @@ MonoBehaviour:
   - '@@@@@@@@@@@'
   - '@.........@'
   - '@P.......E@'
-  - '@....##...@'
-  - '@......O..@'
+  - '@.....#...@'
+  - '@.....#O..@'
   - '@@@@@@@@@@@'
   previewY: 0.0001
   visionY: 0.0002

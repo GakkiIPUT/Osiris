@@ -104,9 +104,12 @@ MonoBehaviour:
   viewRange: 5
   fovAngle: 90
   patrolMode: 2
-  pattern: L5
+  pattern: L9
   patternIsRelative: 1
   debugDrawPath: 0
   useBoardDefaultViewRange: 1
   startFacing: 1
+  watchMode: 0
+  rotatePeriod: 1
+  rotateClockwise: 1
   showVision: 1

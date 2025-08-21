@@ -361,43 +361,50 @@ public class GuardController : MonoBehaviour
     }
 
     // ====== 視線・向きユーティリティ（ADDED） =======================
+    // ====== 視線・向きユーティリティ ======
     void UpdateFacingByWatchMode()
     {
-        if (watchMode != WatchMode.Rotate4Dir) return;
+        // OneDir は固定、Rotate4Dir/TwoDir系だけ時間で向き切替
+        if (watchMode == WatchMode.OneDir) return;
 
-        if (Time.time - lastRotateTime >= rotatePeriod)
+        if (Time.time - lastRotateTime < rotatePeriod) return;
+        lastRotateTime = Time.time;
+
+        switch (watchMode)
         {
-            lastRotateTime = Time.time;
-            // 右回り:+1、左回り:+3（-1 の代わり）
-            facingIndex = (facingIndex + (rotateClockwise ? 1 : 3)) & 3; // 0..3
-            startFacing = (Facing)facingIndex; // Inspectorにも反映しておくなら
-            forward = FacingToVec((Facing)facingIndex);
-            UpdateVisionOverlay();
+     
+            case WatchMode.TwoDirUD:
+                // Up <-> Down をトグル
+                if (startFacing == Facing.Up) startFacing = Facing.Down;
+                else startFacing = Facing.Up;
+                forward = FacingToVec(startFacing);
+                UpdateVisionOverlay();
+                break;
+
+            case WatchMode.TwoDirLR:
+                // Left <-> Right をトグル
+                if (startFacing == Facing.Left) startFacing = Facing.Right;
+                else startFacing = Facing.Left;
+                forward = FacingToVec(startFacing);
+                UpdateVisionOverlay();
+                break;
+
+            case WatchMode.Rotate4Dir:
+                // 4方向ローテーション
+                facingIndex = (facingIndex + (rotateClockwise ? 1 : 3)) & 3; // 0..3
+                startFacing = (Facing)facingIndex;
+                forward = FacingToVec(startFacing);
+                UpdateVisionOverlay();
+                break;
         }
     }
 
     void GetWatchForwards(List<Vector2Int> list)
     {
         list.Clear();
-        switch (watchMode)
-        {
-            case WatchMode.OneDir:
-                list.Add(forward);
-                break;
-            case WatchMode.TwoDirUD:
-                list.Add(Vector2Int.up);
-                list.Add(Vector2Int.down);
-                break;
-            case WatchMode.TwoDirLR:
-                list.Add(Vector2Int.left);
-                list.Add(Vector2Int.right);
-                break;
-            case WatchMode.Rotate4Dir:
-                list.Add(forward); // 現時点の1方向のみ
-                break;
-        }
-    }
-    // ================================================================
+        // いま有効な forward だけを返す（同時に複数方向は見ない）
+        list.Add(forward);
+    }    // ================================================================
 
     // ====== 視界 ======
     bool CanSeePlayer()
