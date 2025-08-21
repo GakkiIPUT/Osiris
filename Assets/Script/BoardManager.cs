@@ -535,7 +535,7 @@ public class BoardManager : MonoBehaviour
         switch (sym)
         {
             case 'G': // R5
-                g.pattern = "R9";
+                g.pattern = "R5";
                 break;
 
             case 'H': // L5
@@ -804,7 +804,14 @@ public class BoardManager : MonoBehaviour
         if (!WouldBeSafePartial(center, size, dir)) { onDone?.Invoke(); return; }
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
-
+    Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
+    {
+        // dir>0 = 時計回り, dir<0 = 反時計回り
+        var d = p - c;
+        return (dir > 0)
+            ? new Vector2Int(c.x + d.y, c.y - d.x)
+            : new Vector2Int(c.x - d.y, c.y + d.x);
+    }
     IEnumerator RotateCoro(Vector2Int center, int size, int dir, System.Action onDone)
     {
         IsAnimating = true;
@@ -812,10 +819,31 @@ public class BoardManager : MonoBehaviour
         pivotGO.transform.position = GridToWorld(center) + new Vector3(0, 0.05f, 0);
 
         List<GameObject> targets = new();
-
-        bool playerInArea = false;
-
         int k = (size - 1) / 2;
+
+        // ★ プレイヤーが回転範囲内かチェック＆回転前の回転を保存
+        bool playerIn = false;
+        Quaternion savedPlayerRot = Quaternion.identity;
+        Transform playerTf = null;
+        Vector2Int newPlayerPos = default;
+
+        if (player != null)
+        {
+            var p = player.pos;
+            playerIn = (p.x >= center.x - k && p.x <= center.x + k &&
+                        p.y >= center.y - k && p.y <= center.y + k);
+            if (playerIn)
+            {
+                playerTf = player.transform;
+                savedPlayerRot = playerTf.rotation; // ←見た目の向きを保存
+                                                    // 一緒に動かすため、ピボットにぶら下げる（位置はそのまま）
+                playerTf.SetParent(pivotGO.transform, true);
+                // 最終的な新座標は配列回転と同じ式で先に計算しておく
+                newPlayerPos = Rot90(player.pos, center, dir);
+            }
+        }
+
+        // 既存：タイルGOをピボット配下に
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
             {
@@ -827,17 +855,8 @@ public class BoardManager : MonoBehaviour
                 tile.transform.SetParent(pivotGO.transform, true);
                 targets.Add(tile);
             }
-        if (player != null)
-        {
-            var p = player.pos;
-            if (p.x >= center.x - k && p.x <= center.x + k &&
-                p.y >= center.y - k && p.y <= center.y + k)
-            {
-                playerInArea = true;
-                player.transform.SetParent(pivotGO.transform, true);
-            }
-        }
 
+        // 既存：回転アニメ（この回転が子＝プレイヤーにも掛かるが、後で向きを戻す）
         float t = 0f, dur = 0.15f;
         Quaternion from = pivotGO.transform.rotation;
         Quaternion to = Quaternion.AngleAxis(90f * dir, Vector3.up) * from;
@@ -848,7 +867,7 @@ public class BoardManager : MonoBehaviour
             yield return null;
         }
 
-        // ====== タイルの新配置 ======
+        // 既存：セル内容の回転（dest←src の逆写像で newCells を作る）
         var newCells = new Dictionary<Vector2Int, CellType>();
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)
@@ -859,9 +878,9 @@ public class BoardManager : MonoBehaviour
                 if (!InBounds(dest)) continue;
 
                 int gdir = -dir; // 配列側は符号反転
-                int sx, sy;      // 逆写像（dest→src）
-                if (gdir > 0) { sx = j; sy = size - 1 - i; } // 時計回り（配列）
-                else { sx = size - 1 - j; sy = i; } // 反時計（配列）
+                int sx, sy;
+                if (gdir > 0) { sx = j; sy = size - 1 - i; }
+                else { sx = size - 1 - j; sy = i; }
 
                 int sgx = center.x - k + sx;
                 int sgy = center.y - k + sy;
@@ -870,89 +889,37 @@ public class BoardManager : MonoBehaviour
                 newCells[dest] = after;
             }
 
-        // ====== アイテムの新配置（記号も保持して移動） ======
-        var movedItems = new List<(Vector2Int from, Vector2Int to, (char sym, GameObject go) it)>();
-        var newItemAt = new Dictionary<Vector2Int, (char sym, GameObject go)>(itemAt);
-
-        for (int j = 0; j < size; j++)
-            for (int i = 0; i < size; i++)
-            {
-                int gx = center.x + i - k;
-                int gy = center.y + j - k;
-                var dest = new Vector2Int(gx, gy);
-                if (!InBounds(dest)) continue;
-
-                int gdir = -dir; // 配列側は符号反転
-                int sx, sy;      // 逆写像（dest→src）
-                if (gdir > 0) { sx = j; sy = size - 1 - i; }
-                else { sx = size - 1 - j; sy = i; }
-
-                int sgx = center.x - k + sx;
-                int sgy = center.y - k + sy;
-                var src = new Vector2Int(sgx, sgy);
-                if (!InBounds(src)) continue; // 盤外ソースからは来ない=現状維持
-
-                if (itemAt.TryGetValue(src, out var it) && it.go != null)
-                {
-                    movedItems.Add((src, dest, it));
-                }
-            }
-
-        // まとめて反映（to が被ったら後勝ち。必要ならマージ処理に変える）
-        foreach (var m in movedItems)
-        {
-            newItemAt.Remove(m.from);
-            newItemAt[m.to] = m.it;
-            if (m.it.go) m.it.go.transform.position = GridToWorldActor(m.to);
-        }
-        itemAt = newItemAt;
-
-        // ★プレイヤーのグリッド座標を回転
-        if (playerInArea && player != null)
-        {
-            // ローカル(0..size-1)座標に変換
-            int i = player.pos.x - (center.x - k);
-            int j = player.pos.y - (center.y - k);
-            int id, jd;
-
-            if (dir > 0)
-            {          // 90°時計回り
-                id = j;             // i' = j
-                jd = size - 1 - i;  // j' = N-1 - i
-            }
-            else
-            {                // 90°反時計回り
-                id = size - 1 - j;  // i' = N-1 - j
-                jd = i;             // j' = i
-            }
-            var newP = new Vector2Int(center.x - k + id, center.y - k + jd);
-
-            // 念のため外してから確定位置へ
-            player.transform.SetParent(null, true);
-            player.pos = newP;
-            player.transform.position = GridToWorldActor(newP);
-        }
-
-
-        // ====== 既存のタイル再生成 ======
+        // 既存：古いタイル片付け
         foreach (var go in targets) SafeDestroy(go);
+
+        // ★ プレイヤーをピボットから外し、向きを元に戻してからピボット破棄
+        if (playerIn && playerTf != null)
+        {
+            playerTf.SetParent(actorsRoot, true);  // もとの親に戻す
+            playerTf.rotation = savedPlayerRot;    // ←ここがポイント：向きを復元
+        }
         SafeDestroy(pivotGO);
 
+        // 既存：新タイル生成
         foreach (var kv in newCells)
         {
             var p = kv.Key;
             cells[p.y, p.x] = kv.Value;
             var go2 = Instantiate(
                 (cells[p.y, p.x] == CellType.Wall) ? pfWall :
-                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
-                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
+                (cells[p.y, p.x] == CellType.Exit) ? pfExit : pfFloor,
                 GridToWorld(p), Quaternion.identity, tilesRoot);
             go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
             AutoAlign2DObject(go2, false);
             tileGOs[p.y, p.x] = go2;
         }
-        var tm = UnityCompat.FindFirst<TurnManager>();
-        tm?.RegisterRotation();
+
+        // ★ プレイヤーのグリッド座標とワールド位置を更新（向きはそのまま）
+        if (playerIn)
+        {
+            player.pos = newPlayerPos;
+            player.transform.position = GridToWorldActor(newPlayerPos);
+        }
 
         IsAnimating = false;
         RefreshAllGuardVision();

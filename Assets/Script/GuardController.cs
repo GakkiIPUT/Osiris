@@ -104,7 +104,20 @@ public class GuardController : MonoBehaviour
 
         UpdateVisionOverlay();
     }
-
+    // from から dir（単位ベクトル）へ最大 maxSteps 歩、
+    // 盤外 or 非Walkableに当たる「直前」まで進んだ“最後に歩けるマス”を返す
+    Vector2Int RunUntilBlocked(Vector2Int from, Vector2Int dir, int maxSteps)
+    {
+        var p = from;
+        for (int s = 0; s < maxSteps; s++)
+        {
+            var np = p + dir;
+            if (!board.InBounds(np) || !board.IsWalkable(np)) break;
+            p = np;
+        }
+        return p;
+    }
+    
     // ====== パターン構築 ======
     void BuildPatrolPath(Vector2Int start)
     {
@@ -140,26 +153,54 @@ public class GuardController : MonoBehaviour
             int n = 1;
             if (tk.Length > 1) { int.TryParse(tk.Substring(1), out n); if (n <= 0) n = 1; }
 
-            Vector2Int delta = Vector2Int.zero;
-            if (c == 'R') delta = new Vector2Int(+n, 0);
-            else if (c == 'L') delta = new Vector2Int(-n, 0);
-            else if (c == 'U') delta = new Vector2Int(0, +n);
-            else if (c == 'D') delta = new Vector2Int(0, -n);
+            Vector2Int dir = Vector2Int.zero;
+            if (c == 'R') dir = Vector2Int.right;
+            else if (c == 'L') dir = Vector2Int.left;
+            else if (c == 'U') dir = Vector2Int.up;
+            else if (c == 'D') dir = Vector2Int.down;
             else continue;
 
-            Vector2Int next = patternIsRelative ? (curr + delta) : (start + delta);
-            next = new Vector2Int(Mathf.Clamp(next.x, 0, board.Width - 1),
-                                  Mathf.Clamp(next.y, 0, board.Height - 1));
-            path.Add(next);
-            curr = next;
+            // ★ここがポイント：nマス or 壁手前まで
+            Vector2Int basePos = patternIsRelative ? curr : start;
+            Vector2Int next = RunUntilBlocked(basePos, dir, n);
+
+            // 動けたときだけウェイポイント追加
+            if (next != basePos)
+            {
+                path.Add(next);
+                curr = next; // 相対指定なら次の起点を更新
+            }
         }
 
-        // PingPong で waypoint が1つしか無い（=直線往復R5/L5/U5/D5等）は端点2つで往復可能に
-        if (patrolMode == PatrolMode.PingPong && path.Count == 1)
+        if (patrolMode == PatrolMode.PingPong && tokens.Length == 1)
         {
-            path.Insert(0, start); // 端点A=start, 端点B=path[1]
-        }
+            // トークンの向きを dir に読む
+            char c = char.ToUpperInvariant(tokens[0][0]);
+            int n = 1;
+            if (tokens[0].Length > 1) { int.TryParse(tokens[0].Substring(1), out n); if (n <= 0) n = 1; }
 
+            Vector2Int dir = Vector2Int.zero;
+            if (c == 'R') dir = Vector2Int.right;
+            else if (c == 'L') dir = Vector2Int.left;
+            else if (c == 'U') dir = Vector2Int.up;
+            else if (c == 'D') dir = Vector2Int.down;
+
+            if (dir != Vector2Int.zero)
+            {
+                // 両側へ走査：start から dir / -dir に n 歩 or 壁手前まで
+                var a = RunUntilBlocked(start, -dir, n); // 反対側エッジ
+                var b = RunUntilBlocked(start, dir, n); // 指定側エッジ
+
+                path.Clear();
+                // 最初は「トークンで指定した側（b）」へ向かわせたいので b→a の順に並べる
+                path.Add(b);
+                path.Add(a);
+
+                pathIndex = 0;
+                pingDir = +1;
+                return; // ← ここで確定
+            }
+        }
         pathIndex = 0;
         pingDir = +1;
     }
