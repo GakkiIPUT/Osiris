@@ -166,11 +166,18 @@ public class PlayerController : MonoBehaviour
         // アンカー/出口含みチェック
         if (AreaContainsLocked(aimCenter, areaSize)) { UpdateGhostVisual(); return; }
 
-        // プレビュー確認（境界/衝突NGなら不発）
+        // プレビュー確認
         var pv = board.GetPreview(aimCenter, areaSize);
         if (!pv.valid) { UpdateGhostVisual(); return; }
 
-        // 実行 → 成功後：エイム解除＆ターン終了
+        // ★ 方向固有：プレイヤーが敵に重なる回転は不発にする
+        if (board.WouldPlayerOverlapGuard(aimCenter, areaSize, dirRot))
+        {
+            UpdateGhostVisual(); // 必要なら点滅等のフィードバックも可
+            return;
+        }
+
+        // 実行
         board.RotateArea(aimCenter, areaSize, dirRot, () =>
         {
             aiming = false;

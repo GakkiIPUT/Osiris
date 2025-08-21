@@ -747,8 +747,12 @@ public class BoardManager : MonoBehaviour
                 }
             }
         if (!hasAnyIn) return res;
-        bool safeCW = WouldBeSafePartial(center, size, +1);
-        bool safeCCW = WouldBeSafePartial(center, size, -1);
+
+        // ★ 方向ごとの“安全”＝既存の衝突/境界に加えて「プレイヤーが敵に重ならない」
+        bool safeCW = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
+        bool safeCCW = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
+
+        // ★ UIポリシー：片方でも危険なら赤（アンカーっぽい厳しめ表示）
         res.valid = safeCW && safeCCW;
         return res;
     }
@@ -1007,6 +1011,32 @@ public class BoardManager : MonoBehaviour
         }
 
         return true;
+    }
+
+    // そのセルにガードがいる？
+    bool IsGuardAt(Vector2Int p)
+    {
+        if (guards == null) return false;
+        for (int i = 0; i < guards.Count; i++)
+            if (guards[i] != null && guards[i].pos == p) return true;
+        return false;
+    }
+
+    // エリア内にプレイヤーが含まれる？
+    bool IsPlayerInsideArea(Vector2Int center, int size)
+    {
+        if (player == null) return false;
+        int k = (size - 1) / 2;
+        return (player.pos.x >= center.x - k && player.pos.x <= center.x + k &&
+                player.pos.y >= center.y - k && player.pos.y <= center.y + k);
+    }
+
+    // 指定方向に回したとき、プレイヤーの新座標がガードに重なる？
+    public bool WouldPlayerOverlapGuard(Vector2Int center, int size, int dir)
+    {
+        if (!IsPlayerInsideArea(center, size)) return false;
+        var nextP = Rot90(player.pos, center, dir);
+        return IsGuardAt(nextP);
     }
 
     // =========== 視界可視化の一括制御 ===========
