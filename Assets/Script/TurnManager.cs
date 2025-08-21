@@ -91,6 +91,23 @@ public class TurnManager : MonoBehaviour
         }
     }
 
+    // TurnManager.cs 内（クラス直下の任意の場所）に追加
+    public void ResetForRestart(bool keepRetryCount = true)
+    {
+        // ゲーム状態を生き返らせる
+        gameOver = false;
+        cleared = false;
+        playerTurn = true;
+        runningGuards = false;
+
+        // 回転数はリトライごとにリセットしたいはず
+        rotCount = 0;
+
+        // 必須アイテム表示は BoardManager.Build() 側で InitRequiredItems が呼ばれる想定
+        // ここでは触らない
+    }
+
+
     // ======= ターン制制御 =======
     public bool IsPlayerTurn()
     {

@@ -501,6 +501,7 @@ public class BoardManager : MonoBehaviour
         if (tm == null)
         {
             tm = new GameObject("TurnManager").AddComponent<TurnManager>();
+            tm.ResetScoreCounters();
             tm.board = this;
         }
         else

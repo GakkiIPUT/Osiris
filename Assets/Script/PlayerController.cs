@@ -180,6 +180,10 @@ public class PlayerController : MonoBehaviour
         // Às
         board.RotateArea(aimCenter, areaSize, dirRot, () =>
         {
+            // š‰ñ“]¬Œ÷‚Æ‚µ‚Ä“o˜^
+            var t = UnityCompat.FindFirst<TurnManager>();
+            t?.RegisterRotation();
+
             aiming = false;
             ShowGhost(false);
             turn.EndPlayerTurn();

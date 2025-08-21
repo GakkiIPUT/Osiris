@@ -158,17 +158,20 @@ public class GameFlow : MonoBehaviour
     }
 
     // ==== リトライ：ここ経由に統一 ====
+    // GameFlow.cs の RequestRetry を差し替え
     public void RequestRetry()
     {
+        var tm = UnityCompat.FindFirst<TurnManager>();
+        tm?.RegisterRetry();        // ★1回だけ加算
+        tm?.ResetForRestart();      // ★ゲームオーバー/クリア状態を解除し、回転数もリセット
+
+        // パネル類を閉じて（必要なら一時停止解除）
         ResumeIfPaused();
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
 
-        // リトライ回数を加算
-        if (turn != null) turn.RegisterRetry();
-
-        // あなたのゲーム再読み込みルート
-        SceneNavigator.GoGame();
+        // 盤面ソフトリロード（同じシーンのまま現在ステージを再構築）
+        UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
     }
 }
