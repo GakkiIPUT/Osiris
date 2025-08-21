@@ -533,6 +533,53 @@ public class BoardManager : MonoBehaviour
                 g.pattern = "R2,U2,L2,D2"; // ←三角にしたいなら ",D2" を外す
                 break;
 
+            case 'T': // 上を監視（その場）
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.OneDir;
+                g.startFacing = GuardController.Facing.Up;
+                g.pattern = "";
+                break;
+
+            case 'O': // 下
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.OneDir;
+                g.startFacing = GuardController.Facing.Down;
+                g.pattern = "";
+                break;
+
+            case 'M': // 左
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.OneDir;
+                g.startFacing = GuardController.Facing.Left;
+                g.pattern = "";
+                break;
+
+            case 'N': // 右
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.OneDir;
+                g.startFacing = GuardController.Facing.Right;
+                g.pattern = "";
+                break;
+
+            case 'R': // 上下2方向
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.TwoDirUD;
+                g.pattern = "";
+                break;
+
+            case 'Q': // 左右2方向
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.TwoDirLR;
+                g.pattern = "";
+                break;
+
+            case 'S': // 4方向ローテ（その場回転）
+                g.patrolMode = GuardController.PatrolMode.Static;
+                g.watchMode = GuardController.WatchMode.Rotate4Dir;
+                g.rotatePeriod = 1.0f;        // お好みで
+                g.rotateClockwise = true;     // お好みで
+                g.pattern = "";
+                break;
             default:
                 // 記号未定義 → プレハブの設定をそのまま使う
                 break;
