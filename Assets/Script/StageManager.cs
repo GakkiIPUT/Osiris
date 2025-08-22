@@ -34,6 +34,16 @@ public class StageManager : MonoBehaviour
             return;
         }
 
+#if UNITY_EDITOR
+        if (board.devUseSceneLevelInEditor)
+        {
+            board.Build();                 // © LevelPainter‚Å“h‚Á‚½ BoardManager.level ‚ğ‚»‚Ì‚Ü‚ÜÄ¶
+            PushParToGameFlow(stageSet.stages[index].parRot);
+            currentIndex = index;
+            return;
+        }
+#endif
+
         // TextAsset ‚©‚ç’¼Ú“Ç‚İ‚İ
         if (entry.mapTxt != null)
         {
@@ -42,14 +52,23 @@ public class StageManager : MonoBehaviour
         else
         {
             Debug.LogWarning($"Stage '{entry.id}' has no mapTxt assigned. Using existing BoardManager.level.");
+            if (board.player != null)
+            {
+                board.player.ClearGhost();
+            }
             board.Build();
         }
-
+        PushParToGameFlow(stageSet.stages[index].parRot);
+        currentIndex = index;
         // parRot ‚ğ GameFlow ‚É”½‰fi”CˆÓj
         var gf = UnityCompat.FindFirst<GameFlow>();
         if (gf != null) gf.parRot = entry.parRot;
     }
-
+    void PushParToGameFlow(int par)
+    {
+        var gf = UnityCompat.FindFirst<GameFlow>();
+        if (gf != null) gf.parRot = par;
+    }
     public void ReloadCurrent() => Load(currentIndex);
     public void Next() => Load(currentIndex + 1);
     public void Prev() => Load(currentIndex - 1);

@@ -93,6 +93,9 @@ public class PlayerController : MonoBehaviour
                 pos = np;
                 transform.position = board.GridToWorldActor(pos);
 
+                // アイテムがあれば取得
+                board.TryPickupItemAt(pos);
+
                 // クリア判定（出口は通行可のまま）
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
@@ -131,7 +134,7 @@ public class PlayerController : MonoBehaviour
         {
             Vector3 hit = r.GetPoint(enter);
             grid = board.WorldToGrid(hit);
-            return true; // 盤外でも照準は可能（部分回転対応）
+            return true; // 盤外でも照準は可能（部分回転対応）;
         }
         return false;
     }
@@ -167,7 +170,7 @@ public class PlayerController : MonoBehaviour
         if (AreaContainsLocked(aimCenter, areaSize)) { UpdateGhostVisual(); return; }
 
         // プレビュー確認
-        var pv = board.GetPreview(aimCenter, areaSize);
+        var pv = board.GetPreview(aimCenter, areaSize, 0);
         if (!pv.valid) { UpdateGhostVisual(); return; }
 
         // ★ 方向固有：プレイヤーが敵に重なる回転は不発にする
@@ -228,7 +231,7 @@ public class PlayerController : MonoBehaviour
         if (ghostRoot == null) return;
 
         int k = (areaSize - 1) / 2;
-        var pv = board.GetPreview(aimCenter, areaSize);
+        var pv = board.GetPreview(aimCenter, areaSize, 0);
 
         // 追加NG条件：距離オーバー or ロックセル含む
         bool centerOk = IsCenterAllowed(aimCenter);
@@ -247,5 +250,15 @@ public class PlayerController : MonoBehaviour
                 var mr = tf.GetComponent<MeshRenderer>();
                 if (mat != null) mr.material = mat;
             }
+    }
+
+    public void ClearGhost()
+    {
+        aiming = false;
+        if (ghostRoot != null)
+        {
+            Destroy(ghostRoot);
+            ghostRoot = null;
+        }
     }
 }

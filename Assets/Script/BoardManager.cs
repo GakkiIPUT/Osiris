@@ -216,6 +216,10 @@ public class BoardManager : MonoBehaviour
 
     void ClearAll()
     {
+        if (player != null)
+        {
+            player.ClearGhost();
+        }
         if (tilesRoot != null)
             for (int i = tilesRoot.childCount - 1; i >= 0; --i)
                 SafeDestroy(tilesRoot.GetChild(i).gameObject);
@@ -732,7 +736,7 @@ public class BoardManager : MonoBehaviour
     // ========= 回転（任意マス・部分回転対応） ===========
     public struct RotatePreview { public bool valid; public List<Vector2Int> area; }
 
-    public RotatePreview GetPreview(Vector2Int center, int size)
+    public RotatePreview GetPreview(Vector2Int center, int size, int dir)
     {
         var res = new RotatePreview { valid = false, area = new List<Vector2Int>() };
         int k = (size - 1) / 2; bool hasAnyIn = false;
@@ -744,17 +748,24 @@ public class BoardManager : MonoBehaviour
                 if (InBounds(p))
                 {
                     hasAnyIn = true;
-                    if (IsRotateLockedCell(p)) return res; // ★NG即返し（Exit/@含む）
+                    if (IsRotateLockedCell(p)) return res; // Exit/@含むならNG
                 }
             }
         if (!hasAnyIn) return res;
 
-        // ★ 方向ごとの“安全”＝既存の衝突/境界に加えて「プレイヤーが敵に重ならない」
+        // 方向ごとの“安全”判定
         bool safeCW = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
         bool safeCCW = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
 
-        // ★ UIポリシー：片方でも危険なら赤（アンカーっぽい厳しめ表示）
-        res.valid = safeCW && safeCCW;
+        // プレイヤーが範囲内なら両方向ともOK
+        if (IsPlayerInsideArea(center, size))
+        {
+            safeCW = WouldBeSafePartial(center, size, +1);
+            safeCCW = WouldBeSafePartial(center, size, -1);
+        }
+
+        // UIポリシー：片方でも危険なら赤
+        res.valid = safeCW || safeCCW;
         return res;
     }
 
@@ -807,6 +818,8 @@ public class BoardManager : MonoBehaviour
         if (IsAnimating) return;
         if (AreaHasExit(center, size)) { onDone?.Invoke(); return; }
         if (!WouldBeSafePartial(center, size, dir)) { onDone?.Invoke(); return; }
+        // プレイヤーが範囲外の場合のみ重なり判定
+        if (!IsPlayerInsideArea(center, size) && WouldPlayerOverlapGuard(center, size, dir)) { onDone?.Invoke(); return; }
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
     Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
@@ -1035,7 +1048,11 @@ public class BoardManager : MonoBehaviour
     // 指定方向に回したとき、プレイヤーの新座標がガードに重なる？
     public bool WouldPlayerOverlapGuard(Vector2Int center, int size, int dir)
     {
-        if (!IsPlayerInsideArea(center, size)) return false;
+        if (player == null) return false;
+        // プレイヤーが回転範囲に含まれる場合は、回転後も一緒に動くので重なり判定不要
+        if (IsPlayerInsideArea(center, size)) return false;
+
+        // プレイヤーが範囲外の場合のみ、回転後の位置にプレイヤーが重なるか判定
         var nextP = Rot90(player.pos, center, dir);
         return IsGuardAt(nextP);
     }
@@ -1078,4 +1095,22 @@ public class BoardManager : MonoBehaviour
     [ContextMenu("Rebuild Level Now")]
     void EditorRebuildNow() { Build(); }
 #endif
+#if UNITY_EDITOR
+    [Header("DEV / Editor")]
+    public bool devUseSceneLevelInEditor = true;     // ← 追加：再生時にScene内の盤面をそのまま使う
+    public TextAsset devTargetTextAsset;             // ← （任意）保存先
+
+    [ContextMenu("DEV: Save current level into devTargetTextAsset")]
+    public void DevSaveLevelToTextAsset()
+    {
+        if (devTargetTextAsset == null) { Debug.LogWarning("devTargetTextAsset not assigned."); return; }
+        var path = UnityEditor.AssetDatabase.GetAssetPath(devTargetTextAsset);
+        System.IO.File.WriteAllText(path, string.Join("\n", level));
+        UnityEditor.AssetDatabase.ImportAsset(path);
+        Debug.Log($"Saved level to {path}");
+    }
+#endif
+
+    [Header("DEV / Rotation")]
+    public bool rotatePlayerWithArea = true; // 開発者モードで切り替え
 }
