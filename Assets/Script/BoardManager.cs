@@ -1040,6 +1040,7 @@ public class BoardManager : MonoBehaviour
     bool IsPlayerInsideArea(Vector2Int center, int size)
     {
         if (player == null) return false;
+        if (!rotatePlayerWithArea) return false; // ©ƒtƒ‰ƒO‚ªfalse‚È‚çí‚ÉŠÜ‚ß‚È‚¢
         int k = (size - 1) / 2;
         return (player.pos.x >= center.x - k && player.pos.x <= center.x + k &&
                 player.pos.y >= center.y - k && player.pos.y <= center.y + k);

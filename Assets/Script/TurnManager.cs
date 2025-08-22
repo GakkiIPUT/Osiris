@@ -15,6 +15,9 @@ public class TurnManager : MonoBehaviour
     bool playerTurn = true;
     bool runningGuards = false;
 
+    public bool itemCollected = false;
+    public bool goalReached = false;
+
     // ======= リアルタイム駆動 =======
     [Header("Realtime Guards")]
     [Tooltip("ONでガードが一定間隔で常時行動。OFFで従来のターン制（プレイヤー行動後に1回だけ）")]
@@ -207,20 +210,28 @@ public class TurnManager : MonoBehaviour
     public void TryClearAtExit()
     {
         if (gameOver || cleared) return;
-        if (!AllRequiredCollected()) return;
+        // goalReachedがtrueなら強制クリア
+        if (goalReached)
+        {
+            cleared = true;
+            playerTurn = false;
+            var gf = UnityCompat.FindFirst<GameFlow>();
+            int parRotValue1 = gf != null ? Mathf.Max(0, gf.parRot) : 0;
+            var res = ComputeScore(parRotValue1);
+            onStageCleared?.Invoke(res);
+            return;
+        }
+        // itemCollectedがtrueなら全アイテム取得済み扱い
+        if (!AllRequiredCollected() && !itemCollected) return;
 
         cleared = true;
         playerTurn = false;
-
-        // parRot は GameFlow 側の設定を採用
-        int par = 0;
-        var gf = UnityCompat.FindFirst<GameFlow>();
-        if (gf != null) par = Mathf.Max(0, gf.parRot);
-
-        var res = ComputeScore(par);
-        onStageCleared?.Invoke(res);
+        int parRotValue2 = 0;
+        var gf2 = UnityCompat.FindFirst<GameFlow>();
+        if (gf2 != null) parRotValue2 = Mathf.Max(0, gf2.parRot);
+        var res2 = ComputeScore(parRotValue2);
+        onStageCleared?.Invoke(res2);
     }
-
     public void TriggerGameOver()
     {
         if (gameOver || cleared) return;

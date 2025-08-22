@@ -7,7 +7,18 @@ public class PlayerController : MonoBehaviour
 
     public Vector2Int pos;
 
-    int areaSize = 3; // 3 or 5
+    public bool invincible = false; // 無敵モード
+    public int areaSize
+    {
+        get => _areaSize;
+        set
+        {
+            _areaSize = Mathf.Clamp(value, 3, 9); // 3,5,7,9など
+            if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
+        }
+    }
+    private int _areaSize = 3;
+
     bool aiming = false;
     Vector2Int aimCenter;
 
@@ -15,7 +26,6 @@ public class PlayerController : MonoBehaviour
 
     // UI から参照するためのプロパティ
     public bool IsAiming => aiming;
-    public int AreaSize => areaSize;
 
     public void Init(BoardManager b, Vector2Int start)
     {
