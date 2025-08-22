@@ -144,18 +144,13 @@ public class BoardManager : MonoBehaviour
 
     void Awake()
     {
-        if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
-        if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
-        if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
-
-
-
 #if UNITY_EDITOR
-        tilesRoot.hideFlags = HideFlags.HideInHierarchy;
-        actorsRoot.hideFlags = HideFlags.HideInHierarchy;
-        itemsRoot.hideFlags = HideFlags.HideInHierarchy;
+    if (Application.isPlaying) editorPreview = false;
 #endif
-        Build();
+    if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
+    if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
+    if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
+    Build(); // 必ず自身の level で生成
     }
 
     void OnEnable()
@@ -925,7 +920,7 @@ public class BoardManager : MonoBehaviour
             yield return null;
         }
 
-        // 既存：セル内容の回転（dest←src の逆写像で newCells を作る）
+        // 既存：セル内容の回転（dest←src の逆写映像で newCells を作る）
         var newCells = new Dictionary<Vector2Int, CellType>();
         for (int j = 0; j < size; j++)
             for (int i = 0; i < size; i++)

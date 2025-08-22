@@ -232,7 +232,8 @@ public class GuardController : MonoBehaviour
         // Static は移動しない。視界チェック＆可視化のみ
         if (patrolMode == PatrolMode.Static)
         {
-            if (board.player != null && !board.player.invincible)
+            // ここを修正
+            if (board.player != null && !board.player.invincible && CanSeePlayer())
             {
                 turn.TriggerGameOver();
             }

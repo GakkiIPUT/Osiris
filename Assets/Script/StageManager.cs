@@ -10,7 +10,29 @@ public class StageManager : MonoBehaviour
     void Awake()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
-        if (stageSet != null) Load(currentIndex);
+
+        // GameState から選択インデックスを受け取る
+        var gs = UnityCompat.FindFirst<GameState>();
+        if (gs != null)
+        {
+            currentIndex = gs.stageIndex;
+        }
+
+        // ステージ選択済みか判定
+        bool hasStageSelected = stageSet != null && stageSet.stages != null && stageSet.stages.Count > 0
+            && currentIndex >= 0 && currentIndex < stageSet.stages.Count;
+        if (hasStageSelected)
+        {
+            Load(currentIndex); // 選択したステージをロード
+        }
+        else
+        {
+            if (board != null)
+            {
+                board.Build(); // BoardManager.level（デフォルト）で生成
+            }
+        }
+        Debug.Log($"currentIndex={currentIndex}, stageSet={stageSet}");
     }
 
     public void Load(int index)
@@ -87,4 +109,24 @@ public class StageManager : MonoBehaviour
 
     // 旧Ascii読みは不要になったので使わない（残すなら staticユーティリティとしてどうぞ）
     // static string[] ParseAscii(TextAsset ta) { ... }
+    public void CreateStage()
+    {
+        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+
+        // ステージ選択済みか判定
+        bool hasStageSelected = stageSet != null && stageSet.stages != null && stageSet.stages.Count > 0
+            && currentIndex >= 0 && currentIndex < stageSet.stages.Count;
+
+        if (hasStageSelected)
+        {
+            Load(currentIndex); // 選択したステージをロード
+        }
+        else
+        {
+            if (board != null)
+            {
+                board.Build(); // BoardManager.level（デフォルト）で生成
+            }
+        }
+    }
 }
