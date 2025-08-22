@@ -271,4 +271,17 @@ public class PlayerController : MonoBehaviour
             ghostRoot = null;
         }
     }
+
+    public void SaveDevModeSettings()
+    {
+        PlayerPrefs.SetInt("player_invincible", invincible ? 1 : 0);
+        PlayerPrefs.SetInt("player_areaSize", areaSize);
+        PlayerPrefs.Save();
+    }
+
+    public void LoadDevModeSettings()
+    {
+        invincible = PlayerPrefs.GetInt("player_invincible", 0) == 1;
+        areaSize = PlayerPrefs.GetInt("player_areaSize", 3); // 3はデフォルト
+    }
 }

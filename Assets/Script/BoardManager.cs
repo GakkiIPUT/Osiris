@@ -148,6 +148,8 @@ public class BoardManager : MonoBehaviour
         if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
         if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
 
+
+
 #if UNITY_EDITOR
         tilesRoot.hideFlags = HideFlags.HideInHierarchy;
         actorsRoot.hideFlags = HideFlags.HideInHierarchy;
@@ -459,6 +461,7 @@ public class BoardManager : MonoBehaviour
             if (pc == null) pc = go.AddComponent<PlayerController>();
             player = pc;
             player.Init(this, playerStart.Value);
+            player.LoadDevModeSettings();
         }
 
         // Guards（Prefabに GuardController が付いている前提）
@@ -777,6 +780,8 @@ public class BoardManager : MonoBehaviour
         if (player != null) occ.Add(player.pos);
         foreach (var g in guards) occ.Add(g.pos);
 
+        bool playerIn = IsPlayerInsideArea(center, size);
+
         foreach (var o in occ)
         {
             if (o.x < center.x - k || o.x > center.x + k ||
@@ -795,10 +800,46 @@ public class BoardManager : MonoBehaviour
             int gy = center.y - k + sy;
 
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
-            if (after == CellType.Wall) return false;
+
+            // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
+            if (!playerIn && player != null && o == player.pos && after == CellType.Wall)
+                return false;
+
+            // ガードは常に壁と重なるのを禁止
+            if (o != player.pos && after == CellType.Wall)
+                return false;
         }
         return true;
     }
+    //bool WouldBeSafePartial(Vector2Int center, int size, int dir)
+    //{
+    //    int k = (size - 1) / 2;
+    //    var occ = new List<Vector2Int>();
+    //    if (player != null) occ.Add(player.pos);
+    //    foreach (var g in guards) occ.Add(g.pos);
+
+    //    foreach (var o in occ)
+    //    {
+    //        if (o.x < center.x - k || o.x > center.x + k ||
+    //            o.y < center.y - k || o.y > center.y + k) continue;
+
+    //        int lx = o.x - (center.x - k);
+    //        int ly = o.y - (center.y - k);
+
+    //        int gdir = -dir; // 配列側は符号反転（見た目と逆）
+
+    //        int sx, sy;
+    //        if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 時計回り（配列）
+    //        else { sx = size - 1 - ly; sy = lx; } // 反時計（配列）
+
+    //        int gx = center.x - k + sx;
+    //        int gy = center.y - k + sy;
+
+    //        CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
+    //        if (after == CellType.Wall) return false;
+    //    }
+    //    return true;
+    //}
 
     bool AreaHasExit(Vector2Int center, int size)
     {
@@ -848,8 +889,7 @@ public class BoardManager : MonoBehaviour
         if (player != null)
         {
             var p = player.pos;
-            playerIn = (p.x >= center.x - k && p.x <= center.x + k &&
-                        p.y >= center.y - k && p.y <= center.y + k);
+            playerIn = IsPlayerInsideArea(center, size);
             if (playerIn)
             {
                 playerTf = player.transform;
@@ -1114,4 +1154,14 @@ public class BoardManager : MonoBehaviour
 
     [Header("DEV / Rotation")]
     public bool rotatePlayerWithArea = true; // 開発者モードで切り替え
+
+    public void SaveDevModeSettings()
+    {
+        PlayerPrefs.SetInt("rotatePlayerWithArea", rotatePlayerWithArea ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+    public void LoadDevModeSettings()
+    {
+        rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
+    }
 }

@@ -82,11 +82,15 @@ public class GameUI : MonoBehaviour
         PlayerController player = Object.FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
-            int newAreaSize = Mathf.RoundToInt(GUILayout.HorizontalSlider(player.areaSize, 3, 9));
-            if (newAreaSize != player.areaSize) player.areaSize = newAreaSize;
-            GUILayout.Label($"回転範囲サイズ: {player.areaSize}");
-
             player.invincible = GUILayout.Toggle(player.invincible, "無敵モード");
+            player.SaveDevModeSettings();
+
+            int newAreaSize = Mathf.RoundToInt(GUILayout.HorizontalSlider(player.areaSize, 3, 9));
+            if (newAreaSize != player.areaSize) {
+                player.areaSize = newAreaSize;
+                player.SaveDevModeSettings();
+            }
+            GUILayout.Label($"回転範囲サイズ: {player.areaSize}");
         }
 
         // アイテム回収/ゴールフラグ

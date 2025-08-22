@@ -18,6 +18,7 @@ public class DevModeUI : MonoBehaviour
         {
             board.rotatePlayerWithArea = !board.rotatePlayerWithArea;
             Debug.Log($"[F1] rotatePlayerWithArea: {board.rotatePlayerWithArea}");
+            board.SaveDevModeSettings();
         }
 
         // Shift+F1: 無敵トグル
@@ -25,6 +26,7 @@ public class DevModeUI : MonoBehaviour
         {
             player.invincible = !player.invincible;
             Debug.Log($"[Shift+F1] invincible: {player.invincible}");
+            board.SaveDevModeSettings();
         }
 
         // Ctrl+F1: 回転範囲サイズ変更（3→5→7→9→3…）
@@ -34,6 +36,7 @@ public class DevModeUI : MonoBehaviour
             int idx = System.Array.IndexOf(sizes, player.areaSize);
             player.areaSize = sizes[(idx + 1) % sizes.Length];
             Debug.Log($"[Ctrl+F1] areaSize: {player.areaSize}");
+            board.SaveDevModeSettings();
         }
 
         // Alt+F1: アイテム回収/ゴールフラグトグル
@@ -42,6 +45,7 @@ public class DevModeUI : MonoBehaviour
             turn.itemCollected = !turn.itemCollected;
             turn.goalReached = !turn.goalReached;
             Debug.Log($"[Alt+F1] itemCollected: {turn.itemCollected}, goalReached: {turn.goalReached}");
+            board.SaveDevModeSettings();
         }
     }
 }
