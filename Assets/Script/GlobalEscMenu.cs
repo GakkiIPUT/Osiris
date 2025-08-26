@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class GlobalEscMenu : MonoBehaviour
 {
@@ -10,6 +11,12 @@ public class GlobalEscMenu : MonoBehaviour
     public Button toStageButton;
     public Button quitButton;
     public bool pauseOnEsc = true;
+
+    [Header("Key Bindings (optional)")]
+    public Button bindResetKeyButton;
+    public TMP_Text bindResetKeyLabel;
+
+    bool waitingResetRebind = false;
 
     void Start()
     {
@@ -26,11 +33,35 @@ public class GlobalEscMenu : MonoBehaviour
         if (toMainButton) toMainButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoMain(); });
         if (toStageButton) toStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (quitButton) quitButton.onClick.AddListener(QuitGame);
+
+        if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
+        UpdateResetKeyLabel();
     }
 
     void Update()
     {
         if (!enabled) return;
+
+        if (waitingResetRebind)
+        {
+            if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
+            {
+                if (kc == KeyCode.Escape)
+                {
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture();
+                    UpdateResetKeyLabel();
+                }
+                else
+                {
+                    InputBindings.SetResetKey(kc);
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture();
+                    UpdateResetKeyLabel();
+                }
+            }
+        }
+
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             if (escMenuPanel && escMenuPanel.activeSelf) Close();
@@ -44,12 +75,15 @@ public class GlobalEscMenu : MonoBehaviour
         escMenuPanel.SetActive(true);
         escMenuPanel.transform.SetAsLastSibling();
         if (pauseOnEsc) Time.timeScale = 0f;
+        UpdateResetKeyLabel();
     }
 
     void Close()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
+        waitingResetRebind = false;
+        InputBindings.EndCapture(); // 念のため
         ResumeIfPaused();
     }
 
@@ -80,5 +114,17 @@ public class GlobalEscMenu : MonoBehaviour
     #endif
         Application.Quit(0);
 #endif
+    }
+
+    void BeginRebindResetKey()
+    {
+        waitingResetRebind = true;
+        InputBindings.BeginCapture();
+        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （押して設定中…）";
+    }
+
+    void UpdateResetKeyLabel()
+    {
+        if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
     }
 }

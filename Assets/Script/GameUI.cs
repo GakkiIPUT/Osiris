@@ -6,7 +6,7 @@ public class GameUI : MonoBehaviour
     public Button btnRotateL, btnRotateR, btnRangeToggle, btnReset;
     StageManager stage; PlayerController player; TurnManager turn;
 
-    // devModeを追加
+    // devMode追加
     public bool devMode = false;
 
     void Awake()
@@ -18,7 +18,7 @@ public class GameUI : MonoBehaviour
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
     }
 
-    void OnEnable() { ResolveRefs(); }  // 画面復帰時も参照掴み直し
+    void OnEnable() { ResolveRefs(); }  // 表示直後に参照解決
 
     void ResolveRefs()
     {
@@ -36,18 +36,19 @@ public class GameUI : MonoBehaviour
         ResolveRefs();
         var gf = UnityCompat.FindFirst<GameFlow>();
         if (gf != null) gf.RequestRetry();
-        else stage?.ReloadCurrent(); // フォールバック（カウントは増えない）
+        else stage?.ReloadCurrent(); // フォールバック
     }
 
     void Update()
     {
-        // F1キーで開発者モードON/OFF
+        // F1キーでデバッグモードON/OFF
         if (Input.GetKeyDown(KeyCode.F1))
         {
             devMode = !devMode;
         }
-        // Rキーでリセット：カウントを正しく増やすため RequestRetry に統一
-        if (Input.GetKeyDown(KeyCode.R))
+
+        // リセット（リバインド中/抑止中は無効化）
+        if (!InputBindings.IsCapturing && InputBindings.IsResetPressed())
         {
             var gf = UnityCompat.FindFirst<GameFlow>();
             if (gf != null) gf.RequestRetry();

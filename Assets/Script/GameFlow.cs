@@ -8,7 +8,7 @@ public class GameFlow : MonoBehaviour
     public GameObject escMenuPanel;
     public Button escCloseButton;
     public Button escToStageButton;
-    public Button escQuitButton; // ← 追加
+    public Button escQuitButton; // 既存（終了）
     public bool pauseOnEsc = true;
 
     [Header("Game Over")]
@@ -39,11 +39,16 @@ public class GameFlow : MonoBehaviour
     public Image treasureImage;        // コレクションSprite
     public Button treasureCloseButton; // 閉じる
 
+    [Header("Key Bindings (in ESC)")]
+    public Button bindResetKeyButton;
+    public TMP_Text bindResetKeyLabel;
+
     StageManager stage;
     TurnManager turn;
 
     // クリア表示順制御用: クリアパネル表示後に宝箱を最前面に出す
     bool treasureOverlayPending = false;
+    bool waitingResetRebind = false;
 
     void Start()
     {
@@ -92,26 +97,20 @@ public class GameFlow : MonoBehaviour
         // 参照を取る（Load の直後なら同期的に見つかる想定）
         turn = UnityCompat.FindFirst<TurnManager>();
 
-        // まず全パネル非表示
+        // パネル初期化
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
 
-        // ボタン配線
+        // ESCボタン配線
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
-        if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame); // ← 追加
+        if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame);
 
-        if (retryButton) retryButton.onClick.AddListener(RequestRetry);
-        if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoMain(); });
-
-        if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
-
-        if (treasureCloseButton) treasureCloseButton.onClick.AddListener(() =>
-        {
-            if (treasurePanel) treasurePanel.SetActive(false);
-        });
+        // バインドUI
+        if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
+        UpdateResetKeyLabel();
 
         // TurnManager イベント購読 & カウンタ初期化
         HookTurnManager();
@@ -145,6 +144,29 @@ public class GameFlow : MonoBehaviour
     {
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
+        // Rebind待機中は最優先でキーを捕捉
+        if (waitingResetRebind)
+        {
+            if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
+            {
+                if (kc == KeyCode.Escape)
+                {
+                    // Esc でキャンセル
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture(); // ← 追加（キャンセル）
+                    UpdateResetKeyLabel();
+                }
+                else
+                {
+                    InputBindings.SetResetKey(kc);
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture(); // ← 追加（確定）
+                    UpdateResetKeyLabel();
+                }
+            }
+            // Rebind中は他の更新は続行（必要ならreturnで抜けてもOK）
+        }
+
         bool isOver = (turn && turn.gameOver);
         bool isClear = (turn && turn.cleared);
 
@@ -170,18 +192,27 @@ public class GameFlow : MonoBehaviour
                 ShowOnTop(clearPanel);
                 if (pauseOnClear) Time.timeScale = 0f;
 
-                // ここでクリアパネルの直後に宝箱を最前面へ
                 if (treasureOverlayPending)
                 {
                     ShowTreasureOverlayOnTop();
                     treasureOverlayPending = false;
                 }
             }
-            if (!isClear && clearPanel.activeSelf)
-            {
-                clearPanel.SetActive(false);
-            }
+            if (!isClear && clearPanel.activeSelf) clearPanel.SetActive(false);
         }
+    }
+
+    // リバインド開始
+    void BeginRebindResetKey()
+    {
+        waitingResetRebind = true;
+        InputBindings.BeginCapture(); // ← 追加
+        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （押して設定中…）";
+    }
+
+    void UpdateResetKeyLabel()
+    {
+        if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
     }
 
     // ==== クリア結果の受取 ====
@@ -265,13 +296,17 @@ public class GameFlow : MonoBehaviour
     void OpenEscMenu()
     {
         if (!escMenuPanel) return;
-        ShowOnTop(escMenuPanel);
+        escMenuPanel.SetActive(true);
+        escMenuPanel.transform.SetAsLastSibling();
         if (pauseOnEsc) Time.timeScale = 0f;
+        UpdateResetKeyLabel();
     }
     void CloseEscMenu()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
+        waitingResetRebind = false;
+        InputBindings.EndCapture(); // ← 追加（開きっぱなしをクリーンアップ）
         ResumeIfPaused();
     }
 
@@ -306,10 +341,9 @@ public class GameFlow : MonoBehaviour
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #elif UNITY_WEBGL
-        // WebGL はウィンドウを閉じられないので何もしない or メッセージ表示に差し替え
+        // WebGLは終了不可
 #else
-        // Android はアクティビティ終了（履歴からも消したい場合）
-        #if UNITY_ANDROID
+    #if UNITY_ANDROID
         try
         {
             using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -318,10 +352,9 @@ public class GameFlow : MonoBehaviour
                 activity.Call("finishAndRemoveTask");
             }
         }
-        catch { /* 失敗しても続行して Application.Quit へ */ }
-        #endif
-
-        Application.Quit(0); // 正常終了コード
+        catch { }
+    #endif
+        Application.Quit(0);
 #endif
     }
 }
