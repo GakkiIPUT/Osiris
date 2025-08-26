@@ -2291,20 +2291,8 @@ MonoBehaviour:
   itemTypes:
   - symbol: i
     prefab: {fileID: 3724295039916806632, guid: 5c67cbc312025144eb1ddd8862f36dba, type: 3}
-    label: bangles
+    label: key
     previewColor: {r: 0.10303044, g: 1, b: 0, a: 1}
-  - symbol: j
-    prefab: {fileID: 3754564066150006650, guid: 29addae441daf3e4e8aa9efac34d1ee5, type: 3}
-    label: earring
-    previewColor: {r: 0.66321325, g: 1, b: 0.6245283, a: 1}
-  - symbol: k
-    prefab: {fileID: 3740647363397985085, guid: 38d7f96e83e5c5248b80b097ff97c3f2, type: 3}
-    label: jewely
-    previewColor: {r: 0.068163656, g: 0.645283, b: 0, a: 1}
-  - symbol: l
-    prefab: {fileID: 8324149327224626879, guid: 9dca1d55edc359f4fb64fad6f18dac51, type: 3}
-    label: wand
-    previewColor: {r: 0.024494026, g: 0.23773581, b: 0, a: 1}
   itemsRoot: {fileID: 1664042673}
   realtime: 1
   rotationCenterMaxDistance: 2
@@ -2327,17 +2315,13 @@ MonoBehaviour:
   previewP: {r: 1, g: 1, b: 1, a: 1}
   previewAnchor: {r: 0, g: 0, b: 0, a: 1}
   level:
-  - '##################################'
-  - '#...............#................#'
-  - '#......#........#.....#..........#'
-  - '#......#....G...#.....#..........#'
-  - '#......#........#.....#..........#'
-  - '#.P..i.#..............#.........E#'
-  - '#......#........#.G...#..........#'
-  - '#......#........#.....#..........#'
-  - '#......#........#.....#..........#'
-  - '#...............#................#'
-  - '##################################'
+  - '@@@@@@@@@@@@@@@'
+  - '@....###..##..@'
+  - '@.............@'
+  - '@..P.....Q...E@'
+  - '@.............@'
+  - '@....###..##..@'
+  - '@@@@@@@@@@@@@@@'
   previewY: 0.0001
   visionY: 0.0002
   tilesRoot: {fileID: 114234969}
@@ -4744,19 +4728,10 @@ MonoBehaviour:
   - symbol: 105
     sprite: {fileID: 21300000, guid: 56b4d993fd1d2234e88e682164983ff0, type: 3}
     label: bangles
-  - symbol: 106
-    sprite: {fileID: 21300000, guid: 73863d890ded76f4f9d90d8d2e1aedad, type: 3}
-    label: earring
-  - symbol: 107
-    sprite: {fileID: 21300000, guid: 8c32d313ef53a274d808b9aa907e77d7, type: 3}
-    label: jewely
-  - symbol: 108
-    sprite: {fileID: 21300000, guid: 946ecacf36669394f8c28e5cfeae2edc, type: 3}
-    label: wand
   fallbackSprite: {fileID: 21300000, guid: ca789ae9867c15d40ab758ea5e3ed48d, type: 3}
   uncollectedAlpha: 0.35
   groupGap: 16
-  iconPreferredSize: 56
+  iconPreferredSize: 40
 --- !u!114 &2034643273
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4776,8 +4751,8 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 1
   m_Spacing: 0
-  m_ChildForceExpandWidth: 1
-  m_ChildForceExpandHeight: 1
+  m_ChildForceExpandWidth: 0
+  m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 0
   m_ChildControlHeight: 0
   m_ChildScaleWidth: 0

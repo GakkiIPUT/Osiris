@@ -492,7 +492,7 @@ public class BoardManager : MonoBehaviour
             if (!it.type.prefab) { Debug.LogError($"Item prefab null for '{it.type.symbol}'"); continue; }
             var go = Instantiate(it.type.prefab, GridToWorld(it.pos), Quaternion.identity, itemsRoot);
             go.name = $"Item_{it.pos.x}_{it.pos.y}_{it.type.symbol}";
-            AutoAlign2DObject(go, true /*見た目少し浮かす*/, new Vector2(0.8f, 0.8f)); // 見た目縮小は好みで
+            AutoAlign2DObject(go, true /*見た目少し浮かす*/, new Vector2(0.07f, 0.07f)); // 見た目縮小は好みで
 
             // ★ 位置 → (記号, 実体) を保存（拾得とUI更新に使う）
             itemAt[it.pos] = (it.type.symbol[0], go);
@@ -875,6 +875,7 @@ public class BoardManager : MonoBehaviour
         List<GameObject> targets = new();
         int k = (size - 1) / 2;
 
+        var movedItems = new List<(Vector2Int from, Vector2Int to, char sym, GameObject go)>();
         // ★ プレイヤーが回転範囲内かチェック＆回転前の回転を保存
         bool playerIn = false;
         Quaternion savedPlayerRot = Quaternion.identity;
@@ -908,6 +909,21 @@ public class BoardManager : MonoBehaviour
                 tile.transform.SetParent(pivotGO.transform, true);
                 targets.Add(tile);
             }
+        if (itemAt != null && itemAt.Count > 0)
+        {
+            foreach (var kv in itemAt)
+            {
+                var p = kv.Key;
+                if (p.x >= center.x - k && p.x <= center.x + k &&
+                    p.y >= center.y - k && p.y <= center.y + k)
+                {
+                    var (sym, go) = kv.Value; // 値が GameObject のみなら: var go = kv.Value;
+                    if (go) go.transform.SetParent(pivotGO.transform, true);
+                    var dest = Rot90(p, center, dir);
+                    movedItems.Add((p, dest, sym, go));
+                }
+            }
+        }
 
         // 既存：回転アニメ（この回転が子＝プレイヤーにも掛かるが、後で向きを戻す）
         float t = 0f, dur = 0.15f;
@@ -944,13 +960,15 @@ public class BoardManager : MonoBehaviour
 
         // 既存：古いタイル片付け
         foreach (var go in targets) SafeDestroy(go);
-
-        // ★ プレイヤーをピボットから外し、向きを元に戻してからピボット破棄
-        if (playerIn && playerTf != null)
-        {
-            playerTf.SetParent(actorsRoot, true);  // もとの親に戻す
-            playerTf.rotation = savedPlayerRot;    // ←ここがポイント：向きを復元
-        }
+        // ★ プレイヤーとアイテムを親から戻す
+        if (playerIn && playerTf) playerTf.SetParent(actorsRoot, true);
+        foreach (var mi in movedItems) if (mi.go) mi.go.transform.SetParent(itemsRoot, true);
+        //// ★ プレイヤーをピボットから外し、向きを元に戻してからピボット破棄
+        //if (playerIn && playerTf != null)
+        //{
+        //    playerTf.SetParent(actorsRoot, true);  // もとの親に戻す
+        //    playerTf.rotation = savedPlayerRot;    // ←ここがポイント：向きを復元
+        //}
         SafeDestroy(pivotGO);
 
         // 既存：新タイル生成
@@ -966,10 +984,24 @@ public class BoardManager : MonoBehaviour
             AutoAlign2DObject(go2, false);
             tileGOs[p.y, p.x] = go2;
         }
-
+        // ★ アイテムの辞書＆位置を更新
+        if (movedItems.Count > 0)
+        {
+            foreach (var mi in movedItems) itemAt.Remove(mi.from);
+            foreach (var mi in movedItems)
+            {
+                if (mi.go)
+                {
+                    mi.go.transform.position = GridToWorld(mi.to);
+                    AutoAlign2DObject(mi.go, true, new Vector2(0.07f, 0.07f)); // 見た目調整はお好み
+                }
+                itemAt[mi.to] = (mi.sym, mi.go); // 値が GameObject のみなら: itemAt[mi.to] = mi.go;
+            }
+        }
         // ★ プレイヤーのグリッド座標とワールド位置を更新（向きはそのまま）
         if (playerIn)
         {
+            playerTf.rotation = savedPlayerRot;
             player.pos = newPlayerPos;
             player.transform.position = GridToWorldActor(newPlayerPos);
         }

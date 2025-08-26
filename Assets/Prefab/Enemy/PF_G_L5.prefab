@@ -108,8 +108,8 @@ MonoBehaviour:
   patternIsRelative: 1
   debugDrawPath: 0
   useBoardDefaultViewRange: 1
-  startFacing: 1
+  startFacing: 3
   watchMode: 0
   rotatePeriod: 1
-  rotateClockwise: 1
+  rotateClockwise: 0
   showVision: 1

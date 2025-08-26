@@ -11,27 +11,27 @@ public class StageManager : MonoBehaviour
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
 
-        // GameState から選択インデックスを受け取る
-        var gs = UnityCompat.FindFirst<GameState>();
-        if (gs != null)
-        {
-            currentIndex = gs.stageIndex;
-        }
+        //// GameState から選択インデックスを受け取る
+        //var gs = UnityCompat.FindFirst<GameState>();
+        //if (gs != null)
+        //{
+        //    currentIndex = gs.stageIndex;
+        //}
 
-        // ステージ選択済みか判定
-        bool hasStageSelected = stageSet != null && stageSet.stages != null && stageSet.stages.Count > 0
-            && currentIndex >= 0 && currentIndex < stageSet.stages.Count;
-        if (hasStageSelected)
-        {
-            Load(currentIndex); // 選択したステージをロード
-        }
-        else
-        {
-            if (board != null)
-            {
-                board.Build(); // BoardManager.level（デフォルト）で生成
-            }
-        }
+        //// ステージ選択済みか判定
+        //bool hasStageSelected = stageSet != null && stageSet.stages != null && stageSet.stages.Count > 0
+        //    && currentIndex >= 0 && currentIndex < stageSet.stages.Count;
+        //if (hasStageSelected)
+        //{
+        //    Load(currentIndex); // 選択したステージをロード
+        //}
+        //else
+        //{
+        //    if (board != null)
+        //    {
+        //        board.Build(); // BoardManager.level（デフォルト）で生成
+        //    }
+        //}
         Debug.Log($"currentIndex={currentIndex}, stageSet={stageSet}");
     }
 
@@ -43,49 +43,76 @@ public class StageManager : MonoBehaviour
             return;
         }
 
-        // 安全にクランプして currentIndex を更新
         currentIndex = Mathf.Clamp(index, 0, stageSet.stages.Count - 1);
-
         var entry = stageSet.stages[currentIndex];
 
-        // Board参照を確保（見つかったらキャッシュ）
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
-        if (board == null)
-        {
-            Debug.LogError("BoardManager not found.");
-            return;
-        }
+        if (board == null) { Debug.LogError("BoardManager not found."); return; }
+
+        if (entry.mapTxt != null)
+            board.SetLevelFromText(entry.mapTxt.text, rebuild: true);
+        else
+            board.Build();
+
+        PushParToGameFlow(entry.parRot);
 
 #if UNITY_EDITOR
-        if (board.devUseSceneLevelInEditor)
-        {
-            board.Build();                 // ← LevelPainterで塗った BoardManager.level をそのまま再生
-            PushParToGameFlow(stageSet.stages[index].parRot);
-            currentIndex = index;
-            return;
-        }
+        Debug.Log($"[StageManager] Loaded {currentIndex}: {entry.id}");
 #endif
-
-        // TextAsset から直接読み込み
-        if (entry.mapTxt != null)
-        {
-            board.SetLevelFromText(entry.mapTxt.text, rebuild: true);
-        }
-        else
-        {
-            Debug.LogWarning($"Stage '{entry.id}' has no mapTxt assigned. Using existing BoardManager.level.");
-            if (board.player != null)
-            {
-                board.player.ClearGhost();
-            }
-            board.Build();
-        }
-        PushParToGameFlow(stageSet.stages[index].parRot);
-        currentIndex = index;
-        // parRot を GameFlow に反映（任意）
-        var gf = UnityCompat.FindFirst<GameFlow>();
-        if (gf != null) gf.parRot = entry.parRot;
     }
+
+
+    //    public void Load(int index)
+    //    {
+    //        if (stageSet == null || stageSet.stages == null || stageSet.stages.Count == 0)
+    //        {
+    //            Debug.LogError("StageManager.Load: stageSet is not assigned or empty.");
+    //            return;
+    //        }
+
+    //        // 安全にクランプして currentIndex を更新
+    //        currentIndex = Mathf.Clamp(index, 0, stageSet.stages.Count - 1);
+
+    //        var entry = stageSet.stages[currentIndex];
+
+    //        // Board参照を確保（見つかったらキャッシュ）
+    //        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+    //        if (board == null)
+    //        {
+    //            Debug.LogError("BoardManager not found.");
+    //            return;
+    //        }
+
+    //#if UNITY_EDITOR
+    //        //if (board.devUseSceneLevelInEditor)
+    //        //{
+    //        //    board.Build();                 // ← LevelPainterで塗った BoardManager.level をそのまま再生
+    //        //    PushParToGameFlow(stageSet.stages[index].parRot);
+    //        //    currentIndex = index;
+    //        //    return;
+    //        //}
+    //#endif
+
+    //        // TextAsset から直接読み込み
+    //        if (entry.mapTxt != null)
+    //        {
+    //            board.SetLevelFromText(entry.mapTxt.text, rebuild: true);
+    //        }
+    //        else
+    //        {
+    //            Debug.LogWarning($"Stage '{entry.id}' has no mapTxt assigned. Using existing BoardManager.level.");
+    //            if (board.player != null)
+    //            {
+    //                board.player.ClearGhost();
+    //            }
+    //            board.Build();
+    //        }
+    //        PushParToGameFlow(stageSet.stages[index].parRot);
+    //        currentIndex = index;
+    //        // parRot を GameFlow に反映（任意）
+    //        var gf = UnityCompat.FindFirst<GameFlow>();
+    //        if (gf != null) gf.parRot = entry.parRot;
+    //    }
     void PushParToGameFlow(int par)
     {
         var gf = UnityCompat.FindFirst<GameFlow>();
