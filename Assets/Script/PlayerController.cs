@@ -51,7 +51,7 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
         if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
 
-        // 敵視界トグル（常時表示運用でもトグルは残す）
+        // 敵視界トグル
         if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
 
         // クリックでエイム開始/更新
@@ -77,41 +77,29 @@ public class PlayerController : MonoBehaviour
         else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) dir = Vector2Int.down;
         else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) dir = Vector2Int.left;
         else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) dir = Vector2Int.right;
+
         if (dir != Vector2Int.zero)
         {
             var np = pos + dir;
-            //if (board.IsWalkable(np))
-            //{
-            //    pos = np;
-            //    transform.position = board.GridToWorldActor(pos);
-
-            //    if (board.cells[pos.y, pos.x] == CellType.Exit)
-            //    {
-            //        turn.TriggerClear();
-            //    }
-            //    else
-            //    {
-            //        // アイテムがあれば取得
-            //        board.TryPickupItemAt(pos);
-            //    }
-
-            //    turn.EndPlayerTurn();
-            //    return;
-            //}
-            if (board.IsWalkable(np, true))
+            if (board.IsWalkable(np, true)) // 成功時のみカウント
             {
+                // 位置更新
                 pos = np;
                 transform.position = board.GridToWorldActor(pos);
 
-                // アイテムがあれば取得
+                // アイテム取得
                 board.TryPickupItemAt(pos);
+
+                // 重要: スコアに反映させるため、クリア判定より先にAP(=歩数)を加算
+                turn?.RegisterActionPoint();
 
                 // クリア判定（出口は通行可のまま）
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
-                    turn.TriggerClear();
+                    turn?.TriggerClear();
                 }
-                turn.EndPlayerTurn();
+
+                turn?.EndPlayerTurn();
                 return;
             }
         }
@@ -123,7 +111,7 @@ public class PlayerController : MonoBehaviour
             TryRotate(dirRot);
         }
 
-        // エイム中はゴースト更新（範囲NGやアンカー含みで赤表示）
+        // エイム中はゴースト更新
         if (aiming) UpdateGhostVisual();
     }
 

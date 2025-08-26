@@ -11,6 +11,8 @@ public class StageSet : ScriptableObject
         public string id = "1-1";   // 表示用・任意
         public TextAsset mapTxt;    // ← ここに .txt を割り当てる
         public int parRot = 6;      // 想定回転数（UI/スコア用）
+        [Tooltip("想定AP（パー）。このAPまでは減点しない")]
+        [Min(0)] public int parAP = 6;
     }
 
     public List<Entry> stages = new List<Entry>();

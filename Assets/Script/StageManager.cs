@@ -32,7 +32,7 @@ public class StageManager : MonoBehaviour
         //        board.Build(); // BoardManager.level（デフォルト）で生成
         //    }
         //}
-        Debug.Log($"currentIndex={currentIndex}, stageSet={stageSet}");
+        //Debug.Log($"currentIndex={currentIndex}, stageSet={stageSet}");
     }
 
     public void Load(int index)
@@ -54,10 +54,15 @@ public class StageManager : MonoBehaviour
         else
             board.Build();
 
+        // 旧仕様（回転パー）は従来どおり GameFlow へ
         PushParToGameFlow(entry.parRot);
 
+        // 新仕様（APパー）は TurnManager へ
+        var tm = UnityCompat.FindFirst<TurnManager>();
+        if (tm != null) tm.parAP = Mathf.Max(0, entry.parAP);
+
 #if UNITY_EDITOR
-        Debug.Log($"[StageManager] Loaded {currentIndex}: {entry.id}");
+        Debug.Log($"[StageManager] Loaded {currentIndex}: {entry.id} (parRot={entry.parRot}, parAP={entry.parAP})");
 #endif
     }
 

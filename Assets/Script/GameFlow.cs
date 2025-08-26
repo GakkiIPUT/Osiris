@@ -23,11 +23,14 @@ public class GameFlow : MonoBehaviour
     [Header("Clear Result (optional)")]
     [Tooltip("想定回転（パー）: ステージ毎に調整")]
     public int parRot = 6;
+    public int parAP = 6; // ← 追加: ActionPoint用パー値
     public TMP_Text rankText;          // 例: "S"
     public TMP_Text scoreText;         // 例: "92"
     public TMP_Text detailRotText;     // 例: "回転 8 / 6（+2）"
     public TMP_Text detailRetryText;   // 例: "リトライ 1"
-
+    public TMP_Text resultRankText;    // 結果表示用ランク
+    public TMP_Text resultScoreText;   // 結果表示用スコア
+    public TMP_Text detailStepText;  　// 例: "歩数 8"
     StageManager stage;
     TurnManager turn;
 
@@ -80,8 +83,16 @@ public class GameFlow : MonoBehaviour
         {
             turn.onStageCleared -= OnStageCleared;
             turn.onStageCleared += OnStageCleared;
-            // ステージ開始時にスコアカウンタをクリア
+
+            // カウンタ初期化
             turn.ResetScoreCounters();
+
+            // StageManagerで設定済みの parAP を尊重。
+            // GameFlow.parAP に手動指定があるときのみ上書きしたい場合は条件付きにする。
+            if (parAP != 0)
+            {
+                turn.parAP = Mathf.Max(0, parAP);
+            }
         }
     }
 
@@ -124,11 +135,40 @@ public class GameFlow : MonoBehaviour
     // ==== クリア結果の受取 ====
     void OnStageCleared(TurnManager.ScoreResult res)
     {
-        // 表示（Textは未割当なら無視）
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
-        //if (scoreText) scoreText.text = $"スコア： {res.score.ToString()}点"; 
         if (detailRotText) detailRotText.text = $"回転数： {res.rot}回";
         if (detailRetryText) detailRetryText.text = $"リトライ数： {res.retries}回";
+        if (detailStepText) detailStepText.text = $"歩数： {res.steps}歩";   // ← 追加
+
+        Debug.Log($"[Result/UI] rank:{res.rank} score:{res.score} rot:{res.rot} steps:{res.steps} retries:{res.retries}");
+    }
+    // 結果を表示
+    void ShowResult()
+    {
+        var turnManager = UnityCompat.FindFirst<TurnManager>();
+        int score;
+        char rank;
+
+        if (turnManager.scoreMode == TurnManager.ScoreMode.ActionPoint)
+        {
+            score = turnManager.CalcScore();
+            // ランク判定（例）
+            rank = (score >= 95) ? 'S' :
+                   (score >= 85) ? 'A' :
+                   (score >= 70) ? 'B' :
+                   (score >= 50) ? 'C' : 'D';
+        }
+        else
+        {
+            var result = turnManager.ComputeScore(parRot);
+            score = result.score;
+            rank = result.rank;
+        }
+
+        // UIに反映
+        resultScoreText.text = score.ToString();
+        resultRankText.text = rank.ToString();
+        // 他の項目も必要に応じて
     }
 
     // ==== UIユーティリティ ====

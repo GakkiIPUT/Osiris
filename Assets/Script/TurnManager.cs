@@ -31,9 +31,39 @@ public class TurnManager : MonoBehaviour
     public int rotCount { get; private set; }   // 成功した回転回数のみ加算
     public int retryCount { get; private set; } // リトライボタン/キー操作で加算
 
-    public void ResetScoreCounters() { rotCount = 0; retryCount = 0; }
-    public void RegisterRotation() { rotCount++; }
-    public void RegisterRetry() { retryCount++; }
+    // 追加: 歩数カウンタ
+    public int walkCount { get; private set; }
+
+    public void ResetScoreCounters()
+    {
+        rotCount = 0;
+        retryCount = 0;
+        walkCount = 0;
+        totalRotate = 0;
+        totalAP = 0;
+        Debug.Log("[Score] ResetScoreCounters: rot=0, walk=0, totalAP=0, retries=0");
+    }
+    public void RegisterRotation()
+    {
+        rotCount++;
+        totalRotate++;
+        totalAP++; // AP方式では回転も1AP
+        Debug.Log($"回転成功: rotCount={rotCount}, totalRotate={totalRotate}, totalAP={totalAP}");
+    }
+
+    public void RegisterRetry()
+    {
+        retryCount++;
+        Debug.Log($"リトライ: retryCount={retryCount}");
+    }
+
+    // 歩行成功時（PlayerController等から呼ばれる想定）
+    public void RegisterActionPoint()
+    {
+        walkCount++; // 歩数は歩行成功のみ
+        totalAP++;   // AP=歩行1、回転1
+        Debug.Log($"AP加算(歩行): walkCount={walkCount}, totalAP={totalAP}");
+    }
 
     // ======= 必須アイテム（全回収でゴール可） =======
     [Serializable]
@@ -55,10 +85,11 @@ public class TurnManager : MonoBehaviour
     {
         public int score;
         public char rank;
-        public int rot;
-        public int parRot;
-        public int overRot;
+        public int rot;     // 回転数
+        public int parRot;  // 旧仕様: parRot / AP仕様時は parAP を流用
+        public int overRot; // 旧仕様: overRot / AP仕様時は overAP を流用
         public int retries;
+        public int steps;   // 追加: 歩数（歩行成功数）
     }
     // クリアイベント（GameFlow が購読してUI表示に使う）
     public event Action<ScoreResult> onStageCleared;
@@ -103,11 +134,14 @@ public class TurnManager : MonoBehaviour
         playerTurn = true;
         runningGuards = false;
 
-        // 回転数はリトライごとにリセットしたいはず
+        // リトライ時に回数系はゼロに戻す（リトライ回数だけ維持）
         rotCount = 0;
+        walkCount = 0;
+        totalRotate = 0;
+        totalAP = 0;
 
-        // 必須アイテム表示は BoardManager.Build() 側で InitRequiredItems が呼ばれる想定
-        // ここでは触らない
+        if (!keepRetryCount) retryCount = 0;
+        Debug.Log($"[Score] ResetForRestart: rot=0, walk=0, totalAP=0, retries={retryCount}");
     }
 
 
@@ -217,19 +251,51 @@ public class TurnManager : MonoBehaviour
             playerTurn = false;
             var gf = UnityCompat.FindFirst<GameFlow>();
             int parRotValue1 = gf != null ? Mathf.Max(0, gf.parRot) : 0;
-            var res = ComputeScore(parRotValue1);
+
+            var res = ComputeScoreForCurrentMode(parRotValue1);
+
+            if (scoreMode == ScoreMode.ActionPoint)
+            {
+                int overAP = Mathf.Max(0, totalAP - parAP);
+                Debug.Log($"[Result/AP] score:{res.score} rank:{res.rank} steps:{res.steps} " +
+                          $"rot:{res.rot} totalAP:{totalAP} parAP:{parAP} overAP:{overAP} retries:{retryCount}");
+            }
+            else
+            {
+                int overRot = Mathf.Max(0, rotCount - parRotValue1);
+                Debug.Log($"[Result/Legacy] score:{res.score} rank:{res.rank} steps:{res.steps} " +
+                          $"rot:{rotCount} parRot:{parRotValue1} overRot:{overRot} retries:{retryCount}");
+            }
+
             onStageCleared?.Invoke(res);
             return;
         }
+
         // itemCollectedがtrueなら全アイテム取得済み扱い
         if (!AllRequiredCollected() && !itemCollected) return;
 
         cleared = true;
         playerTurn = false;
+
         int parRotValue2 = 0;
         var gf2 = UnityCompat.FindFirst<GameFlow>();
         if (gf2 != null) parRotValue2 = Mathf.Max(0, gf2.parRot);
-        var res2 = ComputeScore(parRotValue2);
+
+        var res2 = ComputeScoreForCurrentMode(parRotValue2);
+
+        if (scoreMode == ScoreMode.ActionPoint)
+        {
+            int overAP2 = Mathf.Max(0, totalAP - parAP);
+            Debug.Log($"[Result/AP] score:{res2.score} rank:{res2.rank} steps:{res2.steps} " +
+                      $"rot:{res2.rot} totalAP:{totalAP} parAP:{parAP} overAP:{overAP2} retries:{retryCount}");
+        }
+        else
+        {
+            int overRot2 = Mathf.Max(0, rotCount - parRotValue2);
+            Debug.Log($"[Result/Legacy] score:{res2.score} rank:{res2.rank} steps:{res2.steps} " +
+                      $"rot:{rotCount} parRot:{parRotValue2} overRot:{overRot2} retries:{retryCount}");
+        }
+
         onStageCleared?.Invoke(res2);
     }
     public void TriggerGameOver()
@@ -258,7 +324,75 @@ public class TurnManager : MonoBehaviour
             rot = rotCount,
             parRot = Mathf.Max(0, parRot),
             overRot = over,
-            retries = retryCount
+            retries = retryCount,
+            steps = walkCount
         };
+    }
+
+
+
+    public enum ScoreMode
+    {
+        Legacy,   // 旧仕様（回転・リトライ減点、回転パー値超過で減点）
+        ActionPoint // 新仕様（AP方式）
+    }
+
+    public ScoreMode scoreMode = ScoreMode.Legacy;
+
+    public int totalAP = 0;
+    public int parAP = 0;
+    public int totalRotate = 0;
+    public int parRotate = 0;
+    public int baseScore = 100;
+    public int retryPenalty = 10;
+    public int rotatePenalty = 5;
+
+    public int CalcScore()
+    {
+        switch (scoreMode)
+        {
+            case ScoreMode.ActionPoint:
+                int penaltyAP = Mathf.Max(0, totalAP - parAP);
+                int scoreAP = Mathf.Max(0, baseScore - penaltyAP - retryCount * retryPenalty);
+                Debug.Log($"[Score/AP] base:{baseScore} - (AP超過:{penaltyAP}) - (リトライ:{retryCount}×{retryPenalty}) = {scoreAP}");
+                return scoreAP;
+
+            case ScoreMode.Legacy:
+            default:
+                int penaltyRot = Mathf.Max(0, totalRotate - parRotate);
+                int scoreRot = Mathf.Max(0, baseScore - penaltyRot * rotatePenalty - retryCount * retryPenalty);
+                Debug.Log($"[Score/Legacy] base:{baseScore} - (回転超過:{penaltyRot}×{rotatePenalty}) - (リトライ:{retryCount}×{retryPenalty}) = {scoreRot}");
+                return scoreRot;
+        }
+    }
+
+    // 追加: AP方式のスコア（移動＋回転成功のみカウント、超過AP＋リトライで減点）
+    public ScoreResult ComputeScoreAP()
+    {
+        int overAP = Mathf.Max(0, totalAP - parAP);
+        int s = Mathf.Clamp(baseScore - (overAP + retryCount * retryPenalty), 0, baseScore);
+        char r = (s >= 95) ? 'S' :
+                 (s >= 85) ? 'A' :
+                 (s >= 70) ? 'B' :
+                 (s >= 50) ? 'C' : 'D';
+
+        return new ScoreResult
+        {
+            score = s,
+            rank = r,
+            rot = rotCount,               // 回転数はそのまま
+            parRot = Mathf.Max(0, parAP), // 表示互換のため parAP を流用
+            overRot = overAP,             // 表示互換のため overAP を流用
+            retries = retryCount,
+            steps = walkCount             // 歩数
+        };
+    }
+
+    // 追加: 現在のモードに応じてスコアを計算するユーティリティ
+    public ScoreResult ComputeScoreForCurrentMode(int parRotFromGF)
+    {
+        if (scoreMode == ScoreMode.ActionPoint)
+            return ComputeScoreAP();
+        return ComputeScore(parRotFromGF);
     }
 }

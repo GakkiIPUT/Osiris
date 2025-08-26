@@ -48,4 +48,14 @@ public class DevModeUI : MonoBehaviour
             board.SaveDevModeSettings();
         }
     }
+
+    public TurnManager turnManager;
+
+    public void ToggleScoreMode()
+    {
+        if (turnManager.scoreMode == TurnManager.ScoreMode.Legacy)
+            turnManager.scoreMode = TurnManager.ScoreMode.ActionPoint;
+        else
+            turnManager.scoreMode = TurnManager.ScoreMode.Legacy;
+    }
 }
