@@ -270,6 +270,7 @@ public class PlayerController : MonoBehaviour
     public void LoadDevModeSettings()
     {
         invincible = PlayerPrefs.GetInt("player_invincible", 0) == 1;
-        areaSize = PlayerPrefs.GetInt("player_areaSize", 3); // 3はデフォルト
+        // 初期値は必ず 3×3（保存値は無視）
+        areaSize = 3;
     }
 }

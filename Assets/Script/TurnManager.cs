@@ -15,8 +15,12 @@ public class TurnManager : MonoBehaviour
     bool playerTurn = true;
     bool runningGuards = false;
 
+    // 旧フラグ（互換）
     public bool itemCollected = false;
     public bool goalReached = false;
+
+    // 宝箱（コレクション）
+    public bool treasurePicked { get; private set; } = false;
 
     // ======= リアルタイム駆動 =======
     [Header("Realtime Guards")]
@@ -140,6 +144,11 @@ public class TurnManager : MonoBehaviour
         totalRotate = 0;
         totalAP = 0;
 
+        // 取得フラグ系リセット
+        treasurePicked = false;
+        itemCollected = false;
+        goalReached = false;
+
         if (!keepRetryCount) retryCount = 0;
         Debug.Log($"[Score] ResetForRestart: rot=0, walk=0, totalAP=0, retries={retryCount}");
     }
@@ -198,9 +207,10 @@ public class TurnManager : MonoBehaviour
     {
         required.Clear();
         NotifyRequired();
+        treasurePicked = false;
     }
 
-    // BoardManager.Build() から初期化
+    // BoardManager.Build() から初期化（必須: 鍵 i のみが来る想定）
     public void InitRequiredItems(IReadOnlyList<char> symbolsInReadingOrder)
     {
         required.Clear();
@@ -212,7 +222,7 @@ public class TurnManager : MonoBehaviour
         NotifyRequired();
     }
 
-    // プレイヤーがアイテム記号 sym を取得したときに呼ぶ
+    // プレイヤーが必須アイテム記号 sym（= 'i'）を取得したとき
     public void OnItemPicked(char sym)
     {
         for (int i = 0; i < required.Count; i++)
@@ -228,6 +238,13 @@ public class TurnManager : MonoBehaviour
         }
     }
 
+    // 宝箱（コレクション）を取得
+    public void OnTreasurePicked()
+    {
+        treasurePicked = true;
+        Debug.Log("[Treasure] Picked in this run.");
+    }
+
     void NotifyRequired() => onRequiredChanged?.Invoke(required);
 
     bool AllRequiredCollected()
@@ -240,7 +257,7 @@ public class TurnManager : MonoBehaviour
     // ======= クリア/ゲームオーバー =======
     public void TriggerClear() => TryClearAtExit();
 
-    // Exit 上で呼ぶ。全回収していればクリア確定
+    // Exit 上で呼ぶ。必須（鍵）全回収でクリア確定
     public void TryClearAtExit()
     {
         if (gameOver || cleared) return;
@@ -271,8 +288,8 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        // itemCollectedがtrueなら全アイテム取得済み扱い
-        if (!AllRequiredCollected() && !itemCollected) return;
+        // 必須（鍵）を全て取っていなければクリア不可
+        if (!AllRequiredCollected()) return;
 
         cleared = true;
         playerTurn = false;

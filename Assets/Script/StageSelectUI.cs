@@ -80,13 +80,13 @@ public class StageSelectUI : MonoBehaviour
 
     void BuildButtons()
     {
-        // クリア
+        // クリーンアップ
         for (int i = grid.childCount - 1; i >= 0; --i)
             Destroy(grid.GetChild(i).gameObject);
 
         if (gs == null || gs.catalog == null || gs.catalog.worlds == null || gs.worldIndex < 0 || gs.worldIndex >= gs.catalog.worlds.Count)
         {
-            Debug.LogError("[StageSelectUI] GameState / Catalog / World の参照が不正です。");
+            Debug.LogError("[StageSelectUI] GameState / Catalog / World の参照に失敗。");
             return;
         }
 
@@ -100,7 +100,6 @@ public class StageSelectUI : MonoBehaviour
 
         int n = set.stages.Count;
 
-        // 表示順：1,1+half,2,2+half,…（左列=前半、右列=後半）
         int half = (n + 1) / 2;
         var order = new List<int>(n);
         for (int i = 0; i < half; i++)
@@ -115,12 +114,19 @@ public class StageSelectUI : MonoBehaviour
             var btn = Instantiate(stageButtonPrefab, grid);
             btn.name = $"Stage_{s.id}";
             var label = btn.GetComponentInChildren<TMP_Text>();
-            if (label) label.text = s.id; // "1-1" 等
+            if (label) label.text = s.id;
 
             int captured = idx;
             btn.onClick.AddListener(() =>
             {
-                gs.stageIndex = captured;
+                if (gs != null)
+                {
+                    gs.stageIndex = captured; // 選択を GameState に保持
+                    // フォールバック用に PlayerPrefs にも保存
+                    PlayerPrefs.SetInt("lastWorldIndex", gs.worldIndex);
+                    PlayerPrefs.SetInt("lastStageIndex", gs.stageIndex);
+                    PlayerPrefs.Save();
+                }
                 SceneNavigator.GoGame();
             });
         }

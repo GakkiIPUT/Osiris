@@ -47,7 +47,10 @@ public class BoardManager : MonoBehaviour
     [Header("Item Types (symbol → prefab)")]
     public List<ItemType> itemTypes = new List<ItemType>()
     {
-        new ItemType{ symbol="i", prefab=null, label="Item", previewColor = new Color(0.25f,1f,0.9f,1f) },
+        // i = 鍵（必須アイテム）
+        new ItemType{ symbol="i", prefab=null, label="Key", previewColor = new Color(0.25f,1f,0.9f,1f) },
+        // t = 宝箱（コレクション用・クリア条件に含めない）
+        new ItemType{ symbol="t", prefab=null, label="Treasure", previewColor = new Color(1.0f,0.7f,0.2f,1f) },
     };
 
     public Transform itemsRoot; // アイテムの親（未設定ならAwakeで作る）
@@ -407,7 +410,7 @@ public class BoardManager : MonoBehaviour
         var guardSpawns = new List<(Vector2Int pos, GuardType type)>();
         var itemSpawns = new List<(Vector2Int pos, ItemType type)>();
 
-        // ★ 上部UI用：このマップに存在するアイテムを「左→右→次の行…」で列挙
+        // ★ 上部UI用：このマップに存在する「必須アイテム（=鍵 'i'）」を左→右→次行…で列挙
         var requiredSymbols = new List<char>();
 
         for (int y = 0; y < h; y++)
@@ -433,13 +436,14 @@ public class BoardManager : MonoBehaviour
                         break;
                     }
                 }
-                // アイテム（記号→ItemType解決）＋ 並び順に記録
+                // アイテム（記号→ItemType解決）＋ 必須（= 'i'）のみ並び順に記録
                 for (int ii = 0; ii < itemTypes.Count; ii++)
                 {
                     if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
                     {
                         itemSpawns.Add((p, itemTypes[ii]));
-                        requiredSymbols.Add(itemTypes[ii].symbol[0]); // ★ 上部UI表示用に順序そのまま記録
+                        if (itemTypes[ii].symbol[0] == 'i') // ★ 鍵のみ必須扱い
+                            requiredSymbols.Add('i');
                         break;
                     }
                 }
@@ -498,7 +502,7 @@ public class BoardManager : MonoBehaviour
             itemAt[it.pos] = (it.type.symbol[0], go);
         }
 
-        // TurnManager（未存在なら生成）＋収集UIへ「このマップの全アイテム並び」を渡す
+        // TurnManager（未存在なら生成）＋収集UIへ「このマップの全アイテム並び」を渡す（鍵のみ）
         var tm = UnityCompat.FindFirst<TurnManager>();
         if (tm == null)
         {
@@ -624,9 +628,22 @@ public class BoardManager : MonoBehaviour
             itemAt.Remove(p);
             SafeDestroy(t.go); // エディタ/実行の両対応破棄
 
-            // ★ TurnManagerへ「この記号を1つ取得」と通知（左から不透明化）
+            // ★ TurnManagerへ通知
             var turn = UnityCompat.FindFirst<TurnManager>();
-            if (turn != null) turn.OnItemPicked(t.sym);
+            if (turn != null)
+            {
+                if (t.sym == 'i')
+                {
+                    // 鍵だけを必須アイテムとして扱う
+                    turn.OnItemPicked('i');
+                }
+                else if (t.sym == 't')
+                {
+                    // 宝箱（コレクション）
+                    turn.OnTreasurePicked();
+                }
+                // 他の記号が増えたら必要に応じて分岐
+            }
 
             return true;
         }
@@ -963,12 +980,6 @@ public class BoardManager : MonoBehaviour
         // ★ プレイヤーとアイテムを親から戻す
         if (playerIn && playerTf) playerTf.SetParent(actorsRoot, true);
         foreach (var mi in movedItems) if (mi.go) mi.go.transform.SetParent(itemsRoot, true);
-        //// ★ プレイヤーをピボットから外し、向きを元に戻してからピボット破棄
-        //if (playerIn && playerTf != null)
-        //{
-        //    playerTf.SetParent(actorsRoot, true);  // もとの親に戻す
-        //    playerTf.rotation = savedPlayerRot;    // ←ここがポイント：向きを復元
-        //}
         SafeDestroy(pivotGO);
 
         // 既存：新タイル生成
