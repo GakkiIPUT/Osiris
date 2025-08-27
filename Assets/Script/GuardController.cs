@@ -78,6 +78,10 @@ public class GuardController : MonoBehaviour
     Quaternion baseRot = Quaternion.identity;
     float visionTimer = 0f;
 
+    // プレイヤー側の衝突判定用に公開（読み取り専用）
+    public bool IsMoving => isMoving;
+    public Vector2Int CurrentPos => pos;
+    public Vector2Int NextPos => isMoving ? gridTo : pos;
     // ===== 視界モード =====
     public enum VisionMode { SmoothFan, CellFan, GridAligned }
 
@@ -162,6 +166,41 @@ public class GuardController : MonoBehaviour
         return visRight;
     }
 
+    [Header("Vision Color")]
+    [Tooltip("敵視界の色（アルファで不透明度）。各ガードごとに調整可能")]
+    public Color visionColor = new Color(1f, 0.25f, 0.25f, 0.35f);
+
+    MaterialPropertyBlock _mpb;
+
+    // 色の適用（マテリアルの色プロパティ名差異に対応）
+    void ApplyVisionColor(Renderer r)
+    {
+        if (!r) return;
+        var mat = r.sharedMaterial;
+        if (!mat) return;
+
+        _mpb ??= new MaterialPropertyBlock();
+        _mpb.Clear();
+
+        bool setAny = false;
+        if (mat.HasProperty("_Color")) { _mpb.SetColor("_Color", visionColor); setAny = true; }
+        if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
+        if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
+
+        if (setAny)
+        {
+            r.SetPropertyBlock(_mpb);
+        }
+        else
+        {
+            // フォールバック（1回だけ色を差し替え）：SmoothFanは単一Renderer、CellFanは生成時のみ
+            // ここはマテリアルインスタンスを生成する点に注意（毎フレームは呼ばれない）
+            var inst = r.material;
+            if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
+            else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
+            else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
+        }
+    }
     // ===== 初期化 =====
     public void Init(BoardManager b, Vector2Int start)
     {
@@ -697,18 +736,19 @@ public class GuardController : MonoBehaviour
     {
         if (!showVision || IsFlipping()) { ClearVision(); return; }
 
-        // スムーズな見た目のため、実ワールド位置との差分で平行移動させる
         Vector3 worldCenter = WorldCenter(pos, board.visionY);
         Vector3 offsetWorld = new Vector3(transform.position.x - worldCenter.x, 0f, transform.position.z - worldCenter.z);
         Vector2 offset2D = new Vector2(offsetWorld.x, offsetWorld.z);
 
-        // SmoothFan: 扇形メッシュ
+        // SmoothFan（ビジョン用Rendererは1つ）
         if (visionMode == VisionMode.SmoothFan)
         {
             BuildSmoothVisionMeshWithOffset(offsetWorld, offset2D);
+            if (visionMr) ApplyVisionColor(visionMr); // ← ここで必ず色を適用
             return;
         }
 
+        // CellFan / GridAligned（セルごとQuad）
         var root = GetVisionRoot();
         ClearVision();
 
@@ -717,58 +757,39 @@ public class GuardController : MonoBehaviour
         var mat = (board.guardVisionMat != null) ? board.guardVisionMat
                  : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
 
-        // 現在の向き
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
-
-        // 角度・距離判定用の原点（セル中心 + サブセルオフセット + 前方オフセット）
         Vector2 origin2D = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + offset2D + fwd * Mathf.Max(0f, visionOriginForwardOffset);
 
         for (int yCell = pos.y - r; yCell <= pos.y + r; yCell++)
-        {
             for (int xCell = pos.x - r; xCell <= pos.x + r; xCell++)
             {
                 var gp = new Vector2Int(xCell, yCell);
                 if (!board.InBounds(gp)) continue;
                 if ((gp - pos).sqrMagnitude > r * r) continue;
 
-                bool visible = false;
-
-                if (visionMode == VisionMode.CellFan)
-                {
-                    // 既存: 角度＋LoS でセル単位に塗る
-                    if (!board.HasLineOfSight(pos, gp)) continue;
-
-                    Vector2 to = new Vector2(xCell + 0.5f, yCell + 0.5f);
-                    Vector2 dir = to - origin2D;
-                    if (dir.sqrMagnitude < 1e-6f) continue;
-                    dir.Normalize();
-
-                    if (Vector2.Angle(fwd, dir) <= half) visible = true;
-                }
-                else // GridAligned
-                {
-                    visible = IsCellVisibleGridAligned(gp, curFacing, half);
-                }
+                bool visible = (visionMode == VisionMode.CellFan)
+                    ? (board.HasLineOfSight(pos, gp) &&
+                       Vector2.Angle(fwd, (new Vector2(xCell + 0.5f, yCell + 0.5f) - origin2D).normalized) <= half)
+                    : IsCellVisibleGridAligned(gp, curFacing, half);
 
                 if (!visible) continue;
 
                 var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 q.name = $"Vision_{xCell}_{yCell}";
                 q.transform.SetParent(root.transform, false);
-                q.transform.rotation = Quaternion.Euler(90, 0, 0); // 上向き
+                q.transform.rotation = Quaternion.Euler(90, 0, 0);
                 q.transform.localScale = Vector3.one;
-                q.transform.position = WorldCenter(gp, board.visionY) + offsetWorld; // サブセルオフセットを反映
+                q.transform.position = WorldCenter(gp, board.visionY) + offsetWorld;
                 var mr = q.GetComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
                 if (mat != null) mr.material = mat;
+                ApplyVisionColor(mr); // ← 各セルに色を適用
                 Destroy(q.GetComponent<MeshCollider>());
             }
-        }
     }
-
     // GridAligned 用: マス単位の視界判定（階段状の前方扇形）
     bool IsCellVisibleGridAligned(Vector2Int gp, Facing curFacing, float halfDeg)
     {

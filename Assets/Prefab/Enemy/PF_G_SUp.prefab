@@ -141,3 +141,4 @@ MonoBehaviour:
     yawAdd: 0
     flipX: 0
     flipY: 0
+  visionColor: {r: 1, g: 0.2245282, b: 0.2245282, a: 0.35}

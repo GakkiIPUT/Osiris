@@ -166,13 +166,17 @@ public class BoardManager : MonoBehaviour
     public Vector3 GridToWorldActor(Vector2Int p) => GridToWorld(p) + new Vector3(0, actorYOffset, 0f);
     public bool InBounds(Vector2Int p) => p.x >= 0 && p.x < Width && p.y >= 0 && p.y < Height;
 
-    // ★ガードがこのマスにいるか
+    // ★ガードがこのマスにいるか（移動先も占有とみなす）
     public bool IsOccupiedByGuard(Vector2Int p)
     {
         for (int i = 0; i < guards.Count; i++)
         {
             var g = guards[i];
-            if (g != null && g.pos == p) return true;
+            if (g == null) continue;
+
+            // 現在位置 or 次の到達マス（移動中）をブロック
+            if (g.pos == p) return true;
+            if (g.IsMoving && g.NextPos == p) return true;
         }
         return false;
     }
@@ -768,18 +772,10 @@ public class BoardManager : MonoBehaviour
             }
         if (!hasAnyIn) return res;
 
-        // 方向ごとの“安全”判定
         bool safeCW = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
         bool safeCCW = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
 
-        // プレイヤーが範囲内なら両方向ともOK
-        if (IsPlayerInsideArea(center, size))
-        {
-            safeCW = WouldBeSafePartial(center, size, +1);
-            safeCCW = WouldBeSafePartial(center, size, -1);
-        }
-
-        // UIポリシー：片方でも危険なら赤
+        // どちらか片方でもOKなら緑
         res.valid = safeCW || safeCCW;
         return res;
     }
@@ -871,8 +867,10 @@ public class BoardManager : MonoBehaviour
         if (IsAnimating) return;
         if (AreaHasExit(center, size)) { onDone?.Invoke(); return; }
         if (!WouldBeSafePartial(center, size, dir)) { onDone?.Invoke(); return; }
-        // プレイヤーが範囲外の場合のみ重なり判定
-        if (!IsPlayerInsideArea(center, size) && WouldPlayerOverlapGuard(center, size, dir)) { onDone?.Invoke(); return; }
+
+        // プレイヤーが範囲内/外に関係なく、回転後に敵と重なるなら禁止
+        if (WouldPlayerOverlapGuard(center, size, dir)) { onDone?.Invoke(); return; }
+
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
     Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
@@ -1040,7 +1038,7 @@ public class BoardManager : MonoBehaviour
         {
             var s = rows[y];
             if (s.Length == w) { outRows[y] = s; continue; }
-            // 足りないぶんを床('.')でパディング（右側）
+            // 足りないぶんを床('.')
             if (s.Length < w) outRows[y] = s + new string(pad, w - s.Length);
             else outRows[y] = s.Substring(0, w); // 長すぎる場合は右端をカット
         }
@@ -1124,16 +1122,27 @@ public class BoardManager : MonoBehaviour
                 player.pos.y >= center.y - k && player.pos.y <= center.y + k);
     }
 
-    // 指定方向に回したとき、プレイヤーの新座標がガードに重なる？
+    // 指定方向に回したとき、プレイヤーの新座標がガードに重なる？（現在/次位置の両方を禁止）
     public bool WouldPlayerOverlapGuard(Vector2Int center, int size, int dir)
     {
         if (player == null) return false;
-        // プレイヤーが回転範囲に含まれる場合は、回転後も一緒に動くので重なり判定不要
-        if (IsPlayerInsideArea(center, size)) return false;
 
-        // プレイヤーが範囲外の場合のみ、回転後の位置にプレイヤーが重なるか判定
-        var nextP = Rot90(player.pos, center, dir);
-        return IsGuardAt(nextP);
+        int k = (size - 1) / 2;
+        bool playerIn = IsPlayerInsideArea(center, size);
+
+        // プレイヤーの最終位置（範囲内なら回転に追従、範囲外なら据え置き）
+        Vector2Int nextP = playerIn ? Rot90(player.pos, center, dir) : player.pos;
+
+        for (int i = 0; i < guards.Count; i++)
+        {
+            var g = guards[i];
+            if (g == null) continue;
+
+            // 敵の現在位置 or 移動先と衝突するならNG
+            if (g.pos == nextP) return true;
+            if (g.IsMoving && g.NextPos == nextP) return true;
+        }
+        return false;
     }
 
     // =========== 視界可視化の一括制御 ===========
