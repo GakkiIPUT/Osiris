@@ -145,6 +145,24 @@ public class BoardManager : MonoBehaviour
 
     public bool IsAnimating { get; private set; }
 
+
+    [Header("DEV / Rotation")]
+    public bool rotatePlayerWithArea = true; // 開発者モードで切り替え
+
+    // ▼ 追加: 自由回転（ドラッグ）DEV設定
+    [Header("DEV / Free Rotate")]
+    [Tooltip("ドラッグ式の自由回転を有効にする（ON時でも T はキャンセル専用）")]
+    public bool devEnableFreeRotate = true;
+    [Tooltip("180°回転を許可（許可時は2AP想定）")]
+    public bool devAllow180Rotation = false;
+    [Tooltip("スナップ角度（最近傍吸着の目安、将来用）")]
+    [Range(1f, 45f)] public float devSnapAngleDeg = 15f;
+    [Tooltip("コミット許容角（将来用）。この角以内なら確定吸着する想定")]
+    [Range(1f, 45f)] public float devCommitAngleDeg = 15f;
+    [Tooltip("スティッキネス（将来用）")]
+    [Range(0f, 1f)] public float devStickiness = 0.5f;
+    [Tooltip("クリック直後の回転不可フラッシュ（赤Ghost）秒数")]
+    [Range(0.1f, 2.0f)] public float devNgGhostSeconds = 0.5f;
     void Awake()
     {
 #if UNITY_EDITOR
@@ -153,7 +171,8 @@ public class BoardManager : MonoBehaviour
     if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
     if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
     if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
-    Build(); // 必ず自身の level で生成
+        LoadDevModeSettings();
+        Build(); // 必ず自身の level で生成
     }
 
     void OnEnable()
@@ -1198,20 +1217,6 @@ public class BoardManager : MonoBehaviour
         Debug.Log($"Saved level to {path}");
     }
 #endif
-
-    [Header("DEV / Rotation")]
-    public bool rotatePlayerWithArea = true; // 開発者モードで切り替え
-
-    public void SaveDevModeSettings()
-    {
-        PlayerPrefs.SetInt("rotatePlayerWithArea", rotatePlayerWithArea ? 1 : 0);
-        PlayerPrefs.Save();
-    }
-    public void LoadDevModeSettings()
-    {
-        rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
-    }
-
     [Header("Movement (Smooth Toggle & Speeds)")]
     [Tooltip("プレイヤー移動を補間（スムーズ）にする")]
     public bool smoothPlayerMove = true;
@@ -1227,4 +1232,255 @@ public class BoardManager : MonoBehaviour
     public bool snapGuardFacingOnMove = true;             // ← 追加
     [Tooltip("ガード視界の見た目更新間隔（秒）。小さいほど滑らかだが負荷が上がる")]
     [Range(0.01f, 0.2f)] public float guardVisionUpdateInterval = 0.05f;
+
+    public void SaveDevModeSettings()
+    {
+        PlayerPrefs.SetInt("rotatePlayerWithArea", rotatePlayerWithArea ? 1 : 0);
+
+        // ▼ 追加: 自由回転関連の永続化
+        PlayerPrefs.SetInt("devEnableFreeRotate", devEnableFreeRotate ? 1 : 0);
+        PlayerPrefs.SetInt("devAllow180Rotation", devAllow180Rotation ? 1 : 0);
+        PlayerPrefs.SetFloat("devSnapAngleDeg", devSnapAngleDeg);
+        PlayerPrefs.SetFloat("devCommitAngleDeg", devCommitAngleDeg);
+        PlayerPrefs.SetFloat("devStickiness", devStickiness);
+        PlayerPrefs.SetFloat("devNgGhostSeconds", devNgGhostSeconds);
+
+        PlayerPrefs.Save();
+    }
+    public void LoadDevModeSettings()
+    {
+        rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
+
+        // ▼ 追加: 自由回転関連の永続化
+        devEnableFreeRotate = PlayerPrefs.GetInt("devEnableFreeRotate", 1) == 1;
+        devAllow180Rotation = PlayerPrefs.GetInt("devAllow180Rotation", 0) == 1;
+        devSnapAngleDeg = PlayerPrefs.GetFloat("devSnapAngleDeg", 15f);
+        devCommitAngleDeg = PlayerPrefs.GetFloat("devCommitAngleDeg", 15f);
+        devStickiness = PlayerPrefs.GetFloat("devStickiness", 0.5f);
+        devNgGhostSeconds = PlayerPrefs.GetFloat("devNgGhostSeconds", 0.5f);
+    }
+
+    // ========= 可否ヘルパ =========
+    public bool IsCenterWithinLimit(Vector2Int center)
+    {
+        if (player == null) return false;
+        int dx = Mathf.Abs(center.x - player.pos.x);
+        int dy = Mathf.Abs(center.y - player.pos.y);
+        int chebyshev = Mathf.Max(dx, dy); // 正方形エリア向け
+        return chebyshev <= rotationCenterMaxDistance;
+    }
+    public bool AreaContainsLocked(Vector2Int center, int size)
+    {
+        int k = (size - 1) / 2;
+        for (int j = -k; j <= k; j++)
+            for (int i = -k; i <= k; i++)
+            {
+                var p = new Vector2Int(center.x + i, center.y + j);
+                if (!InBounds(p)) continue;
+                if (IsRotateLockedCell(p)) return true;
+            }
+        return false;
+    }
+
+    public struct StepValidity
+    {
+        public bool cw90, ccw90, cw180, ccw180;
+        public bool Any(bool allow180) => cw90 || ccw90 || (allow180 && (cw180 || ccw180));
+    }
+
+    public StepValidity GetStepValidity(Vector2Int center, int size)
+    {
+        var v = new StepValidity();
+
+        // ±90°
+        v.cw90 = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
+        v.ccw90 = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
+
+        // ±180°（許可時のみ評価）
+        if (devAllow180Rotation)
+        {
+            v.cw180 = WouldBeSafePartial180(center, size) && !WouldPlayerOverlapGuard180(center, size);
+            v.ccw180 = v.cw180; // 180°は向きに依らず同一
+        }
+        else
+        {
+            v.cw180 = v.ccw180 = false;
+        }
+        return v;
+    }
+
+    // 180°の安全判定（壁衝突）
+    bool WouldBeSafePartial180(Vector2Int center, int size)
+    {
+        int k = (size - 1) / 2;
+        var occ = new List<Vector2Int>();
+        if (player != null) occ.Add(player.pos);
+        foreach (var g in guards) occ.Add(g.pos);
+
+        bool playerIn = IsPlayerInsideArea(center, size);
+
+        foreach (var o in occ)
+        {
+            if (o.x < center.x - k || o.x > center.x + k ||
+                o.y < center.y - k || o.y > center.y + k) continue;
+
+            int lx = o.x - (center.x - k);
+            int ly = o.y - (center.y - k);
+
+            // 180°の配列回転: (sx,sy) = (size-1-lx, size-1-ly)
+            int sx = size - 1 - lx;
+            int sy = size - 1 - ly;
+
+            int gx = center.x - k + sx;
+            int gy = center.y - k + sy;
+
+            CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
+
+            // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
+            if (!playerIn && player != null && o == player.pos && after == CellType.Wall)
+                return false;
+
+            // ガードは常に壁と重なるのを禁止
+            if (o != player.pos && after == CellType.Wall)
+                return false;
+        }
+        return true;
+    }
+
+    // 180°でプレイヤーがガードと重なるか
+    public bool WouldPlayerOverlapGuard180(Vector2Int center, int size)
+    {
+        if (player == null) return false;
+
+        bool playerIn = IsPlayerInsideArea(center, size);
+        Vector2Int nextP = playerIn ? Rot180(player.pos, center) : player.pos;
+
+        for (int i = 0; i < guards.Count; i++)
+        {
+            var g = guards[i];
+            if (g == null) continue;
+            if (g.pos == nextP) return true;
+            if (g.IsMoving && g.NextPos == nextP) return true;
+        }
+        return false;
+    }
+
+    Vector2Int Rot180(Vector2Int p, Vector2Int c)
+    {
+        // p' = 2c - p
+        return new Vector2Int(2 * c.x - p.x, 2 * c.y - p.y);
+    }
+
+    // ========= 実プレビュー（親子付け）API =========
+    GameObject freePreviewPivot;
+    List<Transform> freeTiles = new();
+    List<Transform> freeItems = new();
+    Transform freePlayerTf;
+    Quaternion freeSavedPlayerRot = Quaternion.identity;
+    bool freePlayerIn = false;
+    Vector2Int freeCenter;
+    int freeSize;
+
+    public bool BeginFreePreview(Vector2Int center, int size)
+    {
+        if (freePreviewPivot != null) RestoreFreePreview(); // 保険
+        freeCenter = center;
+        freeSize = size;
+
+        freePreviewPivot = new GameObject($"FreePreviewPivot_{center.x}_{center.y}");
+        freePreviewPivot.transform.position = GridToWorld(center) + new Vector3(0, 0.05f, 0);
+
+        int k = (size - 1) / 2;
+
+        // タイルをぶら下げ
+        for (int j = -k; j <= k; j++)
+        {
+            for (int i = -k; i <= k; i++)
+            {
+                var p = new Vector2Int(center.x + i, center.y + j);
+                if (!InBounds(p)) continue;
+                var go = tileGOs[p.y, p.x];
+                if (!go) continue;
+                go.transform.SetParent(freePreviewPivot.transform, true);
+                freeTiles.Add(go.transform);
+            }
+        }
+
+        // アイテム
+        freeItems.Clear();
+        if (itemAt != null && itemAt.Count > 0)
+        {
+            foreach (var kv in itemAt)
+            {
+                var p = kv.Key;
+                if (p.x >= center.x - k && p.x <= center.x + k &&
+                    p.y >= center.y - k && p.y <= center.y + k)
+                {
+                    var go = kv.Value.go;
+                    if (go)
+                    {
+                        go.transform.SetParent(freePreviewPivot.transform, true);
+                        freeItems.Add(go.transform);
+                    }
+                }
+            }
+        }
+
+        // プレイヤー（含める設定＆範囲内なら）
+        freePlayerIn = IsPlayerInsideArea(center, size);
+        if (player != null && rotatePlayerWithArea && freePlayerIn)
+        {
+            freePlayerTf = player.transform;
+            freeSavedPlayerRot = freePlayerTf.rotation;
+            freePlayerTf.SetParent(freePreviewPivot.transform, true);
+        }
+        else
+        {
+            freePlayerTf = null;
+        }
+
+        return true;
+    }
+
+    public void UpdateFreePreviewAngle(float angleDeg)
+    {
+        if (freePreviewPivot == null) return;
+        freePreviewPivot.transform.rotation = Quaternion.Euler(0f, angleDeg, 0f);
+    }
+
+    public void RestoreFreePreview()
+    {
+        if (freePreviewPivot == null) return;
+
+        // 元の見た目に戻すため、回転を0にしてから親を戻す
+        freePreviewPivot.transform.rotation = Quaternion.identity;
+
+        // タイル戻し
+        for (int i = 0; i < freeTiles.Count; i++)
+        {
+            var t = freeTiles[i];
+            if (t) t.SetParent(tilesRoot, true);
+        }
+        freeTiles.Clear();
+
+        // アイテム戻し
+        for (int i = 0; i < freeItems.Count; i++)
+        {
+            var t = freeItems[i];
+            if (t) t.SetParent(itemsRoot, true);
+        }
+        freeItems.Clear();
+
+        // プレイヤー戻し（向きも戻す）
+        if (freePlayerTf)
+        {
+            freePlayerTf.SetParent(actorsRoot, true);
+            freePlayerTf.rotation = freeSavedPlayerRot;
+        }
+        freePlayerTf = null;
+        freePlayerIn = false;
+
+        SafeDestroy(freePreviewPivot);
+        freePreviewPivot = null;
+    }
 }

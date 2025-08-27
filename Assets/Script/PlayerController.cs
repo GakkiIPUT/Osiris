@@ -1,3 +1,4 @@
+using System.Collections; // ← 追加
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -89,15 +90,19 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
         if (Input.GetMouseButtonDown(0)) { if (TryGetMouseGrid(out var g)) { aiming = true; aimCenter = g; ShowGhost(true); } }
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { aiming = false; ShowGhost(false); }
+        if (Input.GetKeyDown(KeyCode.T)) { aiming = false; ShowGhost(false); } // 自由回転ON時でもキャンセル専用
 
         // 長押し移動入力
         HandleMoveInput();
 
-        // エイム中：Q/E で回転実行
+        // エイム中：Q/E で回転実行（自由回転OFF時のみ有効）
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {
-            int dirRot = Input.GetKeyDown(KeyCode.Q) ? -1 : +1;
-            TryRotate(dirRot);
+            if (board != null && !board.devEnableFreeRotate)
+            {
+                int dirRot = Input.GetKeyDown(KeyCode.Q) ? -1 : +1;
+                TryRotate(dirRot);
+            }
         }
 
         if (aiming) UpdateGhostVisual();
@@ -189,8 +194,18 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
-    public void UI_RotateCW() { if (aiming) TryRotate(+1); }
-    public void UI_RotateCCW() { if (aiming) TryRotate(-1); }
+    public void UI_RotateCW()
+    {
+        if (!aiming) return;
+        if (board != null && board.devEnableFreeRotate) return; // 自由回転ON時は無効
+        TryRotate(+1);
+    }
+    public void UI_RotateCCW()
+    {
+        if (!aiming) return;
+        if (board != null && board.devEnableFreeRotate) return; // 自由回転ON時は無効
+        TryRotate(-1);
+    }
     public void UI_ToggleAreaSize() { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
 
     void ToggleAreaSize() { areaSize = (areaSize == 3) ? 5 : 3; }
@@ -345,5 +360,49 @@ public class PlayerController : MonoBehaviour
     {
         invincible = PlayerPrefs.GetInt("player_invincible", 0) == 1;
         areaSize = 3; // 初期値は必ず3×3
+    }
+
+    // ▼ 追加: 外部（GameUI等）からNxN Ghostを表示/更新するためのAPI
+    public void ShowGhostExtern(bool on, Vector2Int center, int size, bool ok)
+    {
+        // 内部のエイム中心/サイズを更新して既存のビルド系を使う
+        this.aimCenter = center;
+        this._areaSize = size;
+
+        // 既存のゴースト生成系を利用（非公開メソッドにアクセスできるのは同クラス内なのでOK）
+        ShowGhost(on);
+        if (on)
+        {
+            BuildGhostTiles();
+            ApplyGhostMaterial(ok);
+        }
+    }
+
+    public void UpdateGhostOkExtern(bool ok)
+    {
+        ApplyGhostMaterial(ok);
+    }
+
+    public void FlashNgGhostExtern(Vector2Int center, int size, float seconds)
+    {
+        StartCoroutine(CoFlashNgGhost(center, size, seconds));
+    }
+
+    IEnumerator CoFlashNgGhost(Vector2Int center, int size, float seconds)
+    {
+        ShowGhostExtern(true, center, size, false);
+        yield return new WaitForSeconds(seconds);
+        ClearGhost();
+    }
+
+    void ApplyGhostMaterial(bool ok)
+    {
+        if (ghostRoot == null) return;
+        var mat = (ok ? board.ghostOkMat : board.ghostNgMat) ?? board.ghostOkMat;
+        var rends = ghostRoot.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < rends.Length; i++)
+        {
+            if (rends[i] != null) rends[i].sharedMaterial = mat;
+        }
     }
 }

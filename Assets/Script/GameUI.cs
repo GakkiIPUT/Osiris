@@ -11,14 +11,14 @@ public class GameUI : MonoBehaviour
 
     void Awake()
     {
-        // ボタン配線
+        // ボタン紐付
         if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
         if (btnRotateR) btnRotateR.onClick.AddListener(ActionRotateR);
         if (btnRangeToggle) btnRangeToggle.onClick.AddListener(ActionToggleRange);
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
     }
 
-    void OnEnable() { ResolveRefs(); }  // 表示直後に参照解決
+    void OnEnable() { ResolveRefs(); }  // 表示時に再解決
 
     void ResolveRefs()
     {
@@ -41,50 +41,70 @@ public class GameUI : MonoBehaviour
 
     void Update()
     {
-        // F1キーでデバッグモードON/OFF
-        if (Input.GetKeyDown(KeyCode.F1))
-        {
-            devMode = !devMode;
-        }
+        if (Input.GetKeyDown(KeyCode.F1)) { devMode = !devMode; }
 
-        // リセット（リバインド中/抑止中は無効化）
         if (!InputBindings.IsCapturing && InputBindings.IsResetPressed())
         {
             var gf = UnityCompat.FindFirst<GameFlow>();
             if (gf != null) gf.RequestRetry();
-            else stage?.ReloadCurrent(); // フォールバック
+            else stage?.ReloadCurrent();
         }
 
-        // 回転ボタンは「プレイヤーターン かつ エイム中」だけ有効
         ResolveRefs();
-        //ターン制　bool canRotate = (player && turn != null && turn.IsPlayerTurn() && player.IsAiming);
-        bool canRotate = player && turn != null && !turn.gameOver && !turn.cleared && player.IsAiming;
+        var board = Object.FindFirstObjectByType<BoardManager>();
+
+        bool canRotate =
+            player && turn != null && !turn.gameOver && !turn.cleared &&
+            player.IsAiming &&
+            board != null && !board.devEnableFreeRotate; // 自由回転ONなら回転ボタン無効
 
         if (btnRotateL) btnRotateL.interactable = canRotate;
         if (btnRotateR) btnRotateR.interactable = canRotate;
     }
-
     void OnGUI()
     {
         if (!devMode) return; // devModeはboolで管理
 
-        GUILayout.BeginArea(new Rect(10, 10, 300, 400), "開発者モード", GUI.skin.window);
+        GUILayout.BeginArea(new Rect(10, 10, 330, 520), "開発者モード", GUI.skin.window);
 
-        // 回転に自分を含めるか
+        // 回転に関する設定
         BoardManager board = Object.FindFirstObjectByType<BoardManager>();
         if (board != null)
         {
-            board.rotatePlayerWithArea = GUILayout.Toggle(board.rotatePlayerWithArea, "回転に自分を含める");
-            board.rotationCenterMaxDistance = Mathf.RoundToInt(GUILayout.HorizontalSlider(board.rotationCenterMaxDistance, 1, 10));
-            GUILayout.Label($"回転中心距離: {board.rotationCenterMaxDistance}");
+            bool changed = false;
+
+            // プレイヤーを回転に含める
+            bool rpwa = GUILayout.Toggle(board.rotatePlayerWithArea, "プレイヤーを回転に含める");
+            if (rpwa != board.rotatePlayerWithArea) { board.rotatePlayerWithArea = rpwa; changed = true; }
+
+            // 回転中心最大距離
+            int maxDist = Mathf.RoundToInt(GUILayout.HorizontalSlider(board.rotationCenterMaxDistance, 1, 10));
+            if (maxDist != board.rotationCenterMaxDistance) { board.rotationCenterMaxDistance = maxDist; changed = true; }
+            GUILayout.Label($"回転中心の最大距離: {board.rotationCenterMaxDistance}");
+
+            GUILayout.Space(6);
+            GUILayout.Label("回転モード", EditorLabel());
+
+            // 自由回転ON/OFF
+            bool free = GUILayout.Toggle(board.devEnableFreeRotate, "自由回転（ドラッグ）を有効にする");
+            if (free != board.devEnableFreeRotate) { board.devEnableFreeRotate = free; changed = true; }
+            GUILayout.Label("※ 自由回転ONの間はQ/E回転は無効。Tはキャンセル専用");
+
+            // 180度回転を許可
+            bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180°回転を許可（2AP想定）");
+            if (allow180 != board.devAllow180Rotation) { board.devAllow180Rotation = allow180; changed = true; }
+
+            if (changed) board.SaveDevModeSettings();
         }
 
-        // 回転範囲半径
+        GUILayout.Space(10);
+
+        // プレイヤー設定（無敵/範囲）
         PlayerController player = Object.FindFirstObjectByType<PlayerController>();
         if (player != null)
         {
-            player.invincible = GUILayout.Toggle(player.invincible, "無敵モード");
-            player.SaveDevModeSettings();
+            bool inv = GUILayout.Toggle(player.invincible, "無敵モード");
+            if (inv != player.invincible) { player.invincible = inv; player.SaveDevModeSettings(); }
 
             int newAreaSize = Mathf.RoundToInt(GUILayout.HorizontalSlider(player.areaSize, 3, 9));
             if (newAreaSize != player.areaSize) {
@@ -94,14 +114,21 @@ public class GameUI : MonoBehaviour
             GUILayout.Label($"回転範囲サイズ: {player.areaSize}");
         }
 
-        // アイテム回収/ゴールフラグ
+        // アイテム/ゴールフラグ
         TurnManager turn = Object.FindFirstObjectByType<TurnManager>();
         if (turn != null)
         {
-            turn.itemCollected = GUILayout.Toggle(turn.itemCollected, "アイテム回収フラグ");
-            turn.goalReached = GUILayout.Toggle(turn.goalReached, "ゴールフラグ");
+            turn.itemCollected = GUILayout.Toggle(turn.itemCollected, "アイテム取得フラグ");
+            turn.goalReached = GUILayout.Toggle(turn.goalReached, "ゴール到達フラグ");
         }
 
         GUILayout.EndArea();
+    }
+
+    GUIStyle EditorLabel()
+    {
+        var s = new GUIStyle(GUI.skin.label);
+        s.fontStyle = FontStyle.Bold;
+        return s;
     }
 }
