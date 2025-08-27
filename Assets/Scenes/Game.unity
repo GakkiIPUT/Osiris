@@ -2607,6 +2607,7 @@ GameObject:
   m_Component:
   - component: {fileID: 926001099}
   - component: {fileID: 926001100}
+  - component: {fileID: 926001101}
   m_Layer: 0
   m_Name: BoardManager
   m_TagString: Untagged
@@ -2747,9 +2748,15 @@ MonoBehaviour:
   actorsRoot: {fileID: 1593622706}
   player: {fileID: 0}
   guards: []
+  rotatePlayerWithArea: 1
+  devEnableFreeRotate: 0
+  devAllow180Rotation: 0
+  devSnapAngleDeg: 15
+  devCommitAngleDeg: 15
+  devStickiness: 0.5
+  devNgGhostSeconds: 0.5
   devUseSceneLevelInEditor: 1
   devTargetTextAsset: {fileID: 4900000, guid: 1f190b1e41f8ce04fb9b43e9033454ce, type: 3}
-  rotatePlayerWithArea: 1
   smoothPlayerMove: 1
   smoothGuardMove: 1
   playerMoveCellsPerSec: 6
@@ -2757,6 +2764,18 @@ MonoBehaviour:
   guardRotateDegPerSec: 60
   snapGuardFacingOnMove: 1
   guardVisionUpdateInterval: 0.1
+--- !u!114 &926001101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 926001098}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d2a2db46c60926468387608d9e83046, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &977650110
 GameObject:
   m_ObjectHideFlags: 0
