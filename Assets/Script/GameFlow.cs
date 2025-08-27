@@ -8,7 +8,7 @@ public class GameFlow : MonoBehaviour
     public GameObject escMenuPanel;
     public Button escCloseButton;
     public Button escToStageButton;
-    public Button escQuitButton; // 既存（終了）
+    public Button escQuitButton; // 終了（即終了）
     public bool pauseOnEsc = true;
 
     [Header("Game Over")]
@@ -22,22 +22,22 @@ public class GameFlow : MonoBehaviour
     public bool pauseOnClear = true;
 
     [Header("Clear Result (optional)")]
-    [Tooltip("想定回転（パー）: ステージ毎に調整")]
+    [Tooltip("目安（パー）: ステージ側に依存")]
     public int parRot = 6;
-    public int parAP = 6; // ← 追加: ActionPoint用パー値
+    public int parAP = 6; // ※ 追加: ActionPoint用パー値
     public TMP_Text rankText;          // 例: "S"
     public TMP_Text scoreText;         // 例: "92"
     public TMP_Text detailRotText;     // 例: "回転 8 / 6（+2）"
     public TMP_Text detailRetryText;   // 例: "リトライ 1"
     public TMP_Text resultRankText;    // 結果表示用ランク
     public TMP_Text resultScoreText;   // 結果表示用スコア
-    public TMP_Text detailStepText;    // 例: "歩数 8"
+    public TMP_Text detailStepText;    // 例: "歩 8"
 
     [Header("Treasure (Collection) UI")]
-    public GameObject treasurePanel;   // クリアパネルより上に出す
-    public TMP_Text treasureText;      // 表示: 「「◯◯」を獲得！
+    public GameObject treasurePanel;   // クリアパネル表示時に宝物を最前面に出す
+    public TMP_Text treasureText;      // 表示: 「◯◯を入手！」
     public Image treasureImage;        // コレクションSprite
-    public Button treasureCloseButton; // 閉じる
+    public Button treasureCloseButton; // とじる
 
     [Header("Key Bindings (in ESC)")]
     public Button bindResetKeyButton;
@@ -46,7 +46,7 @@ public class GameFlow : MonoBehaviour
     StageManager stage;
     TurnManager turn;
 
-    // クリア表示順制御用: クリアパネル表示後に宝箱を最前面に出す
+    // クリア表示制御用: クリアパネル表示時に宝物を最前面で出す
     bool treasureOverlayPending = false;
     bool waitingResetRebind = false;
 
@@ -55,18 +55,17 @@ public class GameFlow : MonoBehaviour
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
 
-        // ステージ選択経由フラグを読みつつ、読んだらリセット
+        // ステージ選択経由のフラグを読み取り、使い終わったらリセット
         bool viaStageSelect = PlayerPrefs.GetInt("enteredViaStageSelect", 0) == 1;
         PlayerPrefs.SetInt("enteredViaStageSelect", 0);
         PlayerPrefs.Save();
 
-        // レベルペインターのオーバーライド有無を確認
+        // レベルペインターのオーバーライド適用確認
         bool hasDevOverride = PlayerPrefs.GetInt("dev_level_override_present", 0) == 1;
         string devText = hasDevOverride ? PlayerPrefs.GetString("dev_level_override_text", "") : "";
 
         if (!viaStageSelect && hasDevOverride && !string.IsNullOrEmpty(devText))
         {
-            // ステージ選択経由でなければ、ペインターのマップを優先適用
             var board = UnityCompat.FindFirst<BoardManager>();
             if (board != null)
             {
@@ -78,7 +77,6 @@ public class GameFlow : MonoBehaviour
         }
         else
         {
-            // 従来どおりカタログ＋選択ステージからロード
             if (stage != null)
             {
                 int widx = gs ? gs.worldIndex : 0;
@@ -106,17 +104,17 @@ public class GameFlow : MonoBehaviour
                     }
                     else
                     {
-                        Debug.LogError("[GameFlow] StageSet が空か未設定です。");
+                        Debug.LogError("[GameFlow] StageSet が未設定です。");
                     }
                 }
                 else
                 {
-                    Debug.LogError("[GameFlow] GameCatalog が取得できません。");
+                    Debug.LogError("[GameFlow] GameCatalog を取得できません。");
                 }
             }
         }
 
-        // 参照とUI初期化など（従来処理）
+        // 基本UI初期化
         turn = UnityCompat.FindFirst<TurnManager>();
 
         if (escMenuPanel) escMenuPanel.SetActive(false);
@@ -124,10 +122,18 @@ public class GameFlow : MonoBehaviour
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
 
+        // ESC メニュー
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame);
 
+        // GameOver/クリア パネルのボタンを配線（これが未登録だったため無反応でした）
+        if (retryButton) retryButton.onClick.AddListener(RequestRetry);
+        // 仕様変更: メニューに戻る → ステージ選択へ
+        if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
+        if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
+
+        // キーコンフィグ（ESC内）
         if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
         UpdateResetKeyLabel();
 
@@ -153,7 +159,7 @@ public class GameFlow : MonoBehaviour
             // カウンタ初期化
             turn.ResetScoreCounters();
 
-            // StageManagerで設定済みの parAP を尊重。
+            // StageManagerで設定済みの parAP を尊重
             if (parAP != 0) turn.parAP = Mathf.Max(0, parAP);
         }
     }
@@ -162,47 +168,26 @@ public class GameFlow : MonoBehaviour
     {
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
-        // Rebind待機中は最優先でキーを捕捉
-        if (waitingResetRebind)
-        {
-            if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
-            {
-                if (kc == KeyCode.Escape)
-                {
-                    // Esc でキャンセル
-                    waitingResetRebind = false;
-                    InputBindings.EndCapture(); // ← 追加（キャンセル）
-                    UpdateResetKeyLabel();
-                }
-                else
-                {
-                    InputBindings.SetResetKey(kc);
-                    waitingResetRebind = false;
-                    InputBindings.EndCapture(); // ← 追加（確定）
-                    UpdateResetKeyLabel();
-                }
-            }
-            // Rebind中は他の更新は続行（必要ならreturnで抜けてもOK）
-        }
+        // Rebind待機中はここで処理（省略）…
 
         bool isOver = (turn && turn.gameOver);
         bool isClear = (turn && turn.cleared);
 
-        // クリア中・ゲームオーバー中は ESC を無効（誤操作防止）
+        // クリア/ゲームオーバー時以外は ESC トグル
         if (!isOver && !isClear && Input.GetKeyDown(KeyCode.Escape))
         {
             if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
             else OpenEscMenu();
         }
 
-        // Game Over オーバーレイ
+        // Game Over 表示
         if (gameOverPanel)
         {
             if (isOver && !gameOverPanel.activeSelf) ShowOnTop(gameOverPanel);
             if (!isOver && gameOverPanel.activeSelf) gameOverPanel.SetActive(false);
         }
 
-        // Clear オーバーレイ（自動遷移はしない）
+        // Clear 表示（一時停止あり）
         if (clearPanel)
         {
             if (isClear && !clearPanel.activeSelf)

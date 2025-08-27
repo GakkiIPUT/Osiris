@@ -113,13 +113,14 @@ MonoBehaviour:
   rotatePeriod: 1
   rotateClockwise: 1
   showVision: 1
+  visionMode: 2
   smoothFanVision: 1
   visionRayCount: 72
-  visionRayStep: 0.1
+  visionRayStep: 0.5
   visionOriginForwardOffset: 0.35
   visualYawOffsetDeg: 90
   visionYawOffsetDeg: 0
-  flipPauseSeconds: 0.15
+  flipPauseSeconds: 0.5
   showFacingArrow: 1
   facingArrowColor: {r: 1, g: 1, b: 0.25, a: 0.9}
   flipProfile: 1

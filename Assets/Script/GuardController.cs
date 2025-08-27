@@ -77,9 +77,17 @@ public class GuardController : MonoBehaviour
     // 基本回転（常にX=90°：上向き）
     Quaternion baseRot = Quaternion.identity;
     float visionTimer = 0f;
+
+    // ===== 視界モード =====
+    public enum VisionMode { SmoothFan, CellFan, GridAligned }
+
+    [Header("Vision Mode")]
+    [Tooltip("視界の描画・判定モード。SmoothFan=滑らか扇形, CellFan=セル扇形, GridAligned=グリッド整合")]
+    public VisionMode visionMode = VisionMode.SmoothFan;
+
     // ===== 視界メッシュ（滑らか扇形）オプション =====
     [Header("Vision Render")]
-    public bool smoothFanVision = true;
+    public bool smoothFanVision = true; // 互換のため残置（VisionModeで上書きされます)
     [Range(12, 256)] public int visionRayCount = 72;
     [Min(0.02f)] public float visionRayStep = 0.1f;
 
@@ -302,7 +310,6 @@ public class GuardController : MonoBehaviour
         if (!Application.isPlaying) return;
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null || turn.gameOver || turn.cleared) return;
-        // if (board != null && board.IsAnimating) return; // ← 削除：視覚更新は止めない
 
         // スムーズ回転
         if (board != null)
@@ -355,7 +362,6 @@ public class GuardController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
-        // if (board != null && board.IsAnimating) return; // ← プレイヤーの移動/回転で敵が止まる原因になるため外す
 
         // 反転中は動作・視界判定を停止
         if (IsFlipping()) return;
@@ -596,7 +602,7 @@ public class GuardController : MonoBehaviour
     {
         if (visionRoot == null) return;
 
-        if (smoothFanVision)
+        if (visionMode == VisionMode.SmoothFan)
         {
             if (visionMesh != null) visionMesh.Clear();
             return;
@@ -644,13 +650,19 @@ public class GuardController : MonoBehaviour
         Vector2Int p = board.player.pos;
         if ((p - pos).sqrMagnitude > viewRange * viewRange) return false;
 
-        // 現在の向きで視界を計算（ゲーム画面の見た目と一致）
+        // GridAligned はマス基準の専用判定
+        if (visionMode == VisionMode.GridAligned)
+        {
+            Facing curF = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+            float half = fovAngle * 0.5f;
+            return IsCellVisibleGridAligned(p, curF, half);
+        }
+
+        // それ以外は従来の角度＋LoS
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = YawToDir2D(yaw).normalized;
 
-        // セル中心 + 前方オフセット（0=中心, 1=前方1マス）
-        // 判定はセル基準でOK
         Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + fwd * Mathf.Max(0f, visionOriginForwardOffset);
 
         Vector2 to = new Vector2(p.x + 0.5f, p.y + 0.5f);
@@ -668,10 +680,21 @@ public class GuardController : MonoBehaviour
         return board.GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
     }
 
-    // 旧スタイル（セル毎Quad）の描画方向（セル中心に配置）
+    // 追加: グリッド「中心座標系」の連続値(Vector2)をワールド座標に変換
+    // center.x/y は「セル中心を整数（n+0.5 を起点）」とする座標系の値
+    Vector3 WorldFromGridCenterCoords(Vector2 center, float y)
+    {
+        int cx = Mathf.FloorToInt(center.x);
+        int cy = Mathf.FloorToInt(center.y);
+        Vector3 corner = board.GridToWorld(new Vector2Int(cx, cy)); // セル左下
+        float fx = center.x - cx; // [0..1)
+        float fz = center.y - cy; // [0..1)
+        return corner + new Vector3(fx, y, fz);
+    }
+
+    // 旧スタイル（セル毎Quad）/ 新グリッド整合の描画
     public void UpdateVisionOverlay()
     {
-
         if (!showVision || IsFlipping()) { ClearVision(); return; }
 
         // スムーズな見た目のため、実ワールド位置との差分で平行移動させる
@@ -679,7 +702,8 @@ public class GuardController : MonoBehaviour
         Vector3 offsetWorld = new Vector3(transform.position.x - worldCenter.x, 0f, transform.position.z - worldCenter.z);
         Vector2 offset2D = new Vector2(offsetWorld.x, offsetWorld.z);
 
-        if (smoothFanVision)
+        // SmoothFan: 扇形メッシュ
+        if (visionMode == VisionMode.SmoothFan)
         {
             BuildSmoothVisionMeshWithOffset(offsetWorld, offset2D);
             return;
@@ -693,7 +717,7 @@ public class GuardController : MonoBehaviour
         var mat = (board.guardVisionMat != null) ? board.guardVisionMat
                  : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
 
-        // 現在の向きで視界を計算（角度判定は原点オフセット込み）
+        // 現在の向き
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
@@ -708,14 +732,27 @@ public class GuardController : MonoBehaviour
                 var gp = new Vector2Int(xCell, yCell);
                 if (!board.InBounds(gp)) continue;
                 if ((gp - pos).sqrMagnitude > r * r) continue;
-                if (!board.HasLineOfSight(pos, gp)) continue;
 
-                Vector2 to = new Vector2(xCell + 0.5f, yCell + 0.5f);
-                Vector2 dir = to - origin2D;
-                if (dir.sqrMagnitude < 1e-6f) continue;
-                dir.Normalize();
+                bool visible = false;
 
-                if (Vector2.Angle(fwd, dir) > half) continue;
+                if (visionMode == VisionMode.CellFan)
+                {
+                    // 既存: 角度＋LoS でセル単位に塗る
+                    if (!board.HasLineOfSight(pos, gp)) continue;
+
+                    Vector2 to = new Vector2(xCell + 0.5f, yCell + 0.5f);
+                    Vector2 dir = to - origin2D;
+                    if (dir.sqrMagnitude < 1e-6f) continue;
+                    dir.Normalize();
+
+                    if (Vector2.Angle(fwd, dir) <= half) visible = true;
+                }
+                else // GridAligned
+                {
+                    visible = IsCellVisibleGridAligned(gp, curFacing, half);
+                }
+
+                if (!visible) continue;
 
                 var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 q.name = $"Vision_{xCell}_{yCell}";
@@ -730,6 +767,47 @@ public class GuardController : MonoBehaviour
                 Destroy(q.GetComponent<MeshCollider>());
             }
         }
+    }
+
+    // GridAligned 用: マス単位の視界判定（階段状の前方扇形）
+    bool IsCellVisibleGridAligned(Vector2Int gp, Facing curFacing, float halfDeg)
+    {
+        // LoS が必要（両立）
+        if (!board.HasLineOfSight(pos, gp)) return false;
+
+        Vector2Int d = gp - pos;
+
+        int forwardDist, lateral;
+        switch (curFacing)
+        {
+            case Facing.Right:
+                forwardDist = d.x;
+                lateral = Mathf.Abs(d.y);
+                break;
+            case Facing.Left:
+                forwardDist = -d.x;
+                lateral = Mathf.Abs(d.y);
+                break;
+            case Facing.Up:
+                forwardDist = d.y;
+                lateral = Mathf.Abs(d.x);
+                break;
+            default: // Facing.Down
+                forwardDist = -d.y;
+                lateral = Mathf.Abs(d.x);
+                break;
+        }
+
+        if (forwardDist <= 0) return false;           // 真後ろ/同位置は除外
+        if (forwardDist > viewRange) return false;    // 射程外
+
+        // 角度→グリッド幅へ離散化
+        // 先頭列(forwardDist=1)は1マスだけ可視にするため (forwardDist - 1) を使用
+        float slope = Mathf.Tan(halfDeg * Mathf.Deg2Rad);
+        int lateralMax = Mathf.FloorToInt(Mathf.Max(0f, slope * (forwardDist - 1)) + 1e-4f);
+
+        // fovAngle=90 の場合、幅は 1,3,5,...（きれいな三角形）
+        return lateral <= lateralMax;
     }
 
     void BuildSmoothVisionMesh()
@@ -779,9 +857,9 @@ public class GuardController : MonoBehaviour
             float t = (rays == 0) ? 0f : (i / (float)rays);
             float ang = (yaw - half) + (fovAngle * t);
 
-            // グリッドCast結果（セル中心基準）にサブセルオフセットを平行移動で付与
+            // グリッドCast結果（中心座標系の連続値）→ 丸めずにワールドへ変換
             Vector2 end = CastVisionRay(pos, ang * Mathf.Deg2Rad, viewRange, visionRayStep, visionOriginForwardOffset);
-            Vector3 v = WorldCenter(new Vector2Int(Mathf.RoundToInt(end.x), Mathf.RoundToInt(end.y)), board.visionY) + offsetWorld;
+            Vector3 v = WorldFromGridCenterCoords(end, board.visionY) + offsetWorld;
             verts.Add(v);
         }
 
@@ -884,5 +962,12 @@ public class GuardController : MonoBehaviour
         BeginFlipPause();
         // 見た目更新（2系統＋反転）
         ApplyVisualByFacing();
+    }
+
+    // 外部から切替したい場合に呼べるトグル
+    public void SetVisionMode(VisionMode mode)
+    {
+        visionMode = mode;
+        UpdateVisionOverlay();
     }
 }
