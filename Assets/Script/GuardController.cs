@@ -6,20 +6,18 @@ public class GuardController : MonoBehaviour
     public enum PatrolMode
     {
         Static,
-        AutoEdgePingPong, // 既存：通路の端～端を自動検出して往復
-        PingPong,         // パターンで定義した経路を往復（端で折り返し）
-        Loop              // パターンで定義した経路を巡回（ぐるぐる）
+        AutoEdgePingPong,
+        PingPong,
+        Loop
     }
 
-    // === ADDED: 監視モード（視線のふるまい） ==========================
     public enum WatchMode
     {
-        OneDir,     // 1方向だけ（startFacing）
-        TwoDirUD,   // 上下2方向
-        TwoDirLR,   // 左右2方向
-        Rotate4Dir  // その場で4方向を定期的に回す
+        OneDir,
+        TwoDirUD,
+        TwoDirLR,
+        Rotate4Dir
     }
-    // ================================================================
 
     [Header("Refs")]
     BoardManager board;
@@ -36,40 +34,127 @@ public class GuardController : MonoBehaviour
     [Header("Patrol")]
     public PatrolMode patrolMode = PatrolMode.AutoEdgePingPong;
 
-    [Tooltip("例: R5 で右に5マス往復 / R3,U2,L3,D2 で四角形巡回など")]
-    public string pattern = "";                 // 例: "R5" / "R3,U2,L3,D2" / "R4,U3"
-    public bool patternIsRelative = true;       // Start からの相対指定（推奨）
+    [Tooltip("例: R5 / R3,U2,L3,D2")]
+    public string pattern = "";
+    public bool patternIsRelative = true;
     public bool debugDrawPath = false;
     public bool useBoardDefaultViewRange = true;
 
-    // === CHANGED: 向きと監視モードを拡張 =============================
     public enum Facing { Up, Right, Down, Left }
     public Facing startFacing = Facing.Right;
 
     [Header("Watch (Viewing)")]
-    public WatchMode watchMode = WatchMode.OneDir; // ★追加
-    [Tooltip("Rotate4Dir の時、何秒ごとに次の向きへ切替えるか")]
-    public float rotatePeriod = 1.0f;              // ★追加
-    [Tooltip("Rotate4Dir の回転方向（右回りなら true）")]
-    public bool rotateClockwise = true;            // ★追加
-    // ================================================================
+    public WatchMode watchMode = WatchMode.OneDir;
+    [Tooltip("Rotate4Dir の周期（秒）")]
+    public float rotatePeriod = 1.0f;
+    [Tooltip("Rotate4Dir の回転方向（右回り）")]
+    public bool rotateClockwise = true;
 
-    // 経路情報
-    readonly List<Vector2Int> path = new();     // 絶対座標のウェイポイント（startは含めない）
-    int pathIndex = 0;                          // 現在のターゲットindex
-    int pingDir = +1;                           // PingPong時の進行方向（+1/-1）
+    // 経路
+    readonly List<Vector2Int> path = new();
+    int pathIndex = 0;
+    int pingDir = +1;
 
-    // 可視化
+    // 視界
     public bool showVision = true;
     GameObject visionRoot;
 
-    // === ADDED: 監視用の内部状態 =====================================
+    // 監視内部状態
     float lastRotateTime = -999f;
-    int facingIndex = 0; // Facing を 0..3 のインデックスで回す
-    List<Vector2Int> _tmpFwds; // 視界計算用の一時リスト
-    // ================================================================
+    int facingIndex = 0;
+    List<Vector2Int> _tmpFwds;
 
-    // ====== 初期化 ======
+    // スムーズ移動/回転
+    bool isMoving = false;
+    Vector3 moveFrom, moveTo;
+    Vector2Int gridFrom, gridTo;
+    float moveT = 0f;
+    float moveDur = 0.25f;
+
+    float currentYaw = 0f;
+    float targetYaw = 0f;
+
+    // 基本回転（常にX=90°：上向き）
+    Quaternion baseRot = Quaternion.identity;
+    float visionTimer = 0f;
+    // ===== 視界メッシュ（滑らか扇形）オプション =====
+    [Header("Vision Render")]
+    public bool smoothFanVision = true;
+    [Range(12, 256)] public int visionRayCount = 72;
+    [Min(0.02f)] public float visionRayStep = 0.1f;
+
+    // 視界原点オフセット（顔側にずらす）
+    [Tooltip("視界原点を前方へずらす距離（セル単位）。0.0=セル中心, 1.0=前方1マス")]
+    [Range(0f, 1.0f)] public float visionOriginForwardOffset = 0f;
+
+    // 追加: アセットの「前」方向とゲーム基準のズレを補正
+    [Header("Yaw Offsets (deg)")]
+    [Tooltip("見た目用のYawオフセット（スプライト向き補正）。例: +90")]
+    public float visualYawOffsetDeg = 90f;
+    [Tooltip("視界ロジック用のYawオフセット（角度判定・扇形補正）。通常は0")]
+    public float visionYawOffsetDeg = 0f;
+
+    MeshFilter visionMf;
+    MeshRenderer visionMr;
+    Mesh visionMesh;
+
+    // ===== 反転時の挙動 =====
+    [Header("Flip (Reverse) Control")]
+    [Tooltip("反転（監視向き切替/行動反転）時に停止する秒数（視界も無効）")]
+    [Min(0f)] public float flipPauseSeconds = 0.15f;
+    float flippingUntil = 0f;
+
+    // ===== Visual Aid =====
+    [Header("Visual Aid")]
+    public bool showFacingArrow = true;
+    public Color facingArrowColor = new Color(1f, 1f, 0.25f, 0.9f);
+    GameObject facingArrow;
+
+    // 直近に適用した見た目用の向き（反転再適用用）
+    Facing lastVisualFacing;
+
+    // 追加: スプライト反転プロファイル
+    public enum FlipProfile { Canonical, Requested, Inverted }
+    [Header("Sprite Facing Calibration")]
+    [Tooltip("スプライト反転の割り当てプリセット")]
+    [HideInInspector] public FlipProfile flipProfile = FlipProfile.Requested; // Inspector 非表示
+
+    // 追加: 方向別見た目補正
+    [System.Serializable]
+    public struct VisualCorrection
+    {
+        [Tooltip("この方向の見た目用Yaw加算（deg）。右基準からのズレ補正")]
+        public float yawAdd;
+        [Tooltip("この方向のスプライト左右反転")]
+        public bool flipX;
+        [Tooltip("この方向のスプライト上下反転")]
+        public bool flipY;
+    }
+
+    [Header("Per Direction Visual Correction")]
+    [Tooltip("方向ごとにflipを適用する（ON 推奨）。OFFにすると FlipProfile を使用")]
+    [HideInInspector] public bool usePerDirectionFlip = true; // Inspector 非表示
+
+    // デフォルトは「補正なし」。必要に応じてInspectorで設定
+    [HideInInspector] public VisualCorrection visUp    = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visRight = new VisualCorrection { yawAdd = 0f,  flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visDown  = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visLeft  = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+
+    // 方向→補正取得
+    VisualCorrection VC(Facing f)
+    {
+        switch (f)
+        {
+            case Facing.Up: return visUp;
+            case Facing.Right: return visRight;
+            case Facing.Down: return visDown;
+            case Facing.Left: return visLeft;
+        }
+        return visRight;
+    }
+
+    // ===== 初期化 =====
     public void Init(BoardManager b, Vector2Int start)
     {
         board = b;
@@ -79,52 +164,41 @@ public class GuardController : MonoBehaviour
 
         if (patrolMode == PatrolMode.Static)
         {
-            // Static は経路を作らず、向きだけ設定
             forward = FacingToVec(startFacing);
         }
         else
         {
-            BuildPatrolPath(start);               // 経路構築
+            BuildPatrolPath(start);
 
-            // Static 以外でパターン解釈失敗時のみ AutoEdge にフォールバック
             if (path.Count == 0 && patrolMode != PatrolMode.AutoEdgePingPong)
-            {
                 patrolMode = PatrolMode.AutoEdgePingPong;
-            }
 
-            // 最初のターゲットと forward を決定
             Vector2Int tgt = GetCurrentTargetOrFallback(start);
             forward = DirToStep(tgt - pos);
         }
 
-        // === ADDED: 監視モード初期化 ===
         facingIndex = (int)startFacing;
         if (useBoardDefaultViewRange) viewRange = board.defaultGuardViewRange;
         lastRotateTime = Time.time;
 
+        targetYaw = FacingToYaw(startFacing);
+        currentYaw = targetYaw;
+
+        // ガード見た目は常に X=90° ベース（寝姿勢を強制）
+        baseRot = Quaternion.Euler(90f, 0f, 0f);
+        ApplyVisualByFacing();
+        ApplyVisualYaw(); // ← 追加：初期フレームから正しい向きに回転
+
+        if (showFacingArrow) EnsureFacingArrow();
         UpdateVisionOverlay();
     }
-    // from から dir（単位ベクトル）へ最大 maxSteps 歩、
-    // 盤外 or 非Walkableに当たる「直前」まで進んだ“最後に歩けるマス”を返す
-    Vector2Int RunUntilBlocked(Vector2Int from, Vector2Int dir, int maxSteps)
-    {
-        var p = from;
-        for (int s = 0; s < maxSteps; s++)
-        {
-            var np = p + dir;
-            if (!board.InBounds(np) || !board.IsWalkable(np)) break;
-            p = np;
-        }
-        return p;
-    }
-    
-    // ====== パターン構築 ======
+
+    // パターン構築
     void BuildPatrolPath(Vector2Int start)
     {
         path.Clear();
-        if (patrolMode == PatrolMode.Static) return;        // Static は経路を持たない
+        if (patrolMode == PatrolMode.Static) return;
 
-        // AutoEdge or パターン未指定 → 既存の自動往復
         if (patrolMode == PatrolMode.AutoEdgePingPong || string.IsNullOrWhiteSpace(pattern))
         {
             var hA = FindEdge(start, Vector2Int.left);
@@ -142,13 +216,12 @@ public class GuardController : MonoBehaviour
             return;
         }
 
-        // パターン解釈（R5, L5, U5, D5 / カンマ区切り）
         var tokens = pattern.Split(new char[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
         Vector2Int curr = start;
 
         foreach (var tk in tokens)
         {
-            if (tk.Length == 0) continue;
+            if (string.IsNullOrEmpty(tk)) continue;
             char c = char.ToUpperInvariant(tk[0]);
             int n = 1;
             if (tk.Length > 1) { int.TryParse(tk.Substring(1), out n); if (n <= 0) n = 1; }
@@ -160,21 +233,18 @@ public class GuardController : MonoBehaviour
             else if (c == 'D') dir = Vector2Int.down;
             else continue;
 
-            // ★ここがポイント：nマス or 壁手前まで
             Vector2Int basePos = patternIsRelative ? curr : start;
             Vector2Int next = RunUntilBlocked(basePos, dir, n);
 
-            // 動けたときだけウェイポイント追加
             if (next != basePos)
             {
                 path.Add(next);
-                curr = next; // 相対指定なら次の起点を更新
+                curr = next;
             }
         }
 
         if (patrolMode == PatrolMode.PingPong && tokens.Length == 1)
         {
-            // トークンの向きを dir に読む
             char c = char.ToUpperInvariant(tokens[0][0]);
             int n = 1;
             if (tokens[0].Length > 1) { int.TryParse(tokens[0].Substring(1), out n); if (n <= 0) n = 1; }
@@ -187,22 +257,33 @@ public class GuardController : MonoBehaviour
 
             if (dir != Vector2Int.zero)
             {
-                // 両側へ走査：start から dir / -dir に n 歩 or 壁手前まで
-                var a = RunUntilBlocked(start, -dir, n); // 反対側エッジ
-                var b = RunUntilBlocked(start, dir, n); // 指定側エッジ
+                var a = RunUntilBlocked(start, -dir, n);
+                var b = RunUntilBlocked(start, dir, n);
 
                 path.Clear();
-                // 最初は「トークンで指定した側（b）」へ向かわせたいので b→a の順に並べる
                 path.Add(b);
                 path.Add(a);
 
                 pathIndex = 0;
                 pingDir = +1;
-                return; // ← ここで確定
+                return;
             }
         }
+
         pathIndex = 0;
         pingDir = +1;
+    }
+
+    Vector2Int RunUntilBlocked(Vector2Int from, Vector2Int dir, int maxSteps)
+    {
+        var p = from;
+        for (int s = 0; s < maxSteps; s++)
+        {
+            var np = p + dir;
+            if (!board.InBounds(np) || !board.IsWalkable(np)) break;
+            p = np;
+        }
+        return p;
     }
 
     Vector2Int FindEdge(Vector2Int start, Vector2Int dir)
@@ -216,37 +297,84 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    // ====== 1ターン処理（リアルタイムAI） ======
+    void Update()
+    {
+        if (!Application.isPlaying) return;
+        if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
+        if (turn == null || turn.gameOver || turn.cleared) return;
+        // if (board != null && board.IsAnimating) return; // ← 削除：視覚更新は止めない
+
+        // スムーズ回転
+        if (board != null)
+        {
+            float rotSpd = Mathf.Max(30f, board.guardRotateDegPerSec);
+            float delta = Mathf.DeltaAngle(currentYaw, targetYaw);
+            float step = Mathf.Sign(delta) * Mathf.Min(Mathf.Abs(delta), rotSpd * Time.deltaTime);
+            currentYaw = Mathf.Repeat(currentYaw + step + 360f, 360f);
+            ApplyVisualYaw();
+        }
+
+        // 向きが変わっていたら反転を再適用
+        {
+            Facing now = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+            if (now != lastVisualFacing) ApplyVisualByFacing();
+        }
+
+        // スムーズ移動
+        if (board != null && board.smoothGuardMove && isMoving)
+        {
+            moveT += Time.deltaTime / Mathf.Max(0.0001f, moveDur);
+            float t = Mathf.Clamp01(moveT);
+            transform.position = Vector3.Lerp(moveFrom, moveTo, t);
+
+            if (t >= 1f)
+            {
+                isMoving = false;
+                pos = gridTo;
+                transform.position = board.GridToWorldActor(pos);
+            }
+        }
+
+        // 視界更新（スムーズ移動中は毎フレーム）
+        if (board != null)
+        {
+            visionTimer += Time.deltaTime;
+            float interval = Mathf.Max(0.01f, board.guardVisionUpdateInterval);
+            if (board.smoothGuardMove && isMoving) interval = 0f; // 滑らか追従
+            if (visionTimer >= interval)
+            {
+                visionTimer = 0f;
+                UpdateVisionOverlay();
+            }
+        }
+    }
+
+    // ===== 1ステップAI =====
     public void StepAI()
     {
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
+        // if (board != null && board.IsAnimating) return; // ← プレイヤーの移動/回転で敵が止まる原因になるため外す
 
-        // 盤回転アニメ中は動かさない（破綻回避）
-        if (board != null && board.IsAnimating) return;
+        // 反転中は動作・視界判定を停止
+        if (IsFlipping()) return;
 
-        // === ADDED: その場回転の向き更新 ===
+        // 監視向き更新
         UpdateFacingByWatchMode();
 
-        // Static は移動しない。視界チェック＆可視化のみ
         if (patrolMode == PatrolMode.Static)
         {
-            // ここを修正
             if (board.player != null && !board.player.invincible && CanSeePlayer())
-            {
                 turn.TriggerGameOver();
-            }
-            UpdateVisionOverlay();
             return;
         }
 
+        if (board.smoothGuardMove && isMoving) return;
+
         Vector2Int tgt = GetCurrentTargetOrFallback(pos);
 
-        // ターゲットに1歩近づく
         Vector2Int step = DirToStep(tgt - pos);
-
-        // 既に到達していたら、次ターゲットへ切替
         if (step == Vector2Int.zero)
         {
             AdvanceTarget();
@@ -259,75 +387,58 @@ public class GuardController : MonoBehaviour
             Vector2Int np = pos + step;
             if (board.IsWalkable(np))
             {
-                pos = np;
-                transform.position = board.GridToWorldActor(pos);
+                targetYaw = FacingToYaw(StepToFacing(step));
                 forward = step;
+
+                if (board.snapGuardFacingOnMove) { currentYaw = targetYaw; }
+                ApplyVisualByFacing();
+
+                if (board.smoothGuardMove)
+                {
+                    isMoving = true;
+                    gridFrom = pos;
+                    gridTo = np;
+                    moveFrom = board.GridToWorldActor(gridFrom);
+                    moveTo = board.GridToWorldActor(gridTo);
+                    moveT = 0f;
+                    float cellsPerSec = Mathf.Max(0.1f, board.guardMoveCellsPerSec);
+                    moveDur = 1f / cellsPerSec;
+                }
+                else
+                {
+                    pos = np;
+                    transform.position = board.GridToWorldActor(pos);
+                }
             }
             else
             {
-                // ブロック時の処理（折り返し or ループで次WPへ）
                 HandleBlocked(ref step);
             }
         }
 
-        // 視界チェック（見えたら即ゲームオーバー）
         if (board.player != null && !board.player.invincible && CanSeePlayer())
             turn.TriggerGameOver();
-
-        // 可視化更新
-        UpdateVisionOverlay();
     }
 
-    // 互換: 既存呼び出しが残っていても動くように
-    public void DoTurn() => StepAI();
-
-    // 進行方向が塞がれているとき、1マス後退＋向き反転（袋小路なら停止）
-    bool TryImmediateBounce(Vector2Int intendedStep)
-    {
-        if (intendedStep == Vector2Int.zero) return false;
-
-        Vector2Int back = -intendedStep;
-        Vector2Int np = pos + back;
-
-        if (!board.IsWalkable(np)) return false;
-
-        pos = np;
-        transform.position = board.GridToWorldActor(pos);
-        forward = back;
-
-        if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
-        {
-            pingDir *= -1;
-            AdvanceTarget();
-        }
-        return true;
-    }
-
-    // ブロック時の対処：PingPongは反転、Loopは次ウェイポイントへスキップして試行
+    // ブロック時の対処（反転時は移動を止めて小休止）
     bool HandleBlocked(ref Vector2Int step)
     {
         if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
         {
-            // まずはバウンド（後退）を試す
-            if (TryImmediateBounce(step)) return true;
-
-            // ダメなら反転して再試行
+            // 反転して停止（即時移動はしない）
             pingDir *= -1;
-            StepIndex(pingDir);
-
-            Vector2Int tgt = GetCurrentTargetOrFallback(pos);
-            step = DirToStep(tgt - pos);
-
-            if (step != Vector2Int.zero && board.IsWalkable(pos + step))
+            forward = -step;
+            targetYaw = FacingToYaw(StepToFacing(forward));
+            if (board.snapGuardFacingOnMove)
             {
-                pos += step;
-                transform.position = board.GridToWorldActor(pos);
-                forward = step;
-                return true;
+                currentYaw = targetYaw;
+                ApplyVisualYaw();
             }
-            return false;
+            BeginFlipPause();
+            AdvanceTarget(); // 目標も進め直し
+            return true;
         }
-        else // Loop：次のウェイポイントへ順にスキップして動ける1歩を探す
+        else // Loop
         {
             int tries = Mathf.Max(1, path.Count);
             for (int i = 0; i < tries; i++)
@@ -348,7 +459,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    // ====== ターゲット管理 ======
+    // ターゲット管理
     Vector2Int GetCurrentTargetOrFallback(Vector2Int fallback)
     {
         if (path.Count == 0)
@@ -372,12 +483,12 @@ public class GuardController : MonoBehaviour
         {
             StepIndex(+1);
         }
-        else // PingPong
+        else
         {
             if ((pathIndex == path.Count - 1 && pingDir > 0) ||
                 (pathIndex == 0 && pingDir < 0))
             {
-                pingDir *= -1; // 端で反転
+                pingDir *= -1;
             }
             StepIndex(pingDir);
         }
@@ -404,144 +515,214 @@ public class GuardController : MonoBehaviour
         else return new Vector2Int(0, (d.y > 0) ? 1 : -1);
     }
 
-    // ====== 視線・向きユーティリティ（ADDED） =======================
-    // ====== 視線・向きユーティリティ ======
-    void UpdateFacingByWatchMode()
+    // 向き/回転
+    float FacingToYaw(Facing f)
     {
-        // OneDir は固定、Rotate4Dir/TwoDir系だけ時間で向き切替
-        if (watchMode == WatchMode.OneDir) return;
-
-        if (Time.time - lastRotateTime < rotatePeriod) return;
-        lastRotateTime = Time.time;
-
-        switch (watchMode)
+        switch (f)
         {
-     
-            case WatchMode.TwoDirUD:
-                // Up <-> Down をトグル
-                if (startFacing == Facing.Up) startFacing = Facing.Down;
-                else startFacing = Facing.Up;
-                forward = FacingToVec(startFacing);
-                UpdateVisionOverlay();
-                break;
+            case Facing.Up: return 0f;
+            case Facing.Right: return 90f;
+            case Facing.Down: return 180f;
+            case Facing.Left: return 270f;
+        }
+        return 0f;
+    }
 
-            case WatchMode.TwoDirLR:
-                // Left <-> Right をトグル
-                if (startFacing == Facing.Left) startFacing = Facing.Right;
-                else startFacing = Facing.Left;
-                forward = FacingToVec(startFacing);
-                UpdateVisionOverlay();
-                break;
+    // 見た目は「上下/左右」flipだけを担当（transform.rotationは触らない）
+    void ApplyVisualByFacing()
+    {
+        Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
 
-            case WatchMode.Rotate4Dir:
-                // 4方向ローテーション
-                facingIndex = (facingIndex + (rotateClockwise ? 1 : 3)) & 3; // 0..3
-                startFacing = (Facing)facingIndex;
-                forward = FacingToVec(startFacing);
-                UpdateVisionOverlay();
-                break;
+        // コード優先: 方向ごとの固定マッピング（Inspector を無視）
+        bool flipX = false;
+        bool flipY = false;
+
+        switch (curFacing)
+        {
+            // 右だけ上下反転していた件: 右は X/Y 両方反転に固定
+            case Facing.Right: flipX = false;  flipY = true;  break;
+            case Facing.Left:  flipX = false;  flipY = false; break;
+            case Facing.Up:    flipX = false;  flipY = false; break;
+            case Facing.Down:  flipX = false;  flipY = false; break;
+        }
+
+        ApplySpriteFlipAll(flipX, flipY);
+        lastVisualFacing = curFacing;
+    }
+
+    // 追加: すべての SpriteRenderer に反転を適用（なければ localScale フォールバック）
+    void ApplySpriteFlipAll(bool flipX, bool flipY)
+    {
+        var srs = GetComponentsInChildren<SpriteRenderer>(true);
+        if (srs != null && srs.Length > 0)
+        {
+            foreach (var sr in srs) { sr.flipX = flipX; sr.flipY = flipY; }
+        }
+        else
+        {
+            var ls = transform.localScale;
+            ls.x = Mathf.Abs(ls.x) * (flipX ? -1f : 1f);
+            ls.z = Mathf.Abs(ls.z) * (flipY ? -1f : 1f); // X=90°のため上下=Z
+            transform.localScale = ls;
         }
     }
 
-    void GetWatchForwards(List<Vector2Int> list)
+    void ApplyVisualYaw()
     {
-        list.Clear();
-        // いま有効な forward だけを返す（同時に複数方向は見ない）
-        list.Add(forward);
-    }    // ================================================================
-
-    // ====== 視界 ======
-    bool CanSeePlayer()
-    {
-        Vector2Int p = board.player.pos;
-
-        if ((p - pos).sqrMagnitude > viewRange * viewRange) return false;
-
-        // ★複数forward対応
-        var fwds = _tmpFwds ?? (_tmpFwds = new List<Vector2Int>(2));
-        GetWatchForwards(fwds);
-
-        foreach (var fwdV in fwds)
-        {
-            Vector2 from = new Vector2(pos.x, pos.y);
-            Vector2 to = new Vector2(p.x, p.y);
-            Vector2 dir = (to - from).sqrMagnitude > 0 ? (to - from).normalized : Vector2.zero;
-            Vector2 fwd = new Vector2(fwdV.x, fwdV.y);
-            float ang = (dir == Vector2.zero) ? 180f : Vector2.Angle(fwd, dir);
-            if (ang <= fovAngle * 0.5f && board.HasLineOfSight(pos, p))
-                return true;
-        }
-        return false;
+        // 見た目の回転だけを担当（flipは触らない）
+        float yawVisual = currentYaw + visualYawOffsetDeg;
+        transform.rotation = Quaternion.AngleAxis(yawVisual, Vector3.up) * baseRot;
     }
 
+    // 反転小休止
+    bool IsFlipping() => Time.time < flippingUntil;
+    void BeginFlipPause() => flippingUntil = Time.time + Mathf.Max(0f, flipPauseSeconds);
+
+    // 前方(2D)単位ベクトル（0°=Up(+Z)）
+    static Vector2 YawToDir2D(float yawDeg)
+    {
+        float rad = yawDeg * Mathf.Deg2Rad;
+        return new Vector2(Mathf.Sin(rad), Mathf.Cos(rad));
+    }
+
+    // 別名（互換用）：既存呼び出しを満たす
+    static Vector2 GetForward2DFromYaw(float yawDeg)
+    {
+        return YawToDir2D(yawDeg);
+    }
+
+    // 視界の子オブジェクト/メッシュをクリア
     void ClearVision()
     {
         if (visionRoot == null) return;
+
+        if (smoothFanVision)
+        {
+            if (visionMesh != null) visionMesh.Clear();
+            return;
+        }
+
         for (int i = visionRoot.transform.childCount - 1; i >= 0; --i)
         {
 #if UNITY_EDITOR
-            if (!Application.isPlaying) DestroyImmediate(visionRoot.transform.GetChild(i).gameObject);
+            if (!Application.isPlaying)
+                DestroyImmediate(visionRoot.transform.GetChild(i).gameObject);
             else
 #endif
                 Destroy(visionRoot.transform.GetChild(i).gameObject);
         }
     }
-    GameObject GetVisionRoot()
+
+    // グリッド上で前方に進み、遮蔽セルで停止する簡易レイ
+    Vector2 CastVisionRay(Vector2Int start, float rad, int maxRange, float step, float startOffset = 0f)
     {
-        if (visionRoot == null)
+        Vector2 dir = new Vector2(Mathf.Sin(rad), Mathf.Cos(rad)); // 0°=+Z
+        Vector2 p = new Vector2(start.x + 0.5f, start.y + 0.5f) + dir * Mathf.Max(0f, startOffset);
+        float remain = Mathf.Max(0f, maxRange);
+
+        while (remain > 0f)
         {
-            visionRoot = new GameObject($"{name}_Vision");
-            visionRoot.transform.SetParent(transform, false);
+            float adv = Mathf.Min(step, remain);
+            Vector2 np = p + dir * adv;
+
+            var gp = new Vector2Int(Mathf.FloorToInt(np.x), Mathf.FloorToInt(np.y));
+            if (!board.InBounds(gp) || board.BlocksVision(gp))
+                break;
+
+            p = np;
+            remain -= adv;
         }
-        return visionRoot;
+        return p; // グリッド座標（中心基準）
     }
 
+    // 視界：プレイヤーを見ているか
+    bool CanSeePlayer()
+    {
+        if (board == null || board.player == null) return false;
+        if (IsFlipping()) return false;
+
+        Vector2Int p = board.player.pos;
+        if ((p - pos).sqrMagnitude > viewRange * viewRange) return false;
+
+        // 現在の向きで視界を計算（ゲーム画面の見た目と一致）
+        Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+        float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
+        Vector2 fwd = YawToDir2D(yaw).normalized;
+
+        // セル中心 + 前方オフセット（0=中心, 1=前方1マス）
+        // 判定はセル基準でOK
+        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+
+        Vector2 to = new Vector2(p.x + 0.5f, p.y + 0.5f);
+        Vector2 dir = to - origin;
+        if (dir.sqrMagnitude < 1e-6f) return false;
+        dir.Normalize();
+
+        if (Vector2.Angle(fwd, dir) > fovAngle * 0.5f) return false;
+        return board.HasLineOfSight(pos, p);
+    }
+
+    // セル中心（BoardManager.CellCenter は +0.0f なので、ここでは +0.5f で揃える）
+    Vector3 WorldCenter(Vector2Int p, float y)
+    {
+        return board.GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
+    }
+
+    // 旧スタイル（セル毎Quad）の描画方向（セル中心に配置）
     public void UpdateVisionOverlay()
     {
-#if UNITY_EDITOR
-        if (!Application.isPlaying) return;
-#endif
-        if (!showVision) { ClearVision(); return; }
+
+        if (!showVision || IsFlipping()) { ClearVision(); return; }
+
+        // スムーズな見た目のため、実ワールド位置との差分で平行移動させる
+        Vector3 worldCenter = WorldCenter(pos, board.visionY);
+        Vector3 offsetWorld = new Vector3(transform.position.x - worldCenter.x, 0f, transform.position.z - worldCenter.z);
+        Vector2 offset2D = new Vector2(offsetWorld.x, offsetWorld.z);
+
+        if (smoothFanVision)
+        {
+            BuildSmoothVisionMeshWithOffset(offsetWorld, offset2D);
+            return;
+        }
 
         var root = GetVisionRoot();
         ClearVision();
 
         int r = viewRange;
-        float halfFov = fovAngle * 0.5f;
-        var mat = (board.ghostNgMat != null) ? board.ghostNgMat
-                 : (board.guardVisionMat != null ? board.guardVisionMat : board.ghostOkMat);
+        float half = fovAngle * 0.5f;
+        var mat = (board.guardVisionMat != null) ? board.guardVisionMat
+                 : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
 
-        // ★複数forward対応
-        var fwds = _tmpFwds ?? (_tmpFwds = new List<Vector2Int>(2));
-        GetWatchForwards(fwds);
+        // 現在の向きで視界を計算（角度判定は原点オフセット込み）
+        Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+        float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
+        Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
 
-        for (int y = pos.y - r; y <= pos.y + r; y++)
+        // 角度・距離判定用の原点（セル中心 + サブセルオフセット + 前方オフセット）
+        Vector2 origin2D = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + offset2D + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+
+        for (int yCell = pos.y - r; yCell <= pos.y + r; yCell++)
         {
-            for (int x = pos.x - r; x <= pos.x + r; x++)
+            for (int xCell = pos.x - r; xCell <= pos.x + r; xCell++)
             {
-                var p = new Vector2Int(x, y);
-                if (!board.InBounds(p)) continue;
-                if ((p - pos).sqrMagnitude > r * r) continue;
-                if (!board.HasLineOfSight(pos, p)) continue;
+                var gp = new Vector2Int(xCell, yCell);
+                if (!board.InBounds(gp)) continue;
+                if ((gp - pos).sqrMagnitude > r * r) continue;
+                if (!board.HasLineOfSight(pos, gp)) continue;
 
-                bool inAnyCone = false;
-                foreach (var fwdV in fwds)
-                {
-                    Vector2 from = new Vector2(pos.x, pos.y);
-                    Vector2 to = new Vector2(p.x, p.y);
-                    Vector2 dir = (to - from).sqrMagnitude > 0 ? (to - from).normalized : Vector2.zero;
-                    Vector2 fwd = new Vector2(fwdV.x, fwdV.y);
-                    float ang = (dir == Vector2.zero) ? 180f : Vector2.Angle(fwd, dir);
-                    if (ang <= halfFov) { inAnyCone = true; break; }
-                }
-                if (!inAnyCone) continue;
+                Vector2 to = new Vector2(xCell + 0.5f, yCell + 0.5f);
+                Vector2 dir = to - origin2D;
+                if (dir.sqrMagnitude < 1e-6f) continue;
+                dir.Normalize();
+
+                if (Vector2.Angle(fwd, dir) > half) continue;
 
                 var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                q.name = $"Vision_{x}_{y}";
+                q.name = $"Vision_{xCell}_{yCell}";
                 q.transform.SetParent(root.transform, false);
-                q.transform.rotation = Quaternion.Euler(90, 0, 0);
-                q.transform.localScale = new Vector3(1f, 1f, 1f);
-                q.transform.position = board.CellCenter(p, board.visionY);
+                q.transform.rotation = Quaternion.Euler(90, 0, 0); // 上向き
+                q.transform.localScale = Vector3.one;
+                q.transform.position = WorldCenter(gp, board.visionY) + offsetWorld; // サブセルオフセットを反映
                 var mr = q.GetComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
@@ -551,10 +732,117 @@ public class GuardController : MonoBehaviour
         }
     }
 
+    void BuildSmoothVisionMesh()
+    {
+        // 互換: 旧呼び出しからはオフセット(0)で呼ぶ
+        BuildSmoothVisionMeshWithOffset(Vector3.zero, Vector2.zero);
+    }
+
+    void BuildSmoothVisionMeshWithOffset(Vector3 offsetWorld, Vector2 offset2D)
+    {
+        var root = GetVisionRoot();
+
+        var mf = root.GetComponent<MeshFilter>();
+        if (mf == null) mf = root.AddComponent<MeshFilter>();
+        var mr = root.GetComponent<MeshRenderer>();
+        if (mr == null) mr = root.AddComponent<MeshRenderer>();
+        visionMf = mf;
+        visionMr = mr;
+
+        if (visionMesh == null)
+        {
+            visionMesh = new Mesh { name = "VisionFan" };
+            visionMesh.MarkDynamic();
+        }
+        visionMf.sharedMesh = visionMesh;
+
+        var mat = (board.guardVisionMat != null) ? board.guardVisionMat
+                 : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
+        if (visionMr.sharedMaterial != mat) visionMr.sharedMaterial = mat;
+
+        int rays = Mathf.Clamp(visionRayCount, 12, 256);
+        float half = fovAngle * 0.5f;
+
+        // 現在の向きで視界を計算
+        Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+        float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
+        Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
+
+        // 扇形原点（セル中心 + サブセルオフセット + 前方オフセット）
+        Vector3 origin = WorldCenter(pos, board.visionY) + offsetWorld + new Vector3(fwd.x, 0f, fwd.y) * Mathf.Max(0f, visionOriginForwardOffset);
+
+        var verts = new List<Vector3>(rays + 2) { origin };
+        var tris = new List<int>(rays * 3);
+
+        for (int i = 0; i <= rays; i++)
+        {
+            float t = (rays == 0) ? 0f : (i / (float)rays);
+            float ang = (yaw - half) + (fovAngle * t);
+
+            // グリッドCast結果（セル中心基準）にサブセルオフセットを平行移動で付与
+            Vector2 end = CastVisionRay(pos, ang * Mathf.Deg2Rad, viewRange, visionRayStep, visionOriginForwardOffset);
+            Vector3 v = WorldCenter(new Vector2Int(Mathf.RoundToInt(end.x), Mathf.RoundToInt(end.y)), board.visionY) + offsetWorld;
+            verts.Add(v);
+        }
+
+        tris.Clear();
+        for (int i = 1; i < verts.Count - 1; i++) { tris.Add(0); tris.Add(i); tris.Add(i + 1); }
+
+        visionMesh.Clear();
+        visionMesh.SetVertices(verts);
+        visionMesh.SetTriangles(tris, 0);
+        visionMesh.RecalculateBounds();
+
+        // Vision のルートは常に上向き・ワールド固定
+        root.transform.rotation = Quaternion.identity;
+    }
+
+    GameObject GetVisionRoot()
+    {
+        if (visionRoot == null)
+        {
+            visionRoot = new GameObject($"{name}_Vision");
+            if (board != null && board.actorsRoot != null)
+                visionRoot.transform.SetParent(board.actorsRoot, false);
+            else
+                visionRoot.transform.SetParent(null, false);
+
+            visionRoot.transform.position = Vector3.zero;
+            visionRoot.transform.rotation = Quaternion.identity;
+            visionRoot.transform.localScale = Vector3.one;
+        }
+        return visionRoot;
+    }
+
+    void EnsureFacingArrow()
+    {
+        if (facingArrow != null) return;
+        facingArrow = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        facingArrow.name = "FacingArrow";
+        facingArrow.transform.SetParent(transform, false);
+        facingArrow.transform.localRotation = Quaternion.Euler(90, 0, 0);
+        facingArrow.transform.localScale = new Vector3(0.25f, 0.25f, 1f);
+        facingArrow.transform.localPosition = new Vector3(0f, 0.02f, 0.35f);
+        var mr = facingArrow.GetComponent<MeshRenderer>();
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        if (board != null && board.ghostOkMat != null) mr.material = board.ghostOkMat;
+        mr.material.color = facingArrowColor;
+        Destroy(facingArrow.GetComponent<MeshCollider>());
+    }
+
+    Facing StepToFacing(Vector2Int st)
+    {
+        if (st.x > 0) return Facing.Right;
+        if (st.x < 0) return Facing.Left;
+        if (st.y > 0) return Facing.Up;
+        return Facing.Down;
+    }
+
     Vector2Int FacingToVec(Facing f)
     {
         switch (f)
-        {
+        {   
             case Facing.Up: return Vector2Int.up;
             case Facing.Down: return Vector2Int.down;
             case Facing.Left: return Vector2Int.left;
@@ -562,19 +850,39 @@ public class GuardController : MonoBehaviour
         }
     }
 
-#if UNITY_EDITOR
-    void OnDrawGizmosSelected()
+    void UpdateFacingByWatchMode()
     {
-        if (!debugDrawPath || path == null) return;
-        Gizmos.color = Color.yellow;
-        Vector3 last = board != null ? board.GridToWorld(pos) + new Vector3(0.5f, 0.02f, 0.5f) : transform.position;
-        foreach (var wp in path)
+        if (watchMode == WatchMode.OneDir) return;
+        if (Time.time - lastRotateTime < rotatePeriod) return;
+        lastRotateTime = Time.time;
+
+        switch (watchMode)
         {
-            Vector3 w = (board != null ? board.GridToWorld(wp) : new Vector3(wp.x, 0, wp.y)) + new Vector3(0.5f, 0.02f, 0.5f);
-            Gizmos.DrawLine(last, w);
-            Gizmos.DrawSphere(w, 0.05f);
-            last = w;
+            case WatchMode.TwoDirUD:
+                startFacing = (startFacing == Facing.Up) ? Facing.Down : Facing.Up;
+                break;
+            case WatchMode.TwoDirLR:
+                startFacing = (startFacing == Facing.Left) ? Facing.Right : Facing.Left;
+                break;
+            case WatchMode.Rotate4Dir:
+                facingIndex = (facingIndex + (rotateClockwise ? 1 : 3)) & 3;
+                startFacing = (Facing)facingIndex;
+                break;
         }
+
+        forward = FacingToVec(startFacing);
+        targetYaw = FacingToYaw(startFacing);
+
+        // 即スナップ（体感遅延を抑える）
+        if (board != null && board.snapGuardFacingOnMove)
+        {
+            currentYaw = targetYaw;
+            ApplyVisualYaw();
+        }
+
+        // 反転中は一定時間停止＋視界無効
+        BeginFlipPause();
+        // 見た目更新（2系統＋反転）
+        ApplyVisualByFacing();
     }
-#endif
 }

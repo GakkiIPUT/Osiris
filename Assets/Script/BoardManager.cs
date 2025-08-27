@@ -1202,4 +1202,20 @@ public class BoardManager : MonoBehaviour
     {
         rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
     }
+
+    [Header("Movement (Smooth Toggle & Speeds)")]
+    [Tooltip("プレイヤー移動を補間（スムーズ）にする")]
+    public bool smoothPlayerMove = true;
+    [Tooltip("ガード移動を補間（スムーズ）にする")]
+    public bool smoothGuardMove = true;
+    [Tooltip("プレイヤーの移動速度（セル/秒）")]
+    [Min(0.1f)] public float playerMoveCellsPerSec = 6f;
+    [Tooltip("ガードの移動速度（セル/秒）")]
+    [Min(0.1f)] public float guardMoveCellsPerSec = 4f;
+    [Tooltip("ガードの回転速度（度/秒） … 視線/向きの補間速度")]
+    [Min(30f)] public float guardRotateDegPerSec = 1080f; // ← 360 → 1080 に引き上げ
+    [Tooltip("向き変更（移動/監視）時に即スナップする（補間をスキップ）")]
+    public bool snapGuardFacingOnMove = true;             // ← 追加
+    [Tooltip("ガード視界の見た目更新間隔（秒）。小さいほど滑らかだが負荷が上がる")]
+    [Range(0.01f, 0.2f)] public float guardVisionUpdateInterval = 0.05f;
 }

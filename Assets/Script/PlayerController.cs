@@ -24,8 +24,21 @@ public class PlayerController : MonoBehaviour
 
     GameObject ghostRoot;
 
+    // スムーズ移動
+    bool isMoving = false;
+    Vector3 moveFrom, moveTo;
+    float moveT = 0f;
+    float moveDur = 0.2f; // cellsPerSecから計算
+
     // UI から参照するためのプロパティ
     public bool IsAiming => aiming;
+
+    [Header("Hold Move (長押し移動)")]
+    public bool allowHoldMove = true;
+    [Min(0.05f)] public float holdInitialDelay = 0.25f;
+    [Min(0.03f)] public float holdRepeatInterval = 0.08f;
+    Vector2Int holdDir = Vector2Int.zero;
+    float holdNextTime = 0f;
 
     public void Init(BoardManager b, Vector2Int start)
     {
@@ -37,82 +50,143 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        //ターン制 if (turn == null || !turn.IsPlayerTurn()) return;
-
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null && (turn.gameOver || turn.cleared)) return;
 
-        // 範囲切替（ホイールで切替／キーで固定）
-        if (Input.mouseScrollDelta.y != 0f)
+        // スムーズ移動更新
+        if (board != null && board.smoothPlayerMove && isMoving)
         {
-            ToggleAreaSize();
-            if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
-        }
-        if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+            if (board.IsAnimating) return; // 盤回転中は停止（破綻回避）
 
-        // 敵視界トグル
-        if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
+            moveT += Time.deltaTime / Mathf.Max(0.0001f, moveDur);
+            float t = Mathf.Clamp01(moveT);
+            transform.position = Vector3.Lerp(moveFrom, moveTo, t);
 
-        // クリックでエイム開始/更新
-        if (Input.GetMouseButtonDown(0))
-        {
-            if (TryGetMouseGrid(out var g))
+            if (t >= 1f)
             {
-                aiming = true;
-                aimCenter = g;
-                ShowGhost(true);
-            }
-        }
-        // 右クリック or Esc で解除
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
-        {
-            aiming = false;
-            ShowGhost(false);
-        }
-
-        // WASD移動（1手消費）
-        Vector2Int dir = Vector2Int.zero;
-        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) dir = Vector2Int.up;
-        else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) dir = Vector2Int.down;
-        else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) dir = Vector2Int.left;
-        else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) dir = Vector2Int.right;
-
-        if (dir != Vector2Int.zero)
-        {
-            var np = pos + dir;
-            if (board.IsWalkable(np, true)) // 成功時のみカウント
-            {
-                // 位置更新
-                pos = np;
+                isMoving = false;
+                // 到達時にグリッド更新とイベント
+                pos = board.WorldToGrid(moveTo);
                 transform.position = board.GridToWorldActor(pos);
 
-                // アイテム取得
                 board.TryPickupItemAt(pos);
-
-                // 重要: スコアに反映させるため、クリア判定より先にAP(=歩数)を加算
                 turn?.RegisterActionPoint();
 
-                // クリア判定（出口は通行可のまま）
                 if (board.cells[pos.y, pos.x] == CellType.Exit)
                 {
                     turn?.TriggerClear();
                 }
 
                 turn?.EndPlayerTurn();
-                return;
             }
+            return; // 補間中は他の入力無視
         }
 
-        // エイム中：Q/E で回転実行（1手消費）
+        // 範囲切替・視界トグル・エイム開始/終了
+        if (Input.mouseScrollDelta.y != 0f) { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
+        if (Input.GetMouseButtonDown(0)) { if (TryGetMouseGrid(out var g)) { aiming = true; aimCenter = g; ShowGhost(true); } }
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { aiming = false; ShowGhost(false); }
+
+        // 長押し移動入力
+        HandleMoveInput();
+
+        // エイム中：Q/E で回転実行
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {
             int dirRot = Input.GetKeyDown(KeyCode.Q) ? -1 : +1;
             TryRotate(dirRot);
         }
 
-        // エイム中はゴースト更新
         if (aiming) UpdateGhostVisual();
+    }
+
+    void HandleMoveInput()
+    {
+        // 新規キー押下で方向確定＋即時1歩
+        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
+        else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
+        else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
+        else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) StartHold(Vector2Int.right);
+
+        // 継続押下確認
+        if (holdDir != Vector2Int.zero)
+        {
+            bool upHeld = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            bool downHeld = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+            bool leftHeld = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+            bool rightHeld = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+
+            bool stillHeld =
+                (holdDir == Vector2Int.up && upHeld) ||
+                (holdDir == Vector2Int.down && downHeld) ||
+                (holdDir == Vector2Int.left && leftHeld) ||
+                (holdDir == Vector2Int.right && rightHeld);
+
+            if (!stillHeld)
+            {
+                holdDir = Vector2Int.zero;
+                return;
+            }
+
+            if (!allowHoldMove) return;
+            if (board != null && board.IsAnimating) return;
+            if (board != null && board.smoothPlayerMove && isMoving) return;
+
+            if (Time.time >= holdNextTime)
+            {
+                if (TryMoveInDir(holdDir))
+                {
+                    holdNextTime = Time.time + holdRepeatInterval;
+                }
+                else
+                {
+                    // ブロック時も一定間隔で再試行
+                    holdNextTime = Time.time + holdRepeatInterval;
+                }
+            }
+        }
+    }
+
+    void StartHold(Vector2Int dir)
+    {
+        holdDir = dir;
+        // まず1歩動く
+        TryMoveInDir(dir);
+        // 次のリピートまでの初回遅延
+        holdNextTime = Time.time + holdInitialDelay;
+    }
+
+    bool TryMoveInDir(Vector2Int dir)
+    {
+        if (dir == Vector2Int.zero || board == null) return false;
+        if (board.IsAnimating) return false;
+        if (board.smoothPlayerMove && isMoving) return false;
+
+        var np = pos + dir;
+        if (!board.IsWalkable(np, true)) return false;
+
+        if (board.smoothPlayerMove)
+        {
+            isMoving = true;
+            moveFrom = transform.position;
+            moveTo = board.GridToWorldActor(np);
+            moveT = 0f;
+            float cellsPerSec = Mathf.Max(0.1f, board.playerMoveCellsPerSec);
+            moveDur = 1f / cellsPerSec;
+        }
+        else
+        {
+            pos = np;
+            transform.position = board.GridToWorldActor(pos);
+            board.TryPickupItemAt(pos);
+            turn?.RegisterActionPoint();
+            if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
+            turn?.EndPlayerTurn();
+        }
+        return true;
     }
 
     public void UI_RotateCW() { if (aiming) TryRotate(+1); }
@@ -270,7 +344,6 @@ public class PlayerController : MonoBehaviour
     public void LoadDevModeSettings()
     {
         invincible = PlayerPrefs.GetInt("player_invincible", 0) == 1;
-        // 初期値は必ず 3×3（保存値は無視）
-        areaSize = 3;
+        areaSize = 3; // 初期値は必ず3×3
     }
 }

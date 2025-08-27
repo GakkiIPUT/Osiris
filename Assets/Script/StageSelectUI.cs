@@ -121,10 +121,11 @@ public class StageSelectUI : MonoBehaviour
             {
                 if (gs != null)
                 {
-                    gs.stageIndex = captured; // 選択を GameState に保持
-                    // フォールバック用に PlayerPrefs にも保存
+                    gs.stageIndex = captured;
                     PlayerPrefs.SetInt("lastWorldIndex", gs.worldIndex);
                     PlayerPrefs.SetInt("lastStageIndex", gs.stageIndex);
+                    // ここで「ステージ選択経由」フラグをON
+                    PlayerPrefs.SetInt("enteredViaStageSelect", 1);
                     PlayerPrefs.Save();
                 }
                 SceneNavigator.GoGame();

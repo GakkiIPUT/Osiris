@@ -55,64 +55,82 @@ public class GameFlow : MonoBehaviour
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
 
-        // ステージロード（StageManager 側が Board/Turn を生成）
-        if (stage != null)
+        // ステージ選択経由フラグを読みつつ、読んだらリセット
+        bool viaStageSelect = PlayerPrefs.GetInt("enteredViaStageSelect", 0) == 1;
+        PlayerPrefs.SetInt("enteredViaStageSelect", 0);
+        PlayerPrefs.Save();
+
+        // レベルペインターのオーバーライド有無を確認
+        bool hasDevOverride = PlayerPrefs.GetInt("dev_level_override_present", 0) == 1;
+        string devText = hasDevOverride ? PlayerPrefs.GetString("dev_level_override_text", "") : "";
+
+        if (!viaStageSelect && hasDevOverride && !string.IsNullOrEmpty(devText))
         {
-            // GameState がなくても PlayerPrefs から復元
-            int widx = gs ? gs.worldIndex : 0;
-            int sidx = gs ? gs.stageIndex : 0;
-
-            // フォールバック: 直前に選んだ値を優先
-            widx = PlayerPrefs.GetInt("lastWorldIndex", widx);
-            sidx = PlayerPrefs.GetInt("lastStageIndex", sidx);
-
-            var catalog = gs ? gs.catalog : null;
-            if (catalog != null && catalog.worlds != null && catalog.worlds.Count > 0)
+            // ステージ選択経由でなければ、ペインターのマップを優先適用
+            var board = UnityCompat.FindFirst<BoardManager>();
+            if (board != null)
             {
-                widx = Mathf.Clamp(widx, 0, catalog.worlds.Count - 1);
-                var world = catalog.worlds[widx];
+                board.SetLevelFromText(devText, rebuild: true);
+#if UNITY_EDITOR
+                Debug.Log("[GameFlow] Loaded map from LevelPainter override.");
+#endif
+            }
+        }
+        else
+        {
+            // 従来どおりカタログ＋選択ステージからロード
+            if (stage != null)
+            {
+                int widx = gs ? gs.worldIndex : 0;
+                int sidx = gs ? gs.stageIndex : 0;
 
-                if (world != null && world.stageSet != null && world.stageSet.stages != null && world.stageSet.stages.Count > 0)
+                widx = PlayerPrefs.GetInt("lastWorldIndex", widx);
+                sidx = PlayerPrefs.GetInt("lastStageIndex", sidx);
+
+                var catalog = gs ? gs.catalog : null;
+                if (catalog != null && catalog.worlds != null && catalog.worlds.Count > 0)
                 {
-                    sidx = Mathf.Clamp(sidx, 0, world.stageSet.stages.Count - 1);
+                    widx = Mathf.Clamp(widx, 0, catalog.worlds.Count - 1);
+                    var world = catalog.worlds[widx];
 
-                    stage.stageSet = world.stageSet;
-                    stage.Load(sidx);
+                    if (world != null && world.stageSet != null && world.stageSet.stages != null && world.stageSet.stages.Count > 0)
+                    {
+                        sidx = Mathf.Clamp(sidx, 0, world.stageSet.stages.Count - 1);
+
+                        stage.stageSet = world.stageSet;
+                        stage.Load(sidx);
 
 #if UNITY_EDITOR
-                    Debug.Log($"[GameFlow] Load stage by selection: worldIndex={widx}, stageIndex={sidx}, id={world.stageSet.stages[sidx].id}");
+                        Debug.Log($"[GameFlow] Load stage by selection: worldIndex={widx}, stageIndex={sidx}, id={world.stageSet.stages[sidx].id}");
 #endif
+                    }
+                    else
+                    {
+                        Debug.LogError("[GameFlow] StageSet が空か未設定です。");
+                    }
                 }
                 else
                 {
-                    Debug.LogError("[GameFlow] StageSet が空か未設定です。");
+                    Debug.LogError("[GameFlow] GameCatalog が取得できません。");
                 }
-            }
-            else
-            {
-                Debug.LogError("[GameFlow] GameCatalog が取得できません。");
             }
         }
 
-        // 参照を取る（Load の直後なら同期的に見つかる想定）
+        // 参照とUI初期化など（従来処理）
         turn = UnityCompat.FindFirst<TurnManager>();
 
-        // パネル初期化
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
 
-        // ESCボタン配線
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame);
 
-        // バインドUI
         if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
         UpdateResetKeyLabel();
 
-        // TurnManager イベント購読 & カウンタ初期化
         HookTurnManager();
     }
 
@@ -221,7 +239,7 @@ public class GameFlow : MonoBehaviour
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
         if (detailRotText) detailRotText.text = $"回転数： {res.rot}回";
         if (detailRetryText) detailRetryText.text = $"リトライ数： {res.retries}回";
-        if (detailStepText) detailStepText.text = $"歩数： {res.steps}歩";
+            if (detailStepText) detailStepText.text = $"歩数： {res.steps}歩";
 
         // 宝箱はここでは表示せず「保留」。Clearパネル表示直後に最前面で出す
         var tm = UnityCompat.FindFirst<TurnManager>();

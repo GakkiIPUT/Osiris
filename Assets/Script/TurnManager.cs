@@ -108,6 +108,12 @@ public class TurnManager : MonoBehaviour
         gameOver = false;
         cleared = false;
         guardTimer = 0f;
+
+        // スムーズ移動中の待ち時間と一致させてカクツキ減
+        if (board != null && board.smoothGuardMove)
+        {
+            guardStepInterval = 1f / Mathf.Max(0.1f, board.guardMoveCellsPerSec);
+        }
     }
 
     void Update()
@@ -197,8 +203,8 @@ public class TurnManager : MonoBehaviour
             if (gameOver || cleared) break;
             var g = guards[i];
             if (g == null) continue;
-            // GuardController 側は DoTurn() を1ステップとして実装しておけばOK
-            g.DoTurn();
+            // GuardController 側は StepAI() を1ステップとして実装しておけばOK
+            g.StepAI();
         }
     }
 

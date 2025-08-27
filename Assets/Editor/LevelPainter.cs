@@ -244,8 +244,18 @@ public class LevelPainter : EditorWindow
     {
         if (!board || rows == null || rows.Length == 0) return;
         NormalizeRows();
-        board.SetLevel(rows);        // BoardManager 側で Build まで面倒を見ます
-        // シーンに反映
+        board.SetLevel(rows);        // BoardManager 側で Build
+
+        // 実行時に優先適用するため、オーバーライドを保存
+        try
+        {
+            PlayerPrefs.SetString("dev_level_override_text", string.Join("\n", rows));
+            PlayerPrefs.SetInt("dev_level_override_present", 1);
+            PlayerPrefs.Save();
+        }
+        catch { }
+
+        // シーン再描画
         SceneView.RepaintAll();
     }
 
