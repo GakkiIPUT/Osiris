@@ -892,6 +892,120 @@ public class BoardManager : MonoBehaviour
 
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
+
+    public void RotateAreaInstant(Vector2Int center, int size, int dir)
+    {
+        // 同一フレームで即時反映（ガードの歩行等をブロックするため短時間だけON）
+        IsAnimating = true;
+
+        // 事前NGチェックはRotateAreaと同等
+        if (AreaHasExit(center, size)) { IsAnimating = false; return; }
+        if (!WouldBeSafePartial(center, size, dir)) { IsAnimating = false; return; }
+        if (WouldPlayerOverlapGuard(center, size, dir)) { IsAnimating = false; return; }
+
+        int k = (size - 1) / 2;
+
+        // 1) セル内容の回転（配列）
+        var newCells = new Dictionary<Vector2Int, CellType>();
+        for (int j = 0; j < size; j++)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                int gx = center.x + i - k;
+                int gy = center.y + j - k;
+                var dest = new Vector2Int(gx, gy);
+                if (!InBounds(dest)) continue;
+
+                int gdir = -dir; // 配列側は符号反転（見た目と逆）
+                int sx, sy;
+                if (gdir > 0) { sx = j; sy = size - 1 - i; }
+                else { sx = size - 1 - j; sy = i; }
+
+                int sgx = center.x - k + sx;
+                int sgy = center.y - k + sy;
+
+                CellType after = InBounds(new Vector2Int(sgx, sgy)) ? cells[sgy, sgx] : cells[gy, gx];
+                newCells[dest] = after;
+            }
+        }
+
+        // 2) 既存タイル破棄
+        for (int j = 0; j < size; j++)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                int gx = center.x + i - k;
+                int gy = center.y + j - k;
+                var gp = new Vector2Int(gx, gy);
+                if (!InBounds(gp)) continue;
+                var oldGo = tileGOs[gy, gx];
+                if (oldGo) SafeDestroy(oldGo);
+            }
+        }
+
+        // 3) 新タイル生成
+        foreach (var kv in newCells)
+        {
+            var p = kv.Key;
+            cells[p.y, p.x] = kv.Value;
+            var go2 = Instantiate(
+                (cells[p.y, p.x] == CellType.Wall) ? pfWall :
+                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
+                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
+                GridToWorld(p), Quaternion.identity, tilesRoot);
+            go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
+            AutoAlign2DObject(go2, false);
+            if (cells[p.y, p.x] == CellType.Exit)
+            {
+                var pos = go2.transform.position;
+                pos.y = floorY + exitTopOffset;
+                go2.transform.position = pos;
+            }
+            tileGOs[p.y, p.x] = go2;
+        }
+
+        // 4) アイテムの更新（位置と辞書）
+        if (itemAt != null && itemAt.Count > 0)
+        {
+            var moved = new List<(Vector2Int from, Vector2Int to, char sym, GameObject go)>();
+            foreach (var kv in itemAt)
+            {
+                var p = kv.Key;
+                if (p.x >= center.x - k && p.x <= center.x + k &&
+                    p.y >= center.y - k && p.y <= center.y + k)
+                {
+                    var dest = Rot90(p, center, dir);
+                    moved.Add((p, dest, kv.Value.sym, kv.Value.go));
+                }
+            }
+            foreach (var m in moved) itemAt.Remove(m.from);
+            foreach (var m in moved)
+            {
+                if (m.go)
+                {
+                    m.go.transform.position = GridToWorld(m.to);
+                    AutoAlign2DObject(m.go, true, new Vector2(0.07f, 0.07f));
+                }
+                itemAt[m.to] = (m.sym, m.go);
+            }
+        }
+
+        // 5) プレイヤー位置更新（設定と範囲に応じて）
+        if (player != null)
+        {
+            bool playerIn = IsPlayerInsideArea(center, size);
+            if (playerIn)
+            {
+                var newP = Rot90(player.pos, center, dir);
+                player.pos = newP;
+                player.transform.position = GridToWorldActor(newP);
+            }
+        }
+
+        IsAnimating = false;
+        RefreshAllGuardVision();
+    }
+
     Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
     {
         // dir>0 = 時計回り, dir<0 = 反時計回り
