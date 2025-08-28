@@ -2,20 +2,19 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
 
 public class StageSelectUI : MonoBehaviour
 {
     [Header("UI Refs")]
-    public RectTransform grid;           // ← Inspector で必ず割り当て（Gridノード）
-    public Button stageButtonPrefab;     // ← Inspector で割り当て
-    public Button backToMainButton;      // 任意
+    public RectTransform grid;
+    public Button stageButtonPrefab;
+    public Button backToMainButton;
 
     [Header("Layout")]
     public int columns = 2;
     public Vector2 spacing = new Vector2(24, 24);
 
-    // ★ RectOffset を直接フィールドで new しない（禁止）
-    //   代わりに int を公開して Awake で RectOffset を組み立てる
     public int padLeft = 16, padRight = 16, padTop = 16, padBottom = 16;
 
     public float minCellW = 220f;
@@ -26,19 +25,8 @@ public class StageSelectUI : MonoBehaviour
 
     void Awake()
     {
-        // 参照チェック
-        if (grid == null)
-        {
-            //Debug.LogError("[StageSelectUI] 'grid' が未割り当てです。Grid の RectTransform を Inspector で設定してください。");
-            enabled = false;
-            return;
-        }
-        if (stageButtonPrefab == null)
-        {
-            //Debug.LogError("[StageSelectUI] 'stageButtonPrefab' が未割り当てです。ボタンPrefabを設定してください。");
-            enabled = false;
-            return;
-        }
+        if (grid == null) { enabled = false; return; }
+        if (stageButtonPrefab == null) { enabled = false; return; }
 
         glg = grid.GetComponent<GridLayoutGroup>();
         if (!glg) glg = grid.gameObject.AddComponent<GridLayoutGroup>();
@@ -48,8 +36,6 @@ public class StageSelectUI : MonoBehaviour
         glg.constraintCount = columns;
         glg.childAlignment = TextAnchor.UpperCenter;
         glg.spacing = spacing;
-
-        // ★ ここで RectOffset を new して設定
         glg.padding = new RectOffset(padLeft, padRight, padTop, padBottom);
 
         gs = UnityCompat.FindFirst<GameState>();
@@ -62,12 +48,20 @@ public class StageSelectUI : MonoBehaviour
         BuildButtons();
         FitCellSize();
         RebuildNow();
+        StartCoroutine(CoSelectFirst());
+    }
+
+    void OnEnable()
+    {
+        if (!enabled) return;
+        // 再表示時もフォーカスを戻す
+        StartCoroutine(CoSelectFirst());
     }
 
     void OnRectTransformDimensionsChange()
     {
         if (!enabled) return;
-        if (!grid || !glg) return;   // ★ null ガード
+        if (!grid || !glg) return;
         FitCellSize();
         RebuildNow();
     }
@@ -80,7 +74,6 @@ public class StageSelectUI : MonoBehaviour
 
     void BuildButtons()
     {
-        // クリーンアップ
         for (int i = grid.childCount - 1; i >= 0; --i)
             Destroy(grid.GetChild(i).gameObject);
 
@@ -124,7 +117,6 @@ public class StageSelectUI : MonoBehaviour
                     gs.stageIndex = captured;
                     PlayerPrefs.SetInt("lastWorldIndex", gs.worldIndex);
                     PlayerPrefs.SetInt("lastStageIndex", gs.stageIndex);
-                    // ここで「ステージ選択経由」フラグをON
                     PlayerPrefs.SetInt("enteredViaStageSelect", 1);
                     PlayerPrefs.Save();
                 }
@@ -141,7 +133,6 @@ public class StageSelectUI : MonoBehaviour
         int nStages = Mathf.Max(1, grid.childCount);
         int rows = Mathf.CeilToInt(nStages / (float)columns);
 
-        // GridLayoutGroup.padding は RectOffset。ここでは glg.padding を信用し直す
         float availW = rect.width - glg.padding.left - glg.padding.right - (columns - 1) * glg.spacing.x;
         float availH = rect.height - glg.padding.top - glg.padding.bottom - (rows - 1) * glg.spacing.y;
 
@@ -149,5 +140,22 @@ public class StageSelectUI : MonoBehaviour
         float cellH = Mathf.Floor(availH / rows);
 
         glg.cellSize = new Vector2(Mathf.Max(cellW, minCellW), Mathf.Max(cellH, minCellH));
+    }
+
+    // 次フレームで最初のステージボタンを選択
+    System.Collections.IEnumerator CoSelectFirst()
+    {
+        yield return null;
+        if (EventSystem.current == null) yield break;
+        for (int i = 0; i < grid.childCount; i++)
+        {
+            var go = grid.GetChild(i).gameObject;
+            var btn = go.GetComponent<Button>();
+            if (btn && btn.interactable && go.activeInHierarchy)
+            {
+                EventSystem.current.SetSelectedGameObject(go);
+                break;
+            }
+        }
     }
 }

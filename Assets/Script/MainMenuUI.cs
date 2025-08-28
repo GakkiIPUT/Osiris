@@ -1,22 +1,22 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class MainMenuUI : MonoBehaviour
 {
-    public Button[] worldButtons; // インスペクタで 1面,2面…のボタンを並べる
+    public Button[] worldButtons;
     GameState gs;
 
     void Awake()
     {
-        gs = UnityCompat.FindFirst<GameState>(); // ← FindObjectOfTypeは使わない
+        gs = UnityCompat.FindFirst<GameState>();
         if (gs == null)
         {
-            Debug.LogError("[MainMenuUI] GameState が見つかりません。Mainシーンに常駐させてください。");
+            Debug.LogError("[MainMenuUI] GameState が見つかりません。Mainシーンに配置してください。");
             enabled = false;
             return;
         }
-
         WireButtons();
     }
 
@@ -24,6 +24,21 @@ public class MainMenuUI : MonoBehaviour
     {
         if (!enabled) return;
         FitButtonsState();
+        StartCoroutine(CoSelectFirst());
+    }
+
+    System.Collections.IEnumerator CoSelectFirst()
+    {
+        yield return null; // 次フレームで選択（UI再構築後）
+        if (EventSystem.current == null || worldButtons == null) yield break;
+        foreach (var b in worldButtons)
+        {
+            if (b && b.gameObject.activeInHierarchy && b.interactable)
+            {
+                EventSystem.current.SetSelectedGameObject(b.gameObject);
+                break;
+            }
+        }
     }
 
     void WireButtons()
@@ -35,32 +50,29 @@ public class MainMenuUI : MonoBehaviour
             var btn = worldButtons[i];
             if (!btn) continue;
 
-            // 二重登録防止
             btn.onClick.RemoveAllListeners();
 
-            int idx = i; // ループ変数のキャプチャ対策
+            int idx = i;
             btn.onClick.AddListener(() =>
             {
                 if (gs?.catalog?.worlds == null || idx < 0 || idx >= gs.catalog.worlds.Count)
                 {
-                    Debug.LogWarning($"[MainMenuUI] World index {idx} は無効です。");
+                    Debug.LogWarning($"[MainMenuUI] World index {idx} は無効。");
                     return;
                 }
                 gs.worldIndex = idx;
-                gs.stageIndex = 0; // 先頭ステージから
+                gs.stageIndex = 0;
                 SceneNavigator.GoStage();
             });
 
             var label = btn.GetComponentInChildren<TMP_Text>(true);
             if (label && gs.catalog != null && gs.catalog.worlds != null && idx < gs.catalog.worlds.Count)
             {
-                // World の表示名が別にある場合はそちらに差し替え
                 label.text = gs.catalog.worlds[idx].id;
             }
         }
     }
 
-    // 利用可能なWorld数に合わせて、有効/無効や大きさを整える
     void FitButtonsState()
     {
         int available = (gs?.catalog?.worlds != null) ? gs.catalog.worlds.Count : 0;
@@ -69,8 +81,9 @@ public class MainMenuUI : MonoBehaviour
         {
             var btn = worldButtons[i];
             if (!btn) continue;
-            btn.interactable = (i < available);
-            btn.gameObject.SetActive(i < available); // 余剰ボタンは非表示にするなら有効
+            bool on = i < available;
+            btn.interactable = on;
+            btn.gameObject.SetActive(on);
         }
     }
 }

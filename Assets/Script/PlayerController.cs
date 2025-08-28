@@ -1,5 +1,8 @@
-using System.Collections;
+ï»¿using System.Collections;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class PlayerController : MonoBehaviour
 {
@@ -8,13 +11,13 @@ public class PlayerController : MonoBehaviour
 
     public Vector2Int pos;
 
-    public bool invincible = false; // –³“Gƒ‚[ƒh
+    public bool invincible = false; // ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[ï¿½h
     public int areaSize
     {
         get => _areaSize;
         set
         {
-            _areaSize = Mathf.Clamp(value, 3, 9); // 3,5,7,9‚È‚Ç
+            _areaSize = Mathf.Clamp(value, 3, 9); // 3,5,7,9ãªã©
             if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
         }
     }
@@ -23,23 +26,46 @@ public class PlayerController : MonoBehaviour
     bool aiming = false;
     Vector2Int aimCenter;
 
+    // å…¬é–‹: FreeRotateController ã‹ã‚‰å‚ç…§
+    public Vector2Int AimCenter => aimCenter;   
+
     GameObject ghostRoot;
 
-    // ƒXƒ€[ƒYˆÚ“®
+    // ã‚¹ãƒ ãƒ¼ã‚ºç§»å‹•
     bool isMoving = false;
     Vector3 moveFrom, moveTo;
     float moveT = 0f;
-    float moveDur = 0.2f; // cellsPerSec‚©‚çŒvZ
+    float moveDur = 0.2f; // cellsPerSecã‹ã‚‰è¨ˆç®—
 
-    // UI ‚©‚çQÆ‚·‚é‚½‚ß‚ÌƒvƒƒpƒeƒB
+    // UI ã‹ã‚‰å‚ç…§ã™ã‚‹ãŸã‚ã®ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£
     public bool IsAiming => aiming;
 
-    [Header("Hold Move (’·‰Ÿ‚µˆÚ“®)")]
+    [Header("Hold Move (é•·æŠ¼ã—ç§»å‹•)")]
     public bool allowHoldMove = true;
     [Min(0.05f)] public float holdInitialDelay = 0.25f;
     [Min(0.03f)] public float holdRepeatInterval = 0.08f;
     Vector2Int holdDir = Vector2Int.zero;
     float holdNextTime = 0f;
+
+    [Header("Gamepad")]
+    public bool enableGamepad = true;
+    [Range(0.1f, 0.9f)] public float stickDigitalThreshold = 0.5f;
+    public bool gamepadTogglesAim = true; // Southã§ãƒˆã‚°ãƒ«é–‹å§‹/çµ‚äº†
+
+    // ã‚¨ã‚¤ãƒ ä¸­ã®Padã‚«ãƒ¼ã‚½ãƒ«ç§»å‹•ï¼ˆå³ã‚¹ãƒ†ã‚£ãƒƒã‚¯ï¼‰
+    [Header("Aim Move (Pad)")]
+    public bool allowAimPadMove = true;
+    [Min(0.05f)] public float aimInitialDelay = 0.25f;
+    [Min(0.03f)] public float aimRepeatInterval = 0.08f;
+    Vector2Int aimHoldDir = Vector2Int.zero;
+    float aimHoldNextTime = 0f;
+
+    // Padãƒˆãƒªã‚¬ãƒ¼ã®ç«‹ã¡ä¸ŠãŒã‚Šæ¤œå‡ºç”¨
+#if ENABLE_INPUT_SYSTEM
+    float _prevLT = 0f, _prevRT = 0f;
+    bool _ltDown = false, _rtDown = false;
+    const float _triggerEdge = 0.5f;
+#endif
 
     public void Init(BoardManager b, Vector2Int start)
     {
@@ -53,69 +79,75 @@ public class PlayerController : MonoBehaviour
     {
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null && (turn.gameOver || turn.cleared)) return;
+        if (GlobalEscMenu.IsMenuOpen) return;
+        UpdatePadState();
 
-        // ƒXƒ€[ƒYˆÚ“®XV
+        // ï¿½Xï¿½ï¿½ï¿½[ï¿½Yï¿½Ú“ï¿½ï¿½Xï¿½V
         if (board != null && board.smoothPlayerMove && isMoving)
         {
-            if (board.IsAnimating) return; // ”Õ‰ñ“]’†‚Í’â~i”j’]‰ñ”ğj
-
+            if (board.IsAnimating) return;
             moveT += Time.deltaTime / Mathf.Max(0.0001f, moveDur);
             float t = Mathf.Clamp01(moveT);
             transform.position = Vector3.Lerp(moveFrom, moveTo, t);
-
             if (t >= 1f)
             {
                 isMoving = false;
-                // “’B‚ÉƒOƒŠƒbƒhXV‚ÆƒCƒxƒ“ƒg
                 pos = board.WorldToGrid(moveTo);
                 transform.position = board.GridToWorldActor(pos);
-
                 board.TryPickupItemAt(pos);
                 turn?.RegisterActionPoint();
-
-                if (board.cells[pos.y, pos.x] == CellType.Exit)
-                {
-                    turn?.TriggerClear();
-                }
-
+                if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
                 turn?.EndPlayerTurn();
             }
-            return; // •âŠÔ’†‚Í‘¼‚Ì“ü—Í–³‹
+            return;
         }
 
-        // ”ÍˆÍØ‘ÖE‹ŠEƒgƒOƒ‹EƒGƒCƒ€ŠJn/I—¹
-        if (Input.mouseScrollDelta.y != 0f) { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
-        if (Input.GetMouseButtonDown(0)) { if (TryGetMouseGrid(out var g)) { aiming = true; aimCenter = g; ShowGhost(true); } }
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { aiming = false; ShowGhost(false); }
-        if (Input.GetKeyDown(KeyCode.T)) { aiming = false; ShowGhost(false); } // ©—R‰ñ“]ON‚Å‚àƒLƒƒƒ“ƒZƒ‹ê—p
-
-        // ’·‰Ÿ‚µˆÚ“®“ü—Í
-        HandleMoveInput();
-
-        // ƒGƒCƒ€’†FQ/E ‚Å‰ñ“]Àsi©—R‰ñ“]OFF‚Ì‚İ—LŒøj
+        // ã‚­ãƒ¼ãƒã‚¦: QEå›è»¢ã¯è‡ªç”±å›è»¢ON/OFFã«é–¢ä¿‚ãªãæœ‰åŠ¹ï¼ˆä¸¡ç«‹ï¼‰
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {
-            if (board != null && !board.devEnableFreeRotate)
+            if (board != null)
             {
                 int dirRot = Input.GetKeyDown(KeyCode.Q) ? -1 : +1;
                 TryRotate(dirRot);
             }
         }
 
-        if (aiming) UpdateGhostVisual();
+        // æ—¢å­˜ã®ã‚­ãƒ¼ãƒã‚¦å…¥åŠ›
+        if (Input.mouseScrollDelta.y != 0f) { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
+        if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
+        if (Input.GetMouseButtonDown(0)) { if (TryGetMouseGrid(out var g)) { aiming = true; aimCenter = g; ShowGhost(true); } }
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { aiming = false; ShowGhost(false); }
+        if (Input.GetKeyDown(KeyCode.T)) { aiming = false; ShowGhost(false); }
+
+        HandleGamepadButtons();
+
+        if (aiming) { HandleAimPadInput(); UpdateGhostVisual(); }
+        else { HandleMoveInput(); }
     }
 
     void HandleMoveInput()
     {
-        // ’Ç‰Á: ‰ñ“]ƒvƒŒƒrƒ…[’†‚ÍˆÚ“®“ü—Í‚ğ–³Œø‰»
+        // è¿½åŠ : å›è»¢ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã¯ç§»å‹•å…¥åŠ›ã‚’ç„¡åŠ¹åŒ–
         if (board != null && board.IsFreePreviewActive)
         {
             holdDir = Vector2Int.zero;
             return;
         }
+
+        // ========= Padã®ãƒ‡ã‚¸ã‚¿ãƒ«åŒ–ï¼ˆå·¦ã‚¹ãƒ†ã‚£ãƒƒã‚¯ / D-Padï¼‰ =========
+        Vector2Int padDir = Vector2Int.zero;
+        GetPadDigitalDir(ref padDir);
+        if (padDir != Vector2Int.zero)
+        {
+            if (holdDir == Vector2Int.zero || padDir != holdDir)
+            {
+                StartHold(padDir);
+            }
+        }
+
+        // ========= ã‚­ãƒ¼ãƒœãƒ¼ãƒ‰ =========
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
         else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
         else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
@@ -123,22 +155,30 @@ public class PlayerController : MonoBehaviour
 
         if (holdDir != Vector2Int.zero)
         {
+            // KB held
             bool upHeld = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
             bool downHeld = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
             bool leftHeld = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
             bool rightHeld = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
 
-            bool stillHeld =
-                (holdDir == Vector2Int.up && upHeld) ||
-                (holdDir == Vector2Int.down && downHeld) ||
-                (holdDir == Vector2Int.left && leftHeld) ||
-                (holdDir == Vector2Int.right && rightHeld);
-
-            if (!stillHeld)
+            // Pad held
+            bool upHeldPad = false, downHeldPad = false, leftHeldPad = false, rightHeldPad = false;
+            if (enableGamepad)
             {
-                holdDir = Vector2Int.zero;
-                return;
+                Vector2 v = GetPadMoveRaw();
+                upHeldPad = v.y >= stickDigitalThreshold;
+                downHeldPad = v.y <= -stickDigitalThreshold;
+                leftHeldPad = v.x <= -stickDigitalThreshold;
+                rightHeldPad = v.x >= stickDigitalThreshold;
             }
+
+            bool stillHeld =
+                (holdDir == Vector2Int.up && (upHeld || upHeldPad)) ||
+                (holdDir == Vector2Int.down && (downHeld || downHeldPad)) ||
+                (holdDir == Vector2Int.left && (leftHeld || leftHeldPad)) ||
+                (holdDir == Vector2Int.right && (rightHeld || rightHeldPad));
+
+            if (!stillHeld) { holdDir = Vector2Int.zero; return; }
 
             if (!allowHoldMove) return;
             if (board != null && board.IsAnimating) return;
@@ -147,13 +187,9 @@ public class PlayerController : MonoBehaviour
             if (Time.time >= holdNextTime)
             {
                 if (TryMoveInDir(holdDir))
-                {
                     holdNextTime = Time.time + holdRepeatInterval;
-                }
                 else
-                {
                     holdNextTime = Time.time + holdRepeatInterval;
-                }
             }
         }
     }
@@ -242,19 +278,18 @@ public class PlayerController : MonoBehaviour
 
     void TryRotate(int dirRot)
     {
-        if (!IsCenterAllowed(aimCenter)) { UpdateGhostVisual(); return; }
-        if (AreaContainsLocked(aimCenter, areaSize)) { UpdateGhostVisual(); return; }
+        if (!IsCenterAllowed(AimCenter)) { UpdateGhostVisual(); return; }
+        if (AreaContainsLocked(AimCenter, areaSize)) { UpdateGhostVisual(); return; }
 
-        var pv = board.GetPreview(aimCenter, areaSize, 0);
+        var pv = board.GetPreview(AimCenter, areaSize, 0);
         if (!pv.valid) { UpdateGhostVisual(); return; }
 
-        if (board.WouldPlayerOverlapGuard(aimCenter, areaSize, dirRot))
+        if (board.WouldPlayerOverlapGuard(AimCenter, areaSize, dirRot))
         {
-            UpdateGhostVisual();
-            return;
+            UpdateGhostVisual(); return;
         }
 
-        board.RotateArea(aimCenter, areaSize, dirRot, () =>
+        board.RotateArea(AimCenter, areaSize, dirRot, () =>
         {
             var t = UnityCompat.FindFirst<TurnManager>();
             t?.RegisterRotation();
@@ -265,7 +300,7 @@ public class PlayerController : MonoBehaviour
         });
     }
 
-    // ====== ƒS[ƒXƒg•\¦iƒGƒCƒ€‚Ì‚İNxN”¼“§–¾‚ğo‚·j ======
+    // ====== ã‚´ãƒ¼ã‚¹ãƒˆè¡¨ç¤ºï¼ˆã‚¨ã‚¤ãƒ æ™‚ã®ã¿NxNåŠé€æ˜ã‚’å‡ºã™ï¼‰ ======
     void ShowGhost(bool on)
     {
         if (!on)
@@ -280,12 +315,12 @@ public class PlayerController : MonoBehaviour
 
     void BuildGhostTiles()
     {
-        // ƒ‹[ƒg‚ğ’†SƒZƒ‹‚Öi‚‚³‚ÍghostYj
+        // ãƒ«ãƒ¼ãƒˆã‚’ä¸­å¿ƒã‚»ãƒ«ã¸ï¼ˆé«˜ã•ã¯ghostYï¼‰
         if (ghostRoot == null) ghostRoot = new GameObject("Ghost");
         ghostRoot.transform.position = board.GridToWorld(aimCenter) + new Vector3(0, board.ghostY, 0);
         ghostRoot.transform.rotation = Quaternion.identity;
 
-        // ‚¢‚Á‚½‚ñ‘Síœ
+        // ã„ã£ãŸã‚“å…¨å‰Šé™¤
         for (int i = ghostRoot.transform.childCount - 1; i >= 0; i--)
             Destroy(ghostRoot.transform.GetChild(i).gameObject);
 
@@ -298,7 +333,7 @@ public class PlayerController : MonoBehaviour
                 quad.name = $"Ghost_{i}_{j}";
                 quad.transform.SetParent(ghostRoot.transform, false);
 
-                // ƒ[ƒJƒ‹”z’ui’†SƒZƒ‹‚©‚ç‚Ì‘Š‘Î i,jj
+                // ãƒ­ãƒ¼ã‚«ãƒ«é…ç½®ï¼ˆä¸­å¿ƒã‚»ãƒ«ã‹ã‚‰ã®ç›¸å¯¾ i,jï¼‰
                 quad.transform.localPosition = new Vector3(i, 0f, j);
                 quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                 quad.transform.localScale = new Vector3(1f, 1f, 1f);
@@ -314,18 +349,15 @@ public class PlayerController : MonoBehaviour
     void UpdateGhostVisual()
     {
         if (ghostRoot == null) return;
+        ghostRoot.transform.position = board.GridToWorld(AimCenter) + new Vector3(0, board.ghostY, 0);
 
-        // ’†S‚É’Ç]iqƒ^ƒCƒ‹‚Íƒ[ƒJƒ‹”z’u‚Ì‚Ü‚Üj
-        ghostRoot.transform.position = board.GridToWorld(aimCenter) + new Vector3(0, board.ghostY, 0);
-
-        var pv = board.GetPreview(aimCenter, areaSize, 0);
-        bool centerOk = IsCenterAllowed(aimCenter);
-        bool lockedInArea = AreaContainsLocked(aimCenter, areaSize);
+        var pv = board.GetPreview(AimCenter, areaSize, 0);
+        bool centerOk = IsCenterAllowed(AimCenter);
+        bool lockedInArea = AreaContainsLocked(AimCenter, areaSize);
 
         bool ok = pv.valid && centerOk && !lockedInArea;
         var mat = ok ? board.ghostOkMat : board.ghostNgMat;
 
-        // q‚ÌÀ•W‚ÍG‚ç‚¸Aƒ}ƒeƒŠƒAƒ‹‚¾‚¯XV
         if (mat != null)
         {
             var rends = ghostRoot.GetComponentsInChildren<MeshRenderer>(true);
@@ -336,11 +368,7 @@ public class PlayerController : MonoBehaviour
     public void ClearGhost()
     {
         aiming = false;
-        if (ghostRoot != null)
-        {
-            Destroy(ghostRoot);
-            ghostRoot = null;
-        }
+        if (ghostRoot != null) { Destroy(ghostRoot); ghostRoot = null; }
     }
 
     public void SaveDevModeSettings()
@@ -353,15 +381,13 @@ public class PlayerController : MonoBehaviour
     public void LoadDevModeSettings()
     {
         invincible = PlayerPrefs.GetInt("player_invincible", 0) == 1;
-        areaSize = 3; // ‰Šú’l‚Í•K‚¸3~3
+        areaSize = 3;
     }
 
-    // ¥ ŠO•”iGameUI/©—R‰ñ“]j‚©‚çNxN Ghost‚ğ‘€ì
     public void ShowGhostExtern(bool on, Vector2Int center, int size, bool ok)
     {
         this.aimCenter = center;
         this._areaSize = size;
-
         ShowGhost(on);
         if (on)
         {
@@ -393,12 +419,9 @@ public class PlayerController : MonoBehaviour
         var mat = (ok ? board.ghostOkMat : board.ghostNgMat) ?? board.ghostOkMat;
         var rends = ghostRoot.GetComponentsInChildren<Renderer>(true);
         for (int i = 0; i < rends.Length; i++)
-        {
             if (rends[i] != null) rends[i].sharedMaterial = mat;
-        }
     }
 
-    // ¥ ’Ç‰Á: Ghost‚Ìe•t‚¯/‰ğœi©—R‰ñ“]ƒvƒŒƒrƒ…[‚Æ“¯Šú‰ñ“]‚³‚¹‚éj
     public void AttachGhostTo(Transform parent, bool worldPositionStays = true)
     {
         if (ghostRoot != null && parent != null)
@@ -408,5 +431,203 @@ public class PlayerController : MonoBehaviour
     {
         if (ghostRoot != null)
             ghostRoot.transform.SetParent(null, worldPositionStays);
+    }
+
+    void HandleGamepadButtons()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (!enableGamepad) return;
+        var gp = Gamepad.current;
+        if (gp == null) return;
+
+        // R2ï¼ã‚µã‚¤ã‚ºåˆ‡æ›¿ï¼ˆãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã‚‚è¨±å¯ï¼‰
+        if (_rtDown)
+        {
+            ToggleAreaSize();
+            if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
+        }
+
+        // è‡ªç”±å›è»¢ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã¯ã“ã“ã§æ‰“ã¡åˆ‡ã‚Šï¼ˆQE/LRãªã©ã¯è¡çªå›é¿ã®ãŸã‚ç„¡åŠ¹åŒ–ï¼‰
+        if (board != null && board.IsFreePreviewActive) return;
+
+        // å—ãƒœã‚¿ãƒ³ï¼é¸æŠãƒˆã‚°ãƒ«
+        if (gamepadTogglesAim && gp.buttonSouth.wasPressedThisFrame)
+        {
+            if (!aiming) { aiming = true; aimCenter = pos; ShowGhost(true); }
+            else { aiming = false; ShowGhost(false); }
+        }
+
+        // æ±ãƒœã‚¿ãƒ³ï¼é¸æŠè§£é™¤
+        if (gp.buttonEast.wasPressedThisFrame)
+        {
+            aiming = false; ShowGhost(false);
+        }
+
+        // Lã‚¹ãƒ†ã‚£ãƒƒã‚¯æŠ¼ã—è¾¼ã¿ï¼è¦–ç•Œãƒˆã‚°ãƒ«
+        if (gp.leftStickButton.wasPressedThisFrame) board?.ToggleAllGuardVision();
+
+        // QEå›è»¢ï¼ˆdevEnableFreeRotateã«é–¢ä¿‚ãªãæœ‰åŠ¹ï¼ä¸¡ç«‹ï¼‰
+        if (aiming)
+        {
+            if (gp.rightShoulder.wasPressedThisFrame) TryRotate(+1);
+            if (gp.leftShoulder.wasPressedThisFrame) TryRotate(-1);
+        }
+#endif
+    }
+
+    // Pad: é¸æŠä¸­ã®ç¯„å›²ç§»å‹•ï¼ˆD-Padã®ã¿ï¼‰ã€‚FreePreviewä¸­ã¯ç§»å‹•ä¸å¯ï¼ˆIsFreePreviewActiveã§æŠ‘æ­¢ï¼‰
+    // Pad: é¸æŠä¸­ã®ç¯„å›²ç§»å‹•ï¼ˆå³ã‚¹ãƒ†ã‚£ãƒƒã‚¯å„ªå…ˆï¼‹D-Padï¼‰ã€‚FreePreviewä¸­ã¯ç§»å‹•ä¸å¯
+    // Pad: é¸æŠä¸­ã®å…¥åŠ›
+    // - D-Padï¼ã‚­ãƒ£ãƒ©ã‚¯ã‚¿ãƒ¼ç§»å‹•ï¼ˆé¸æŠã¯ç¶­æŒï¼‰ã€‚å›è»¢ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã¯ç„¡åŠ¹ã€‚
+    // - å³ã‚¹ãƒ†ã‚£ãƒƒã‚¯ï¼é¸æŠç¯„å›²ç§»å‹•ï¼ˆãƒ›ãƒ¼ãƒ«ãƒ‰ãƒªãƒ”ãƒ¼ãƒˆï¼‰ã€‚å›è»¢ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã¯ç„¡åŠ¹ã€‚
+    // å·¦ã‚¹ãƒ†ã‚£ãƒƒã‚¯ã¯è‡ªç”±å›è»¢ï¼ˆFreeRotateControllerå´ï¼‰ã«ä½¿ç”¨ã€‚
+    void HandleAimPadInput()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (!enableGamepad || !allowAimPadMove) return;
+        // å›è»¢ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ä¸­ã¯ä¸€åˆ‡ã®ç§»å‹•ä¸å¯
+        if (board != null && (board.IsAnimating || board.IsFreePreviewActive)) return;
+
+        var gp = Gamepad.current;
+        if (gp == null) return;
+
+        // 1) D-Pad ã§ã‚­ãƒ£ãƒ©ã‚¯ã‚¿ãƒ¼ã‚’ç§»å‹•ï¼ˆæœ€å„ªå…ˆã€é¸æŠã¯ç¶­æŒï¼‰
+        Vector2 dv = gp.dpad.ReadValue();
+        if (Mathf.Abs(dv.x) > 0.5f || Mathf.Abs(dv.y) > 0.5f)
+        {
+            Vector2Int moveDir = Mathf.Abs(dv.x) > Mathf.Abs(dv.y)
+                ? (dv.x > 0f ? Vector2Int.right : Vector2Int.left)
+                : (dv.y > 0f ? Vector2Int.up : Vector2Int.down);
+
+            // é€šå¸¸ç§»å‹•ã®ãƒ›ãƒ¼ãƒ«ãƒ‰æ©Ÿæ§‹ã‚’æµç”¨
+            if (holdDir == Vector2Int.zero || moveDir != holdDir)
+            {
+                StartHold(moveDir); // 1æ­©å‹•ãï¼‹holdNextTimeã‚»ãƒƒãƒˆ
+            }
+            else
+            {
+                // D-Padé•·æŠ¼ã—ãƒªãƒ”ãƒ¼ãƒˆ
+                Vector2 dv2 = gp.dpad.ReadValue();
+                bool held =
+                    (holdDir == Vector2Int.up && dv2.y > 0.5f) ||
+                    (holdDir == Vector2Int.down && dv2.y < -0.5f) ||
+                    (holdDir == Vector2Int.left && dv2.x < -0.5f) ||
+                    (holdDir == Vector2Int.right && dv2.x > 0.5f);
+
+                if (!held)
+                {
+                    holdDir = Vector2Int.zero;
+                }
+                else if (Time.time >= holdNextTime)
+                {
+                    TryMoveInDir(holdDir);
+                    holdNextTime = Time.time + holdRepeatInterval;
+                }
+            }
+            // D-Padã‚’æœ€å„ªå…ˆã§å‡¦ç†ã™ã‚‹ãŸã‚ã€ã“ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã¯ã“ã“ã§çµ‚äº†
+            return;
+        }
+
+        // 2) å³ã‚¹ãƒ†ã‚£ãƒƒã‚¯ã§é¸æŠç¯„å›²ï¼ˆaimCenterï¼‰ç§»å‹•ï¼ˆãƒ‡ã‚¸ã‚¿ãƒ«åŒ–ï¼‹ãƒ›ãƒ¼ãƒ«ãƒ‰ï¼‰
+        Vector2 rs = gp.rightStick.ReadValue();
+        Vector2Int dir = Vector2Int.zero;
+        if (Mathf.Abs(rs.x) >= stickDigitalThreshold || Mathf.Abs(rs.y) >= stickDigitalThreshold)
+        {
+            if (Mathf.Abs(rs.x) > Mathf.Abs(rs.y))
+                dir = (rs.x > 0f) ? Vector2Int.right : Vector2Int.left;
+            else
+                dir = (rs.y > 0f) ? Vector2Int.up : Vector2Int.down;
+        }
+
+        if (dir != Vector2Int.zero)
+        {
+            if (aimHoldDir == Vector2Int.zero || dir != aimHoldDir)
+            {
+                AimStartHold(dir);
+            }
+        }
+
+        if (aimHoldDir != Vector2Int.zero)
+        {
+            // å³ã‚¹ãƒ†ã‚£ãƒƒã‚¯é•·æŠ¼ã—åˆ¤å®š
+            Vector2 rsv = gp.rightStick.ReadValue();
+            bool held =
+                (aimHoldDir == Vector2Int.up && rsv.y >= stickDigitalThreshold) ||
+                (aimHoldDir == Vector2Int.down && rsv.y <= -stickDigitalThreshold) ||
+                (aimHoldDir == Vector2Int.left && rsv.x <= -stickDigitalThreshold) ||
+                (aimHoldDir == Vector2Int.right && rsv.x >= stickDigitalThreshold);
+
+            if (!held)
+            {
+                aimHoldDir = Vector2Int.zero;
+                return;
+            }
+
+            if (Time.time >= aimHoldNextTime)
+            {
+                MoveAimCenter(aimHoldDir);
+                aimHoldNextTime = Time.time + aimRepeatInterval;
+            }
+        }
+#endif
+    }
+    void AimStartHold(Vector2Int dir)
+    {
+        aimHoldDir = dir;
+        MoveAimCenter(dir);
+        aimHoldNextTime = Time.time + aimInitialDelay;
+    }
+
+    void MoveAimCenter(Vector2Int dir)
+    {
+        if (board == null) return;
+        var next = AimCenter + dir;
+        if (!board.InBounds(next)) return;
+        aimCenter = next;
+        UpdateGhostVisual();
+    }
+
+    void GetPadDigitalDir(ref Vector2Int dir)
+    {
+        dir = Vector2Int.zero;
+        if (!enableGamepad) return;
+        Vector2 v = GetPadMoveRaw();
+        if (Mathf.Abs(v.x) < stickDigitalThreshold && Mathf.Abs(v.y) < stickDigitalThreshold) return;
+        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
+            dir = (v.x > 0f) ? Vector2Int.right : Vector2Int.left;
+        else
+            dir = (v.y > 0f) ? Vector2Int.up : Vector2Int.down;
+    }
+
+    Vector2 GetPadMoveRaw()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (!enableGamepad) return Vector2.zero;
+        var gp = Gamepad.current;
+        if (gp == null) return Vector2.zero;
+
+        Vector2 v = gp.leftStick.ReadValue();
+        v += gp.dpad.ReadValue();
+        if (v.sqrMagnitude > 1f) v.Normalize();
+        return v;
+#else
+        return Vector2.zero;
+#endif
+    }
+
+    void UpdatePadState()
+    {
+#if ENABLE_INPUT_SYSTEM
+        _ltDown = _rtDown = false;
+        var gp = Gamepad.current;
+        if (gp == null) return;
+
+        float lt = gp.leftTrigger.ReadValue();
+        float rt = gp.rightTrigger.ReadValue();
+        _ltDown = (lt >= _triggerEdge && _prevLT < _triggerEdge);
+        _rtDown = (rt >= _triggerEdge && _prevRT < _triggerEdge);
+        _prevLT = lt;
+        _prevRT = rt;
+#endif
     }
 }

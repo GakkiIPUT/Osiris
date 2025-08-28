@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.DualShock; // PS系も拾えるように
+#endif
 
 public class GameFlow : MonoBehaviour
 {
@@ -127,11 +132,13 @@ public class GameFlow : MonoBehaviour
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame);
 
-        // GameOver/クリア パネルのボタンを配線（これが未登録だったため無反応でした）
+        // GameOver/クリア パネルのボタン
         if (retryButton) retryButton.onClick.AddListener(RequestRetry);
-        // 仕様変更: メニューに戻る → ステージ選択へ
         if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
+
+        //宝箱パネル
+        if (treasureCloseButton) treasureCloseButton.onClick.AddListener(() => { if (treasurePanel) treasurePanel.SetActive(false); });
 
         // キーコンフィグ（ESC内）
         if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
@@ -173,11 +180,32 @@ public class GameFlow : MonoBehaviour
         bool isOver = (turn && turn.gameOver);
         bool isClear = (turn && turn.cleared);
 
-        // クリア/ゲームオーバー時以外は ESC トグル
+        // クリア/ゲームオーバー時以外は ESC トグル（Keyboard）
         if (!isOver && !isClear && Input.GetKeyDown(KeyCode.Escape))
         {
             if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
             else OpenEscMenu();
+        }
+
+        // クリア/ゲームオーバー時以外は Start でもトグル（Gamepad）
+#if ENABLE_INPUT_SYSTEM
+        if (!isOver && !isClear)
+        {
+            var gp = Gamepad.current;
+            if (gp != null && gp.startButton.wasPressedThisFrame)
+            {
+                if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
+                else OpenEscMenu();
+            }
+
+            // PS系（Windows HID など）での取りこぼし対策（Options/Touchpad）
+            var ds4 = DualShockGamepad.current;
+            if (ds4 != null && (ds4.optionsButton.wasPressedThisFrame || ds4.touchpadButton.wasPressedThisFrame))
+            {
+                if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
+                else OpenEscMenu();
+            }
+#endif
         }
 
         // Game Over 表示
@@ -224,9 +252,8 @@ public class GameFlow : MonoBehaviour
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
         if (detailRotText) detailRotText.text = $"回転数： {res.rot}回";
         if (detailRetryText) detailRetryText.text = $"リトライ数： {res.retries}回";
-            if (detailStepText) detailStepText.text = $"歩数： {res.steps}歩";
+        if (detailStepText) detailStepText.text = $"歩数： {res.steps}歩";
 
-        // 宝箱はここでは表示せず「保留」。Clearパネル表示直後に最前面で出す
         var tm = UnityCompat.FindFirst<TurnManager>();
         treasureOverlayPending = (tm != null && tm.treasurePicked);
 
@@ -255,14 +282,13 @@ public class GameFlow : MonoBehaviour
         {
             var spr = (entry != null) ? entry.collectSprite : null;
             treasureImage.sprite = spr;
-            treasureImage.enabled = (spr != null); // スプライト未設定なら画像を非表示
+            treasureImage.enabled = (spr != null);
         }
 
         treasurePanel.SetActive(true);
-        ShowOnTop(treasurePanel); // 最前面に
+        ShowOnTop(treasurePanel);
     }
 
-    // 結果を表示（必要なら従来ロジックを利用）
     void ShowResult()
     {
         var turnManager = UnityCompat.FindFirst<TurnManager>();
@@ -293,7 +319,6 @@ public class GameFlow : MonoBehaviour
     {
         panel.SetActive(true);
         panel.transform.SetAsLastSibling();
-        // 別Canvasを使う場合は Canvas.overrideSorting + sortingOrder をHUDより上に
     }
 
     void OpenEscMenu()
@@ -303,14 +328,24 @@ public class GameFlow : MonoBehaviour
         escMenuPanel.transform.SetAsLastSibling();
         if (pauseOnEsc) Time.timeScale = 0f;
         UpdateResetKeyLabel();
+
+        // 表示直後に初期選択を設定（パッドで操作しやすく）
+        if (EventSystem.current != null)
+        {
+            var first = escCloseButton ? escCloseButton.gameObject : null;
+            EventSystem.current.SetSelectedGameObject(first);
+        }
     }
     void CloseEscMenu()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
         waitingResetRebind = false;
-        InputBindings.EndCapture(); // ← 追加（開きっぱなしをクリーンアップ）
+        InputBindings.EndCapture(); // 念のため
         ResumeIfPaused();
+
+        if (EventSystem.current && EventSystem.current.currentSelectedGameObject != null)
+            EventSystem.current.SetSelectedGameObject(null);
     }
 
     void ResumeIfPaused()
@@ -325,14 +360,12 @@ public class GameFlow : MonoBehaviour
         tm?.RegisterRetry();
         tm?.ResetForRestart();
 
-        // パネル類を閉じて（必要なら一時停止解除）
         ResumeIfPaused();
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
 
-        // 盤面ソフトリロード
         UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
     }
 

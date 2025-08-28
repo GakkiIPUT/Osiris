@@ -41,6 +41,9 @@ public class GameUI : MonoBehaviour
 
     void Update()
     {
+        // 追加: メニュー表示中はゲームUIの入力処理を停止
+        if (GlobalEscMenu.IsMenuOpen) return;
+
         if (Input.GetKeyDown(KeyCode.F1)) { devMode = !devMode; }
 
         if (!InputBindings.IsCapturing && InputBindings.IsResetPressed())

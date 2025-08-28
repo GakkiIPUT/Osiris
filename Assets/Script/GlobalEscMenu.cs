@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.DualShock; // DualShockGamepad, DualSenseGamepadHID
+#endif
 
 public class GlobalEscMenu : MonoBehaviour
 {
@@ -16,13 +21,18 @@ public class GlobalEscMenu : MonoBehaviour
     public Button bindResetKeyButton;
     public TMP_Text bindResetKeyLabel;
 
+    [Header("Selection")]
+    public Selectable firstSelected;
+
     bool waitingResetRebind = false;
+    public static bool IsMenuOpen { get; private set; } = false;
 
     void Start()
     {
         if (escMenuPanel) escMenuPanel.SetActive(false);
+        IsMenuOpen = false;
 
-        // Game シーンでは GameFlow 側の ESC を使う
+        // Game シーンでは GameFlow が ESC を扱うため無効化
         if (UnityCompat.FindFirst<GameFlow>() != null)
         {
             enabled = false;
@@ -42,6 +52,7 @@ public class GlobalEscMenu : MonoBehaviour
     {
         if (!enabled) return;
 
+        // キーリバインド待機
         if (waitingResetRebind)
         {
             if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
@@ -60,13 +71,39 @@ public class GlobalEscMenu : MonoBehaviour
                     UpdateResetKeyLabel();
                 }
             }
-        }
+        }   
 
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (escMenuPanel && escMenuPanel.activeSelf) Close();
-            else Open();
-        }
+        // KB: ESC で開閉
+        if (Input.GetKeyDown(KeyCode.Escape)) ToggleMenu();
+
+#if ENABLE_INPUT_SYSTEM
+        var gp = Gamepad.current;
+        if (gp != null && gp.startButton.wasPressedThisFrame) ToggleMenu();
+
+        // PS4/PS5 対応: Options / Touchpad押し込みでもトグル
+        var ds4 = DualShockGamepad.current;
+        if (ds4 != null && (ds4.optionsButton.wasPressedThisFrame || ds4.touchpadButton.wasPressedThisFrame))
+            ToggleMenu();
+
+        var ds5 = DualSenseGamepadHID.current;
+        if (ds5 != null && (ds5.optionsButton.wasPressedThisFrame || ds5.touchpadButton.wasPressedThisFrame))
+            ToggleMenu();
+#endif
+    }
+
+    void OnDisable()
+    {
+        if (IsMenuOpen) ResumeIfPaused();
+        IsMenuOpen = false;
+        waitingResetRebind = false;
+        InputBindings.EndCapture();
+        if (escMenuPanel) escMenuPanel.SetActive(false);
+    }
+
+    void ToggleMenu()
+    {
+        if (escMenuPanel && escMenuPanel.activeSelf) Close();
+        else Open();
     }
 
     void Open()
@@ -75,7 +112,20 @@ public class GlobalEscMenu : MonoBehaviour
         escMenuPanel.SetActive(true);
         escMenuPanel.transform.SetAsLastSibling();
         if (pauseOnEsc) Time.timeScale = 0f;
+        IsMenuOpen = true;
         UpdateResetKeyLabel();
+        // 次フレームで必ずフォーカスを当てる（競合回避）
+        StartCoroutine(CoFocusFirst());
+    }
+
+    System.Collections.IEnumerator CoFocusFirst()
+    {
+        yield return null;
+        var select = firstSelected ? firstSelected : (Selectable)closeButton;
+        if (select && EventSystem.current)
+        {
+            EventSystem.current.SetSelectedGameObject(select.gameObject);
+        }
     }
 
     void Close()
@@ -83,8 +133,12 @@ public class GlobalEscMenu : MonoBehaviour
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
         waitingResetRebind = false;
-        InputBindings.EndCapture(); // 念のため
+        InputBindings.EndCapture();
         ResumeIfPaused();
+        IsMenuOpen = false;
+
+        if (EventSystem.current && EventSystem.current.currentSelectedGameObject != null)
+            EventSystem.current.SetSelectedGameObject(null);
     }
 
     void ResumeIfPaused()
@@ -120,7 +174,7 @@ public class GlobalEscMenu : MonoBehaviour
     {
         waitingResetRebind = true;
         InputBindings.BeginCapture();
-        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （押して設定中…）";
+        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （次の入力を待機）";
     }
 
     void UpdateResetKeyLabel()
