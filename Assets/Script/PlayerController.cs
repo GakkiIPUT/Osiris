@@ -1,4 +1,4 @@
-using System.Collections; // ← 追加
+using System.Collections;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -110,13 +110,11 @@ public class PlayerController : MonoBehaviour
 
     void HandleMoveInput()
     {
-        // 新規キー押下で方向確定＋即時1歩
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
         else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
         else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
         else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) StartHold(Vector2Int.right);
 
-        // 継続押下確認
         if (holdDir != Vector2Int.zero)
         {
             bool upHeld = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
@@ -148,7 +146,6 @@ public class PlayerController : MonoBehaviour
                 }
                 else
                 {
-                    // ブロック時も一定間隔で再試行
                     holdNextTime = Time.time + holdRepeatInterval;
                 }
             }
@@ -158,9 +155,7 @@ public class PlayerController : MonoBehaviour
     void StartHold(Vector2Int dir)
     {
         holdDir = dir;
-        // まず1歩動く
         TryMoveInDir(dir);
-        // 次のリピートまでの初回遅延
         holdNextTime = Time.time + holdInitialDelay;
     }
 
@@ -194,18 +189,8 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
-    public void UI_RotateCW()
-    {
-        if (!aiming) return;
-        if (board != null && board.devEnableFreeRotate) return; // 自由回転ON時は無効
-        TryRotate(+1);
-    }
-    public void UI_RotateCCW()
-    {
-        if (!aiming) return;
-        if (board != null && board.devEnableFreeRotate) return; // 自由回転ON時は無効
-        TryRotate(-1);
-    }
+    public void UI_RotateCW() { if (aiming) TryRotate(+1); }
+    public void UI_RotateCCW() { if (aiming) TryRotate(-1); }
     public void UI_ToggleAreaSize() { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
 
     void ToggleAreaSize() { areaSize = (areaSize == 3) ? 5 : 3; }
@@ -221,14 +206,13 @@ public class PlayerController : MonoBehaviour
         {
             Vector3 hit = r.GetPoint(enter);
             grid = board.WorldToGrid(hit);
-            return true; // 盤外でも照準は可能（部分回転対応）;
+            return true;
         }
         return false;
     }
 
     bool IsCenterAllowed(Vector2Int c)
     {
-        // プレイヤーからのチェビシェフ距離（8近傍距離）で判定
         int dx = Mathf.Abs(c.x - pos.x);
         int dy = Mathf.Abs(c.y - pos.y);
         int dist = Mathf.Max(dx, dy);
@@ -251,26 +235,20 @@ public class PlayerController : MonoBehaviour
 
     void TryRotate(int dirRot)
     {
-        // 中心距離チェック
         if (!IsCenterAllowed(aimCenter)) { UpdateGhostVisual(); return; }
-        // アンカー/出口含みチェック
         if (AreaContainsLocked(aimCenter, areaSize)) { UpdateGhostVisual(); return; }
 
-        // プレビュー確認
         var pv = board.GetPreview(aimCenter, areaSize, 0);
         if (!pv.valid) { UpdateGhostVisual(); return; }
 
-        // ★ 方向固有：プレイヤーが敵に重なる回転は不発にする
         if (board.WouldPlayerOverlapGuard(aimCenter, areaSize, dirRot))
         {
-            UpdateGhostVisual(); // 必要なら点滅等のフィードバックも可
+            UpdateGhostVisual();
             return;
         }
 
-        // 実行
         board.RotateArea(aimCenter, areaSize, dirRot, () =>
         {
-            // ★回転成功として登録
             var t = UnityCompat.FindFirst<TurnManager>();
             t?.RegisterRotation();
 
@@ -295,50 +273,59 @@ public class PlayerController : MonoBehaviour
 
     void BuildGhostTiles()
     {
-        foreach (Transform c in ghostRoot.transform) Destroy(c.gameObject);
+        // ルートを中心セルへ（高さはghostY）
+        if (ghostRoot == null) ghostRoot = new GameObject("Ghost");
+        ghostRoot.transform.position = board.GridToWorld(aimCenter) + new Vector3(0, board.ghostY, 0);
+        ghostRoot.transform.rotation = Quaternion.identity;
+
+        // いったん全削除
+        for (int i = ghostRoot.transform.childCount - 1; i >= 0; i--)
+            Destroy(ghostRoot.transform.GetChild(i).gameObject);
+
         int k = (areaSize - 1) / 2;
         for (int j = -k; j <= k; j++)
+        {
             for (int i = -k; i <= k; i++)
             {
                 var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                quad.name = $"Ghost_{i}_{j}";
                 quad.transform.SetParent(ghostRoot.transform, false);
-                quad.transform.rotation = Quaternion.Euler(90, 0, 0);
+
+                // ローカル配置（中心セルからの相対 i,j）
+                quad.transform.localPosition = new Vector3(i, 0f, j);
+                quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                 quad.transform.localScale = new Vector3(1f, 1f, 1f);
-                quad.transform.position = board.GridToWorld(new Vector2Int(aimCenter.x + i, aimCenter.y + j))
-                                          + new Vector3(0, board.ghostY, 0);
+
                 var mr = quad.GetComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
                 Destroy(quad.GetComponent<MeshCollider>());
             }
+        }
     }
 
     void UpdateGhostVisual()
     {
         if (ghostRoot == null) return;
 
-        int k = (areaSize - 1) / 2;
-        var pv = board.GetPreview(aimCenter, areaSize, 0);
+        // 中心に追従（子タイルはローカル配置のまま）
+        ghostRoot.transform.position = board.GridToWorld(aimCenter) + new Vector3(0, board.ghostY, 0);
 
-        // 追加NG条件：距離オーバー or ロックセル含む
+        var pv = board.GetPreview(aimCenter, areaSize, 0);
         bool centerOk = IsCenterAllowed(aimCenter);
         bool lockedInArea = AreaContainsLocked(aimCenter, areaSize);
 
         bool ok = pv.valid && centerOk && !lockedInArea;
         var mat = ok ? board.ghostOkMat : board.ghostNgMat;
 
-        int idx = 0;
-        for (int j = -k; j <= k; j++)
-            for (int i = -k; i <= k; i++)
-            {
-                var tf = ghostRoot.transform.GetChild(idx++);
-                tf.position = board.GridToWorld(new Vector2Int(aimCenter.x + i, aimCenter.y + j))
-                              + new Vector3(0, board.ghostY, 0);
-                var mr = tf.GetComponent<MeshRenderer>();
-                if (mat != null) mr.material = mat;
-            }
+        // 子の座標は触らず、マテリアルだけ更新
+        if (mat != null)
+        {
+            var rends = ghostRoot.GetComponentsInChildren<MeshRenderer>(true);
+            for (int idx = 0; idx < rends.Length; idx++)
+                rends[idx].material = mat;
+        }
     }
-
     public void ClearGhost()
     {
         aiming = false;
@@ -362,14 +349,12 @@ public class PlayerController : MonoBehaviour
         areaSize = 3; // 初期値は必ず3×3
     }
 
-    // ▼ 追加: 外部（GameUI等）からNxN Ghostを表示/更新するためのAPI
+    // ▼ 外部（GameUI/自由回転）からNxN Ghostを操作
     public void ShowGhostExtern(bool on, Vector2Int center, int size, bool ok)
     {
-        // 内部のエイム中心/サイズを更新して既存のビルド系を使う
         this.aimCenter = center;
         this._areaSize = size;
 
-        // 既存のゴースト生成系を利用（非公開メソッドにアクセスできるのは同クラス内なのでOK）
         ShowGhost(on);
         if (on)
         {
@@ -404,5 +389,17 @@ public class PlayerController : MonoBehaviour
         {
             if (rends[i] != null) rends[i].sharedMaterial = mat;
         }
+    }
+
+    // ▼ 追加: Ghostの親付け/解除（自由回転プレビューと同期回転させる）
+    public void AttachGhostTo(Transform parent, bool worldPositionStays = true)
+    {
+        if (ghostRoot != null && parent != null)
+            ghostRoot.transform.SetParent(parent, worldPositionStays);
+    }
+    public void DetachGhost(bool worldPositionStays = true)
+    {
+        if (ghostRoot != null)
+            ghostRoot.transform.SetParent(null, worldPositionStays);
     }
 }

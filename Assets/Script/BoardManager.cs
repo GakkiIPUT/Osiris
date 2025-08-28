@@ -1120,7 +1120,8 @@ public class BoardManager : MonoBehaviour
             cells[p.y, p.x] = kv.Value;
             var go2 = Instantiate(
                 (cells[p.y, p.x] == CellType.Wall) ? pfWall :
-                (cells[p.y, p.x] == CellType.Exit) ? pfExit : pfFloor,
+                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
+                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
                 GridToWorld(p), Quaternion.identity, tilesRoot);
             go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
             AutoAlign2DObject(go2, false);
@@ -1487,6 +1488,7 @@ public class BoardManager : MonoBehaviour
 
     // ========= 実プレビュー（親子付け）API =========
     GameObject freePreviewPivot;
+    Transform freePreviewGroup;   // Pivot直下のグループ
     List<Transform> freeTiles = new();
     List<Transform> freeItems = new();
     Transform freePlayerTf;
@@ -1494,19 +1496,42 @@ public class BoardManager : MonoBehaviour
     bool freePlayerIn = false;
     Vector2Int freeCenter;
     int freeSize;
-
+    public bool AreaContainsLockedExceptCenter(Vector2Int center, int size)
+    {
+        int k = (size - 1) / 2;
+        for (int j = -k; j <= k; j++)
+        {
+            for (int i = -k; i <= k; i++)
+            {
+                var p = new Vector2Int(center.x + i, center.y + j);
+                if (!InBounds(p)) continue;
+                if (p == center) continue; // 中心は例外
+                if (IsRotateLockedCell(p)) return true;
+            }
+        }
+        return false;
+    }
     public bool BeginFreePreview(Vector2Int center, int size)
     {
         if (freePreviewPivot != null) RestoreFreePreview(); // 保険
         freeCenter = center;
         freeSize = size;
 
+        // Pivot はセル中心に置く
         freePreviewPivot = new GameObject($"FreePreviewPivot_{center.x}_{center.y}");
-        freePreviewPivot.transform.position = GridToWorld(center) + new Vector3(0, 0.05f, 0);
+        freePreviewPivot.transform.position = CellCenter(center, floorY + 0.05f);
+
+        // Group は Pivot の子（対象は全て Group にぶら下げる）
+        freePreviewGroup = new GameObject("FreePreviewGroup").transform;
+        freePreviewGroup.SetParent(freePreviewPivot.transform, false);
+        freePreviewGroup.localPosition = Vector3.zero;
+        freePreviewGroup.localRotation = Quaternion.identity;
+        freePreviewGroup.localScale = Vector3.one;
 
         int k = (size - 1) / 2;
 
-        // タイルをぶら下げ
+        // タイル
+        freeTiles.Clear();
         for (int j = -k; j <= k; j++)
         {
             for (int i = -k; i <= k; i++)
@@ -1515,7 +1540,7 @@ public class BoardManager : MonoBehaviour
                 if (!InBounds(p)) continue;
                 var go = tileGOs[p.y, p.x];
                 if (!go) continue;
-                go.transform.SetParent(freePreviewPivot.transform, true);
+                go.transform.SetParent(freePreviewGroup, true);
                 freeTiles.Add(go.transform);
             }
         }
@@ -1533,20 +1558,20 @@ public class BoardManager : MonoBehaviour
                     var go = kv.Value.go;
                     if (go)
                     {
-                        go.transform.SetParent(freePreviewPivot.transform, true);
+                        go.transform.SetParent(freePreviewGroup, true);
                         freeItems.Add(go.transform);
                     }
                 }
             }
         }
 
-        // プレイヤー（含める設定＆範囲内なら）
+        // プレイヤー（設定＆範囲内）
         freePlayerIn = IsPlayerInsideArea(center, size);
         if (player != null && rotatePlayerWithArea && freePlayerIn)
         {
             freePlayerTf = player.transform;
             freeSavedPlayerRot = freePlayerTf.rotation;
-            freePlayerTf.SetParent(freePreviewPivot.transform, true);
+            freePlayerTf.SetParent(freePreviewGroup, true);
         }
         else
         {
@@ -1555,10 +1580,10 @@ public class BoardManager : MonoBehaviour
 
         return true;
     }
-
     public void UpdateFreePreviewAngle(float angleDeg)
     {
         if (freePreviewPivot == null) return;
+        // Pivot の回転のみを更新（Group はローカル0を維持）
         freePreviewPivot.transform.rotation = Quaternion.Euler(0f, angleDeg, 0f);
     }
 
@@ -1566,8 +1591,9 @@ public class BoardManager : MonoBehaviour
     {
         if (freePreviewPivot == null) return;
 
-        // 元の見た目に戻すため、回転を0にしてから親を戻す
+        // 回転を戻してから親戻し
         freePreviewPivot.transform.rotation = Quaternion.identity;
+        if (freePreviewGroup != null) freePreviewGroup.localRotation = Quaternion.identity;
 
         // タイル戻し
         for (int i = 0; i < freeTiles.Count; i++)
@@ -1585,7 +1611,7 @@ public class BoardManager : MonoBehaviour
         }
         freeItems.Clear();
 
-        // プレイヤー戻し（向きも戻す）
+        // プレイヤー戻し
         if (freePlayerTf)
         {
             freePlayerTf.SetParent(actorsRoot, true);
@@ -1594,7 +1620,19 @@ public class BoardManager : MonoBehaviour
         freePlayerTf = null;
         freePlayerIn = false;
 
+        // 生成物破棄
+        if (freePreviewGroup != null)
+        {
+            SafeDestroy(freePreviewGroup.gameObject);
+            freePreviewGroup = null;
+        }
         SafeDestroy(freePreviewPivot);
         freePreviewPivot = null;
+    }
+
+    // Ghost を親付けするための Transform を返す（Group を優先）
+    public Transform GetFreePreviewPivot()
+    {
+        return freePreviewGroup != null ? freePreviewGroup : (freePreviewPivot != null ? freePreviewPivot.transform : null);
     }
 }
