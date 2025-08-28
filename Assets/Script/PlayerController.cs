@@ -110,6 +110,12 @@ public class PlayerController : MonoBehaviour
 
     void HandleMoveInput()
     {
+        // ’Ç‰Á: ‰ñ“]ƒvƒŒƒrƒ…[’†‚ÍˆÚ“®“ü—Í‚ğ–³Œø‰»
+        if (board != null && board.IsFreePreviewActive)
+        {
+            holdDir = Vector2Int.zero;
+            return;
+        }
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
         else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
         else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
@@ -163,6 +169,7 @@ public class PlayerController : MonoBehaviour
     {
         if (dir == Vector2Int.zero || board == null) return false;
         if (board.IsAnimating) return false;
+        if (board.IsFreePreviewActive) return false;
         if (board.smoothPlayerMove && isMoving) return false;
 
         var np = pos + dir;

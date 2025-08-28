@@ -112,12 +112,14 @@ public class FreeRotateController : MonoBehaviour
             var v = board.GetStepValidity(freeCenter, freeSize);
             bool stepAllowed = IsStepAllowed(v, freeNearestSteps, board.devAllow180Rotation);
 
-            // 中心のみ例外に変更（ここが重要）
+            // 中心のみ例外
             bool lockedExceptCenter = board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
 
+            // 確定可否は従来どおり（スナップ ＆ 成立 ＆ ロック例外OK）
             freeStepOK = snapped && stepAllowed && !lockedExceptCenter;
 
-            player?.UpdateGhostOkExtern(freeStepOK);
+            // 表示色はスナップ基準（スナップ=緑、非スナップ=赤）
+            player?.UpdateGhostOkExtern(snapped);
             return;
         }
 

@@ -1635,4 +1635,5 @@ public class BoardManager : MonoBehaviour
     {
         return freePreviewGroup != null ? freePreviewGroup : (freePreviewPivot != null ? freePreviewPivot.transform : null);
     }
+    public bool IsFreePreviewActive => freePreviewPivot != null;
 }
