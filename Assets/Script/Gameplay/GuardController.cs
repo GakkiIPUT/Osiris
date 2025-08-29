@@ -71,6 +71,9 @@ public class GuardController : MonoBehaviour
     float moveT = 0f;
     float moveDur = 0.25f;
 
+    // 追加: Tick取りこぼし対策（移動完了直後に即1手消化）
+    bool stepQueued = false;
+
     float currentYaw = 0f;
     float targetYaw = 0f;
 
@@ -113,7 +116,7 @@ public class GuardController : MonoBehaviour
     // ===== 反転時の挙動 =====
     [Header("Flip (Reverse) Control")]
     [Tooltip("反転（監視向き切替/行動反転）時に停止する秒数（視界も無効）")]
-    [Min(0f)] public float flipPauseSeconds = 0.15f;
+    [Min(0f)] public float flipPauseSeconds = 0f;
     float flippingUntil = 0f;
 
     // ===== Visual Aid =====
@@ -168,7 +171,7 @@ public class GuardController : MonoBehaviour
 
     [Header("Vision Color")]
     [Tooltip("敵視界の色（アルファで不透明度）。各ガードごとに調整可能")]
-    public Color visionColor = new Color(1f, 0.25f, 0.25f, 0.35f);
+    public Color visionColor = new Color(1f, 0.25f, 0.35f, 0.35f);
 
     MaterialPropertyBlock _mpb;
 
@@ -378,15 +381,24 @@ public class GuardController : MonoBehaviour
                 isMoving = false;
                 pos = gridTo;
                 transform.position = board.GridToWorldActor(pos);
+
+                // ここで取りこぼしを即時消化（次のTickを待たない）
+                if (stepQueued)
+                {
+                    stepQueued = false;
+                    RunQueuedStepOnce();
+                }
             }
         }
 
-        // 視界更新（スムーズ移動中は毎フレーム）
+        // 視界更新（更新頻度を抑制してGC/負荷を軽減）…省略（既存の60fps上限のまま）
         if (board != null)
         {
             visionTimer += Time.deltaTime;
-            float interval = Mathf.Max(0.01f, board.guardVisionUpdateInterval);
-            if (board.smoothGuardMove && isMoving) interval = 0f; // 滑らか追従
+            float configured = Mathf.Max(0.01f, board.guardVisionUpdateInterval);
+            float minIntervalWhileMoving = 1f / 60f;
+            float interval = configured;
+            if (board.smoothGuardMove && isMoving) interval = Mathf.Max(configured, minIntervalWhileMoving);
             if (visionTimer >= interval)
             {
                 visionTimer = 0f;
@@ -405,6 +417,19 @@ public class GuardController : MonoBehaviour
         // 反転中は動作・視界判定を停止
         if (IsFlipping()) return;
 
+        // すでに移動中なら、このTick分をキューして即終了（取りこぼしを後で消化）
+        if (board != null && board.smoothGuardMove && isMoving)
+        {
+            stepQueued = true;
+            return;
+        }
+
+        DoOneStepCore(); // 通常の1手実行
+    }
+
+    // 実際の1手（watch更新＋移動/衝突処理＋視界→GO判定）
+    void DoOneStepCore()
+    {
         // 監視向き更新
         UpdateFacingByWatchMode();
 
@@ -414,8 +439,6 @@ public class GuardController : MonoBehaviour
                 turn.TriggerGameOver();
             return;
         }
-
-        if (board.smoothGuardMove && isMoving) return;
 
         Vector2Int tgt = GetCurrentTargetOrFallback(pos);
 
@@ -479,7 +502,7 @@ public class GuardController : MonoBehaviour
                 currentYaw = targetYaw;
                 ApplyVisualYaw();
             }
-            BeginFlipPause();
+            BeginFlipPause("blocked-pingpong");
             AdvanceTarget(); // 目標も進め直し
             return true;
         }
@@ -621,7 +644,14 @@ public class GuardController : MonoBehaviour
 
     // 反転小休止
     bool IsFlipping() => Time.time < flippingUntil;
-    void BeginFlipPause() => flippingUntil = Time.time + Mathf.Max(0f, flipPauseSeconds);
+    void BeginFlipPause() => BeginFlipPause("default");
+
+    void BeginFlipPause(string reason)
+    {
+        flippingUntil = Time.time + Mathf.Max(0f, flipPauseSeconds);
+        lastFlipReason = reason;
+        Debug.Log($"[GuardPause] {name} reason={reason} dur={flipPauseSeconds:F3} until={flippingUntil:F3} t={Time.time:F3}");
+    }
 
     // 前方(2D)単位ベクトル（0°=Up(+Z)）
     static Vector2 YawToDir2D(float yawDeg)
@@ -713,22 +743,23 @@ public class GuardController : MonoBehaviour
         return board.HasLineOfSight(pos, p);
     }
 
-    // セル中心（BoardManager.CellCenter は +0.0f なので、ここでは +0.5f で揃える）
+    // セル中心（BoardManager.CellCenter に統一）
     Vector3 WorldCenter(Vector2Int p, float y)
     {
-        return board.GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
+        return board.CellCenter(p, y);
     }
 
     // 追加: グリッド「中心座標系」の連続値(Vector2)をワールド座標に変換
-    // center.x/y は「セル中心を整数（n+0.5 を起点）」とする座標系の値
+    // center は (i+0.5, j+0.5) をセル中心とする座標系。
+    // → CellCenter に (center - 0.5) のローカル差分を加えてワールドへ。
     Vector3 WorldFromGridCenterCoords(Vector2 center, float y)
     {
         int cx = Mathf.FloorToInt(center.x);
         int cy = Mathf.FloorToInt(center.y);
-        Vector3 corner = board.GridToWorld(new Vector2Int(cx, cy)); // セル左下
-        float fx = center.x - cx; // [0..1)
-        float fz = center.y - cy; // [0..1)
-        return corner + new Vector3(fx, y, fz);
+        Vector3 c = board.CellCenter(new Vector2Int(cx, cy), y);
+        float fx = center.x - cx - 0.5f; // [-0.5 .. +0.5)
+        float fz = center.y - cy - 0.5f; // [-0.5 .. +0.5)
+        return c + new Vector3(fx, 0f, fz);
     }
 
     // 旧スタイル（セル毎Quad）/ 新グリッド整合の描画
@@ -744,7 +775,7 @@ public class GuardController : MonoBehaviour
         if (visionMode == VisionMode.SmoothFan)
         {
             BuildSmoothVisionMeshWithOffset(offsetWorld, offset2D);
-            if (visionMr) ApplyVisionColor(visionMr); // ← ここで必ず色を適用
+            if (visionMr) ApplyVisionColor(visionMr);
             return;
         }
 
@@ -760,6 +791,8 @@ public class GuardController : MonoBehaviour
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
+
+        // CellFan は起点をサブセルまでずらす。GridAligned は判定がグリッド基準なので未使用
         Vector2 origin2D = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + offset2D + fwd * Mathf.Max(0f, visionOriginForwardOffset);
 
         for (int yCell = pos.y - r; yCell <= pos.y + r; yCell++)
@@ -781,12 +814,20 @@ public class GuardController : MonoBehaviour
                 q.transform.SetParent(root.transform, false);
                 q.transform.rotation = Quaternion.Euler(90, 0, 0);
                 q.transform.localScale = Vector3.one;
-                q.transform.position = WorldCenter(gp, board.visionY) + offsetWorld;
+
+                // ここがポイント：
+                // - CellFan は見た目もサブセル追従（offsetWorld を加算）
+                // - GridAligned はグリッド基準に固定（offsetWorld を加算しない）
+                Vector3 drawPos = WorldCenter(gp, board.visionY);
+                if (visionMode == VisionMode.CellFan)
+                    drawPos += offsetWorld;
+                q.transform.position = drawPos;
+
                 var mr = q.GetComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
                 if (mat != null) mr.material = mat;
-                ApplyVisionColor(mr); // ← 各セルに色を適用
+                ApplyVisionColor(mr);
                 Destroy(q.GetComponent<MeshCollider>());
             }
     }
@@ -870,8 +911,17 @@ public class GuardController : MonoBehaviour
         // 扇形原点（セル中心 + サブセルオフセット + 前方オフセット）
         Vector3 origin = WorldCenter(pos, board.visionY) + offsetWorld + new Vector3(fwd.x, 0f, fwd.y) * Mathf.Max(0f, visionOriginForwardOffset);
 
-        var verts = new List<Vector3>(rays + 2) { origin };
-        var tris = new List<int>(rays * 3);
+        // ワークバッファ（再利用）
+        _visionVerts ??= new List<Vector3>(rays + 2);
+        _visionTris  ??= new List<int>(rays * 3);
+
+        if (_visionVerts.Capacity < rays + 2) _visionVerts.Capacity = rays + 2;
+        if (_visionTris.Capacity  < rays * 3) _visionTris.Capacity  = rays * 3;
+
+        _visionVerts.Clear();
+        _visionTris.Clear();
+
+        _visionVerts.Add(origin);
 
         for (int i = 0; i <= rays; i++)
         {
@@ -881,15 +931,17 @@ public class GuardController : MonoBehaviour
             // グリッドCast結果（中心座標系の連続値）→ 丸めずにワールドへ変換
             Vector2 end = CastVisionRay(pos, ang * Mathf.Deg2Rad, viewRange, visionRayStep, visionOriginForwardOffset);
             Vector3 v = WorldFromGridCenterCoords(end, board.visionY) + offsetWorld;
-            verts.Add(v);
+            _visionVerts.Add(v);
         }
 
-        tris.Clear();
-        for (int i = 1; i < verts.Count - 1; i++) { tris.Add(0); tris.Add(i); tris.Add(i + 1); }
+        for (int i = 1; i < _visionVerts.Count - 1; i++)
+        {
+            _visionTris.Add(0); _visionTris.Add(i); _visionTris.Add(i + 1);
+        }
 
         visionMesh.Clear();
-        visionMesh.SetVertices(verts);
-        visionMesh.SetTriangles(tris, 0);
+        visionMesh.SetVertices(_visionVerts);
+        visionMesh.SetTriangles(_visionTris, 0);
         visionMesh.RecalculateBounds();
 
         // Vision のルートは常に上向き・ワールド固定
@@ -949,6 +1001,10 @@ public class GuardController : MonoBehaviour
         }
     }
 
+    // 追加: 視界メッシュ用ワークバッファ（毎フレームの割当削減）
+    List<Vector3> _visionVerts = null;
+    List<int> _visionTris = null;
+
     void UpdateFacingByWatchMode()
     {
         if (watchMode == WatchMode.OneDir) return;
@@ -979,8 +1035,8 @@ public class GuardController : MonoBehaviour
             ApplyVisualYaw();
         }
 
-        // 反転中は一定時間停止＋視界無効
-        BeginFlipPause();
+        // 反転中は一定時間停止＋視界無効（理由: watch-rotate）
+        BeginFlipPause("watch-rotate");
         // 見た目更新（2系統＋反転）
         ApplyVisualByFacing();
     }
@@ -1015,5 +1071,21 @@ public class GuardController : MonoBehaviour
                 Destroy(facingArrow);
             facingArrow = null;
         }
+    }
+
+    // 個別停止の診断用
+    string lastFlipReason = "";
+    bool flipHoldLogged = false;
+
+    // 移動完了直後に1手だけ消化するためのラッパ
+    void RunQueuedStepOnce()
+    {
+        if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
+        if (turn == null) return;
+        if (turn.gameOver || turn.cleared) return;
+        if (IsFlipping()) return;
+
+        // すぐまた isMoving を立てる可能性があるが、そのためのキューは次回以降に任せる
+        DoOneStepCore();
     }
 }

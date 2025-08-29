@@ -37,7 +37,10 @@ public class TurnManager : MonoBehaviour
 
     // 追加: 歩数カウンタ
     public int walkCount { get; private set; }
-
+    [Header("Debug")]
+    public bool debugLogGuardStepping = false;
+    bool wasAnimating = false;
+    float lastGuardTickT = 0f;
     public void ResetScoreCounters()
     {
         rotCount = 0;
@@ -122,14 +125,34 @@ public class TurnManager : MonoBehaviour
 
         if (realtimeGuards)
         {
-            // 回転アニメ中は歩かせない方が破綻しにくい
             if (board == null) board = UnityCompat.FindFirst<BoardManager>();
-            if (board != null && board.IsAnimating) return;
+
+            // Board の全体アニメ中は停止（ON/OFFをログ）
+            if (board != null && board.IsAnimating)
+            {
+                if (!wasAnimating)
+                {
+                    wasAnimating = true;
+                    if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause ON (Board.IsAnimating) t={Time.time:F3}");
+                }
+                return;
+            }
+            else if (wasAnimating)
+            {
+                wasAnimating = false;
+                if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause OFF t={Time.time:F3}");
+            }
 
             guardTimer += Time.deltaTime;
             if (guardTimer >= guardStepInterval)
             {
                 guardTimer = 0f;
+                if (debugLogGuardStepping)
+                {
+                    float dt = (lastGuardTickT == 0f) ? 0f : (Time.time - lastGuardTickT);
+                    //Debug.Log($"[Turn] Tick StepAllGuards t={Time.time:F3} dt={dt:F3}s");
+                }
+                lastGuardTickT = Time.time;
                 StepAllGuards();
             }
         }
@@ -198,14 +221,18 @@ public class TurnManager : MonoBehaviour
         if (board == null) return;
 
         var guards = board.guards;
+        int stepped = 0;
         for (int i = 0; i < guards.Count; i++)
         {
             if (gameOver || cleared) break;
             var g = guards[i];
             if (g == null) continue;
-            // GuardController 側は StepAI() を1ステップとして実装しておけばOK
             g.StepAI();
+            stepped++;
         }
+
+        //if (debugLogGuardStepping)
+          //  Debug.Log($"[Turn] StepAllGuards done guards={stepped} t={Time.time:F3}");
     }
 
     // ======= アイテム関連 =======

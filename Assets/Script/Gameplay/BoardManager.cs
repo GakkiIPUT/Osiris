@@ -146,7 +146,18 @@ public class BoardManager : MonoBehaviour
     // ★ マップ上のアイテム：位置 → (記号, 実体)
     public Dictionary<Vector2Int, (char sym, GameObject go)> itemAt = new();
 
-    public bool IsAnimating { get; private set; }
+    bool _isAnimating;
+    public bool IsAnimating
+    {
+        get => _isAnimating;
+        set
+        {
+            if (_isAnimating == value) return;
+            _isAnimating = value;
+            Debug.Log($"[Board] IsAnimating {(value ? "ON" : "OFF")} t={Time.time:F3}")
+;
+        }
+    }
 
 
     [Header("DEV / Rotation")]
@@ -590,7 +601,7 @@ public class BoardManager : MonoBehaviour
                 g.pattern = "R3,U3,L3,D3";
                 break;
 
-            case 'L': // 小さめ巡回（2マス）※四角にしたい場合はD2も足します
+            case 'L': // 寄り道巡回（2マス）
                 g.patrolMode = GuardController.PatrolMode.Loop;
                 g.pattern = "R2,U2,L2,D2"; // ←三角にしたいなら ",D2" を外す
                 break;
@@ -1083,12 +1094,16 @@ public class BoardManager : MonoBehaviour
                 if (p.x >= center.x - k && p.x <= center.x + k &&
                     p.y >= center.y - k && p.y <= center.y + k)
                 {
-                    var go = kv.Value.go;
-                    if (go)
-                    {
-                        go.transform.SetParent(pivotGO.transform, true);
-                        freeItems.Add(go.transform);
-                    }
+                    var (sym, go) = kv.Value;
+                    if (go) go.transform.SetParent(pivotGO.transform, true);
+                    var dest = Rot90(p, center, dir);
+                    movedItems.Add((p, dest, sym, go));
+                    //var go = kv.Value.go;
+                    //if (go)
+                    //{
+                    //    go.transform.SetParent(pivotGO.transform, true);
+                    //    freeItems.Add(go.transform);
+                    //}
                 }
             }
         }
@@ -1114,7 +1129,7 @@ public class BoardManager : MonoBehaviour
                 var dest = new Vector2Int(gx, gy);
                 if (!InBounds(dest)) continue;
 
-                int gdir = -dir; // 配列側は符号反転
+                int gdir = -dir; // 配列側は符号反転（見た目と逆）
                 int sx, sy;
                 if (gdir > 0) { sx = j; sy = size - 1 - i; }
                 else { sx = size - 1 - j; sy = i; }
