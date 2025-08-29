@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum CellType { Floor, Wall, Exit, Anchor }
+public enum CellType { Floor, Wall, Exit, Anchor, Pit } // ← 追加: 落とし穴
 
 [ExecuteAlways] // エディタでもプレビュー用に動かす
 public class BoardManager : MonoBehaviour
@@ -12,6 +12,7 @@ public class BoardManager : MonoBehaviour
     public GameObject pfWall;
     public GameObject pfExit;
     public GameObject pfAnchor;   // 回転不可マス（@）
+    public GameObject pfPit;      // 落とし穴（x）
     public GameObject pfPlayer;   // PlayerはAddComponentでPlayerController付与（Prefab側にあってもOK）
 
     // ===== Guard 種類のマッピング（記号 → Prefab） =====
@@ -98,6 +99,8 @@ public class BoardManager : MonoBehaviour
     public Color previewExit = new Color(1.00f, 0.85f, 0.20f, 1f);
     public Color previewP = new Color(0.20f, 0.60f, 1.00f, 1f);
     public Color previewAnchor = Color.black;
+    public Color previewPit = new Color(0.15f, 0.15f, 0.6f, 1f);
+
 
 
     [Header("Level (ASCII)")]
@@ -166,11 +169,11 @@ public class BoardManager : MonoBehaviour
     void Awake()
     {
 #if UNITY_EDITOR
-    if (Application.isPlaying) editorPreview = false;
+        if (Application.isPlaying) editorPreview = false;
 #endif
-    if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
-    if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
-    if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
+        if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
+        if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
+        if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
         LoadDevModeSettings();
         Build(); // 必ず自身の level で生成
     }
@@ -366,6 +369,7 @@ public class BoardManager : MonoBehaviour
                         case 'E': cells[y, x] = CellType.Exit; break;
                         case 'P': cells[y, x] = CellType.Floor; break; // プレイヤーの足元は床
                         case '@': cells[y, x] = CellType.Anchor; break; // 回転不可マス
+                        case 'x': cells[y, x] = CellType.Pit; break;    // 落とし穴
                         default: cells[y, x] = CellType.Floor; break;
                     }
                 }
@@ -384,7 +388,8 @@ public class BoardManager : MonoBehaviour
     {
         GameObject prefab = (t == CellType.Wall) ? pfWall :
                             (t == CellType.Exit) ? pfExit :
-                            (t == CellType.Anchor) ? pfAnchor : pfFloor;
+                            (t == CellType.Anchor) ? pfAnchor :
+                            (t == CellType.Pit) ? pfPit : pfFloor;
         var go = Instantiate(prefab, GridToWorld(p), Quaternion.identity, tilesRoot);
         go.name = $"{t}_{p.x}_{p.y}";
         tileGOs[p.y, p.x] = go;
@@ -706,7 +711,15 @@ public class BoardManager : MonoBehaviour
             for (int x = 0; x < Width; x++)
                 if (cells[y, x] == CellType.Anchor)
                     DrawCellGizmo(new Vector2Int(x, y), y1 /* or y1 + 0.0001f */);
-        
+
+        // 落とし穴（x / CellType.Pit）
+        Gizmos.color = previewPit;
+        for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+                if (cells[y, x] == CellType.Pit)
+                    DrawCellGizmo(new Vector2Int(x, y), y1);
+
+
         // 出口
         Gizmos.color = previewExit;
         for (int y = 0; y < Height; y++)
@@ -829,7 +842,8 @@ public class BoardManager : MonoBehaviour
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
 
             // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
-            if (!playerIn && player != null && o == player.pos && after == CellType.Wall)
+            if (!playerIn && player != null && o == player.pos &&
+                (after == CellType.Wall || after == CellType.Pit))
                 return false;
 
             // ガードは常に壁と重なるのを禁止
@@ -893,15 +907,15 @@ public class BoardManager : MonoBehaviour
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
 
-    public void RotateAreaInstant(Vector2Int center, int size, int dir)
+    public void RotateAreaInstant(Vector2Int center, int size, int dir, System.Action onDone = null)
     {
         // 同一フレームで即時反映（ガードの歩行等をブロックするため短時間だけON）
         IsAnimating = true;
 
         // 事前NGチェックはRotateAreaと同等
-        if (AreaHasExit(center, size)) { IsAnimating = false; return; }
-        if (!WouldBeSafePartial(center, size, dir)) { IsAnimating = false; return; }
-        if (WouldPlayerOverlapGuard(center, size, dir)) { IsAnimating = false; return; }
+        if (AreaHasExit(center, size)) { IsAnimating = false; onDone?.Invoke(); return; }
+        if (!WouldBeSafePartial(center, size, dir)) { IsAnimating = false; onDone?.Invoke(); return; }
+        if (WouldPlayerOverlapGuard(center, size, dir)) { IsAnimating = false; onDone?.Invoke(); return; }
 
         int k = (size - 1) / 2;
 
@@ -951,7 +965,8 @@ public class BoardManager : MonoBehaviour
             var go2 = Instantiate(
                 (cells[p.y, p.x] == CellType.Wall) ? pfWall :
                 (cells[p.y, p.x] == CellType.Exit) ? pfExit :
-                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
+                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor :
+                (cells[p.y, p.x] == CellType.Pit) ? pfPit : pfFloor,
                 GridToWorld(p), Quaternion.identity, tilesRoot);
             go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
             AutoAlign2DObject(go2, false);
@@ -984,7 +999,7 @@ public class BoardManager : MonoBehaviour
                 if (m.go)
                 {
                     m.go.transform.position = GridToWorld(m.to);
-                    AutoAlign2DObject(m.go, true, new Vector2(0.07f, 0.07f));
+                    AutoAlign2DObject(m.go, true, new Vector2(0.07f, 0.07f)); // 見た目縮小は好みで
                 }
                 itemAt[m.to] = (m.sym, m.go);
             }
@@ -1001,9 +1016,12 @@ public class BoardManager : MonoBehaviour
                 player.transform.position = GridToWorldActor(newP);
             }
         }
+        // ★ 回転後に落とし穴にいるガードを排除（アニメ版にも適用）
+        ResolvePitfallsAfterRotation();
 
         IsAnimating = false;
         RefreshAllGuardVision();
+        onDone?.Invoke();
     }
 
     Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
@@ -1065,10 +1083,12 @@ public class BoardManager : MonoBehaviour
                 if (p.x >= center.x - k && p.x <= center.x + k &&
                     p.y >= center.y - k && p.y <= center.y + k)
                 {
-                    var (sym, go) = kv.Value; // 値が GameObject のみなら: var go = kv.Value;
-                    if (go) go.transform.SetParent(pivotGO.transform, true);
-                    var dest = Rot90(p, center, dir);
-                    movedItems.Add((p, dest, sym, go));
+                    var go = kv.Value.go;
+                    if (go)
+                    {
+                        go.transform.SetParent(pivotGO.transform, true);
+                        freeItems.Add(go.transform);
+                    }
                 }
             }
         }
@@ -1121,10 +1141,17 @@ public class BoardManager : MonoBehaviour
             var go2 = Instantiate(
                 (cells[p.y, p.x] == CellType.Wall) ? pfWall :
                 (cells[p.y, p.x] == CellType.Exit) ? pfExit :
-                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor : pfFloor,
+                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor :
+                (cells[p.y, p.x] == CellType.Pit) ? pfPit : pfFloor,
                 GridToWorld(p), Quaternion.identity, tilesRoot);
             go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
             AutoAlign2DObject(go2, false);
+            if (cells[p.y, p.x] == CellType.Exit)
+            {
+                var pos = go2.transform.position;
+                pos.y = floorY + exitTopOffset;
+                go2.transform.position = pos;
+            }
             tileGOs[p.y, p.x] = go2;
         }
         // ★ アイテムの辞書＆位置を更新
@@ -1148,6 +1175,9 @@ public class BoardManager : MonoBehaviour
             player.pos = newPlayerPos;
             player.transform.position = GridToWorldActor(newPlayerPos);
         }
+
+        // ★ 回転後に落とし穴にいるガードを排除（アニメ版にも適用）
+        ResolvePitfallsAfterRotation();
 
         IsAnimating = false;
         RefreshAllGuardVision();
@@ -1452,7 +1482,8 @@ public class BoardManager : MonoBehaviour
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
 
             // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
-            if (!playerIn && player != null && o == player.pos && after == CellType.Wall)
+            if (!playerIn && player != null && o == player.pos &&
+                (after == CellType.Wall || after == CellType.Pit))
                 return false;
 
             // ガードは常に壁と重なるのを禁止
@@ -1628,6 +1659,22 @@ public class BoardManager : MonoBehaviour
         }
         SafeDestroy(freePreviewPivot);
         freePreviewPivot = null;
+    }
+
+    void ResolvePitfallsAfterRotation()
+    {
+        if (guards == null || guards.Count == 0) return;
+        for (int i = guards.Count - 1; i >= 0; i--)
+        {
+            var g = guards[i];
+            if (g == null) { guards.RemoveAt(i); continue; }
+            var p = g.pos;
+            if (InBounds(p) && cells[p.y, p.x] == CellType.Pit)
+            {
+                SafeDestroy(g.gameObject);
+                guards.RemoveAt(i);
+            }
+        }
     }
 
     // Ghost を親付けするための Transform を返す（Group を優先）

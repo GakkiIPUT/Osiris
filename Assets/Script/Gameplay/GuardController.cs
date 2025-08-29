@@ -991,4 +991,29 @@ public class GuardController : MonoBehaviour
         visionMode = mode;
         UpdateVisionOverlay();
     }
+
+    void OnDestroy()
+    {
+        // 視界オーバーレイを確実に破棄
+        if (visionRoot != null)
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying) DestroyImmediate(visionRoot);
+            else
+#endif
+                Destroy(visionRoot);
+            visionRoot = null;
+        }
+
+        // 向きガイドも破棄
+        if (facingArrow != null)
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying) DestroyImmediate(facingArrow);
+            else
+#endif
+                Destroy(facingArrow);
+            facingArrow = null;
+        }
+    }
 }

@@ -2805,6 +2805,7 @@ MonoBehaviour:
   pfWall: {fileID: 6402523551426997718, guid: 1617e76d261af654f9dd54d4cf697ab7, type: 3}
   pfExit: {fileID: 6402523551426997718, guid: 2800085f3445866448e6d5600ba24207, type: 3}
   pfAnchor: {fileID: 6402523551426997718, guid: 4de17f9bdb0f776408540b6c16ec732e, type: 3}
+  pfPit: {fileID: 6402523551426997718, guid: ec45f98a5d10c0e48abe5ad894559781, type: 3}
   pfPlayer: {fileID: 4622758450830481564, guid: fbe1a31f2aaa6654da2f5fcf64ffd4fb, type: 3}
   guardTypes:
   - symbol: G
@@ -2889,6 +2890,7 @@ MonoBehaviour:
   previewExit: {r: 0.19999999, g: 0.6331078, b: 1, a: 1}
   previewP: {r: 1, g: 1, b: 1, a: 1}
   previewAnchor: {r: 0, g: 0, b: 0, a: 1}
+  previewPit: {r: 0.15, g: 0.15, b: 0.6, a: 1}
   level:
   - '#E####@###########################'
   - '#......#.......#.......#...T.....#'

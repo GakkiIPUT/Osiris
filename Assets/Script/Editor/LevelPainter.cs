@@ -87,6 +87,7 @@ public class LevelPainter : EditorWindow
                 ToggleBrush('.', "Floor (.)");
                 ToggleBrush('#', "Wall (#)");
                 ToggleBrush('@', "Anchor (@)");
+                ToggleBrush('x', "Pit (x)");
                 ToggleBrush('E', "Exit (E)");
                 ToggleBrush('P', "Player (P)");
             }
@@ -128,7 +129,7 @@ public class LevelPainter : EditorWindow
             hoverColor = EditorGUILayout.ColorField("Hover Color", hoverColor);
 
             EditorGUILayout.HelpBox(
-                "Sceneビュー：左クリック/ドラッグで配置、右クリックで床('.')。キー: 1 '.' / 2 '#' / 3 '@' / 4 'E' / 5 'P'。文字キーで任意記号に切替。",
+                "Sceneビュー：左クリック/ドラッグで配置、右クリックで床('.')。キー: 1 '.' / 2 '#' / 3 '@' / 4 'E' / 5 'P'/ 6 'x'。文字キーで任意記号に切替。",
                 MessageType.None
             );
         }
@@ -175,6 +176,7 @@ public class LevelPainter : EditorWindow
             else if (e.keyCode == KeyCode.Alpha2) currentSymbol = '#';
             else if (e.keyCode == KeyCode.Alpha3) currentSymbol = '@';
             else if (e.keyCode == KeyCode.Alpha4) currentSymbol = 'E';
+            else if (e.keyCode == KeyCode.Alpha6) currentSymbol = 'x';
             else if (e.keyCode == KeyCode.Alpha5) currentSymbol = 'P';
             else if (!char.IsControl(e.character) && e.character != '\0') currentSymbol = e.character;
             Repaint();
