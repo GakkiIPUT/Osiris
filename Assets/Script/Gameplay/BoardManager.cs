@@ -52,6 +52,8 @@ public class BoardManager : MonoBehaviour
         new ItemType{ symbol="i", prefab=null, label="Key", previewColor = new Color(0.25f,1f,0.9f,1f) },
         // t = 宝箱（コレクション用・クリア条件に含めない）
         new ItemType{ symbol="t", prefab=null, label="Treasure", previewColor = new Color(1.0f,0.7f,0.2f,1f) },
+        // d = 泥棒（視認で宝箱に変化／侵入不可）
+        new ItemType{ symbol="d", prefab=null, label="Thief", previewColor = new (0.8f,0.4f,1.0f,1f) },
     };
 
     public Transform itemsRoot; // アイテムの親（未設定ならAwakeで作る）
@@ -223,6 +225,8 @@ public class BoardManager : MonoBehaviour
         // 床 or 出口は歩行可。壁/アンカーは不可。
         bool tileOK = (c == CellType.Floor || c == CellType.Exit);
         if (!tileOK) return false;
+        // 泥棒がいるマスは侵入不可
+        if (IsThiefAt(p)) return false;
 
         if (blockGuardsForPlayer && IsOccupiedByGuard(p)) return false;
 
@@ -231,6 +235,8 @@ public class BoardManager : MonoBehaviour
     public bool IsWalkable(Vector2Int p)
     {
         if (!InBounds(p)) return false;
+        // 泥棒がいるマスは侵入不可
+        if (IsThiefAt(p)) return false;
         var c = cells[p.y, p.x];
         return c == CellType.Floor || c == CellType.Exit;
     }
@@ -535,7 +541,7 @@ public class BoardManager : MonoBehaviour
             if (!it.type.prefab) { Debug.LogError($"Item prefab null for '{it.type.symbol}'"); continue; }
             var go = Instantiate(it.type.prefab, GridToWorld(it.pos), Quaternion.identity, itemsRoot);
             go.name = $"Item_{it.pos.x}_{it.pos.y}_{it.type.symbol}";
-            AutoAlign2DObject(go, true /*見た目少し浮かす*/, new Vector2(0.07f, 0.07f)); // 見た目縮小は好みで
+            AutoAlign2DObject(go, true, GetItemVisualScaleBySymbol(it.type.symbol[0]));
 
             // ★ 位置 → (記号, 実体) を保存（拾得とUI更新に使う）
             itemAt[it.pos] = (it.type.symbol[0], go);
@@ -664,6 +670,8 @@ public class BoardManager : MonoBehaviour
     {
         if (itemAt.TryGetValue(p, out var t) && t.go != null)
         {
+            // 泥棒は取得不可（そもそも侵入できない想定）
+            if (t.sym == 'd') return false;
             itemAt.Remove(p);
             SafeDestroy(t.go); // エディタ/実行の両対応破棄
 
@@ -687,6 +695,48 @@ public class BoardManager : MonoBehaviour
             return true;
         }
         return false;
+
+    }
+    // ===== 泥棒ユーティリティ =====
+    public bool IsThiefAt(Vector2Int p)
+    {
+        return itemAt.TryGetValue(p, out var t) && t.sym == 'd';
+    }
+
+    public bool TransformThiefToTreasureAt(Vector2Int p)
+    {
+        if (!itemAt.TryGetValue(p, out var t) || t.sym != 'd') return false;
+
+        // 泥棒見た目を消す
+        if (t.go) SafeDestroy(t.go);
+        itemAt.Remove(p);
+
+        // 宝箱プレハブを検索
+        GameObject chestPf = null;
+        for (int i = 0; i < itemTypes.Count; i++)
+        {
+            if (!string.IsNullOrEmpty(itemTypes[i].symbol) && itemTypes[i].symbol[0] == 't')
+            {
+                chestPf = itemTypes[i].prefab;
+                break;
+            }
+        }
+
+        GameObject chestGo = null;
+        if (chestPf != null)
+        {
+            chestGo = Instantiate(chestPf, GridToWorld(p), Quaternion.identity, itemsRoot);
+            chestGo.name = $"Item_{p.x}_{p.y}_t";
+            AutoAlign2DObject(chestGo, true, GetItemVisualScaleBySymbol('t'));
+        }
+        else
+        {
+            Debug.LogWarning("[Thief] Treasure prefab for symbol 't' is not assigned in BoardManager.itemTypes.");
+        }
+
+        // 位置 → 宝箱を登録
+        itemAt[p] = ('t', chestGo);
+        return true;
     }
 
     // ========= エディタプレビュー描画（GameObject生成なし） =========
@@ -1010,7 +1060,7 @@ public class BoardManager : MonoBehaviour
                 if (m.go)
                 {
                     m.go.transform.position = GridToWorld(m.to);
-                    AutoAlign2DObject(m.go, true, new Vector2(0.07f, 0.07f)); // 見た目縮小は好みで
+                    AutoAlign2DObject(m.go, true, GetItemVisualScaleBySymbol(m.sym));
                 }
                 itemAt[m.to] = (m.sym, m.go);
             }
@@ -1178,7 +1228,7 @@ public class BoardManager : MonoBehaviour
                 if (mi.go)
                 {
                     mi.go.transform.position = GridToWorld(mi.to);
-                    AutoAlign2DObject(mi.go, true, new Vector2(0.07f, 0.07f)); // 見た目調整はお好み
+                    AutoAlign2DObject(mi.go, true, GetItemVisualScaleBySymbol(mi.sym));
                 }
                 itemAt[mi.to] = (mi.sym, mi.go); // 値が GameObject のみなら: itemAt[mi.to] = mi.go;
             }
@@ -1698,4 +1748,11 @@ public class BoardManager : MonoBehaviour
         return freePreviewGroup != null ? freePreviewGroup : (freePreviewPivot != null ? freePreviewPivot.transform : null);
     }
     public bool IsFreePreviewActive => freePreviewPivot != null;
+
+    Vector2 GetItemVisualScaleBySymbol(char sym)
+    {
+        // 泥棒だけ1セルサイズ、その他は従来の小さめ表示
+        if (sym == 'd') return new Vector2(0.2f, 0.2f);
+        return new Vector2(0.07f, 0.07f);
+    }
 }

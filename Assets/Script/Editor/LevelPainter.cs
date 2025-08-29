@@ -108,7 +108,7 @@ public class LevelPainter : EditorWindow
                 EditorGUILayout.EndHorizontal();
             }
 
-            // Item を BoardManager.itemTypes から動的追加
+            // Item を BoardManager.itemTypes から動的追加（← 'd' もここに出ます）
             if (board && board.itemTypes != null && board.itemTypes.Count > 0)
             {
                 EditorGUILayout.LabelField("Items");
@@ -129,7 +129,7 @@ public class LevelPainter : EditorWindow
             hoverColor = EditorGUILayout.ColorField("Hover Color", hoverColor);
 
             EditorGUILayout.HelpBox(
-                "Sceneビュー：左クリック/ドラッグで配置、右クリックで床('.')。キー: 1 '.' / 2 '#' / 3 '@' / 4 'E' / 5 'P'/ 6 'x'。文字キーで任意記号に切替。",
+                "Sceneビュー：左クリック/ドラッグで配置、右クリックで床('.')。キー: 1 '.' / 2 '#' / 3 '@' / 4 'E' / 5 'P'/ 6 'x' / 7 'd'。文字キーで任意記号に切替。Items は BoardManager.itemTypes に連動します。",
                 MessageType.None
             );
         }
@@ -178,6 +178,7 @@ public class LevelPainter : EditorWindow
             else if (e.keyCode == KeyCode.Alpha4) currentSymbol = 'E';
             else if (e.keyCode == KeyCode.Alpha6) currentSymbol = 'x';
             else if (e.keyCode == KeyCode.Alpha5) currentSymbol = 'P';
+            else if (e.keyCode == KeyCode.Alpha7) currentSymbol = 'd'; // ← 追加: 泥棒
             else if (!char.IsControl(e.character) && e.character != '\0') currentSymbol = e.character;
             Repaint();
         }

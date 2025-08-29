@@ -437,6 +437,8 @@ public class GuardController : MonoBehaviour
         {
             if (board.player != null && !board.player.invincible && CanSeePlayer())
                 turn.TriggerGameOver();
+            // 静止監視でも泥棒を発見したら宝箱化
+            RevealThievesInSight();
             return;
         }
 
@@ -488,6 +490,8 @@ public class GuardController : MonoBehaviour
 
         if (board.player != null && !board.player.invincible && CanSeePlayer())
             turn.TriggerGameOver();
+        // 移動系の処理後に泥棒の発見→宝箱化
+        RevealThievesInSight();
     }
 
     // ブロック時の対処（反転時は移動を止めて小休止）
@@ -764,6 +768,53 @@ public class GuardController : MonoBehaviour
 
         if (Vector2.Angle(fwd, dir) > fovAngle * 0.5f) return false;
         return board.HasLineOfSight(pos, p);
+    }
+
+    // 追加: 汎用セル視認判定（泥棒用）
+    bool CanSeeCell(Vector2Int gp)
+    {
+        if (board == null) return false;
+        if ((gp - pos).sqrMagnitude > viewRange * viewRange) return false;
+
+        if (visionMode == VisionMode.GridAligned)
+        {
+            Facing curF = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+            float half = fovAngle * 0.5f;
+            return IsCellVisibleGridAligned(gp, curF, half);
+        }
+
+        Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
+        float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
+        Vector2 fwd = YawToDir2D(yaw).normalized;
+
+        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+        Vector2 to = new Vector2(gp.x + 0.5f, gp.y + 0.5f);
+        Vector2 dir = to - origin;
+        if (dir.sqrMagnitude < 1e-6f) return false;
+        dir.Normalize();
+
+        if (Vector2.Angle(fwd, dir) > fovAngle * 0.5f) return false;
+        return board.HasLineOfSight(pos, gp);
+    }
+
+    // 追加: 視界内の泥棒を宝箱へ変える
+    void RevealThievesInSight()
+    {
+        if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
+
+        // 変換中に辞書を触らないよう、まず収集
+        var toReveal = new List<Vector2Int>();
+        foreach (var kv in board.itemAt)
+        {
+            if (kv.Value.sym != 'd') continue; // 泥棒のみ対象
+            var p = kv.Key;
+            if (CanSeeCell(p)) toReveal.Add(p);
+        }
+
+        for (int i = 0; i < toReveal.Count; i++)
+        {
+            board.TransformThiefToTreasureAt(toReveal[i]);
+        }
     }
 
     // セル中心（BoardManager.CellCenter に統一）
