@@ -120,7 +120,7 @@ MonoBehaviour:
   visionOriginForwardOffset: 0.35
   visualYawOffsetDeg: 90
   visionYawOffsetDeg: 0
-  flipPauseSeconds: 0.2
+  flipPauseSeconds: 0.5
   showFacingArrow: 1
   facingArrowColor: {r: 1, g: 1, b: 0.25, a: 0.9}
   flipProfile: 1

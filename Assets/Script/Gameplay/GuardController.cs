@@ -116,7 +116,7 @@ public class GuardController : MonoBehaviour
     // ===== 反転時の挙動 =====
     [Header("Flip (Reverse) Control")]
     [Tooltip("反転（監視向き切替/行動反転）時に停止する秒数（視界も無効）")]
-    [Min(0f)] public float flipPauseSeconds = 0f;
+    [Min(0f)] public float flipPauseSeconds = 0.5f; // ← 0.5s に変更
     float flippingUntil = 0f;
 
     // ===== Visual Aid =====
@@ -445,7 +445,9 @@ public class GuardController : MonoBehaviour
         Vector2Int step = DirToStep(tgt - pos);
         if (step == Vector2Int.zero)
         {
-            AdvanceTarget();
+            // エンド到達→折り返し時に小休止（視界OFF）
+            AdvanceTarget(true);
+            if (IsFlipping()) return; // この手は終了（停止中）
             tgt = GetCurrentTargetOrFallback(pos);
             step = DirToStep(tgt - pos);
         }
@@ -543,22 +545,43 @@ public class GuardController : MonoBehaviour
         return path[Mathf.Clamp(pathIndex, 0, path.Count - 1)];
     }
 
-    void AdvanceTarget()
+    // 折り返し時に小休止できるように拡張
+    void AdvanceTarget(bool pauseOnTurn = false)
     {
         if (path.Count == 0) return;
 
         if (patrolMode == PatrolMode.Loop)
         {
             StepIndex(+1);
+            return;
         }
-        else
+
+        bool willTurn =
+            (pathIndex == path.Count - 1 && pingDir > 0) ||
+            (pathIndex == 0 && pingDir < 0);
+
+        if (willTurn) pingDir *= -1;
+
+        // 次の目標へ
+        StepIndex(pingDir);
+
+        // 折り返しだった場合は、その場で向きだけ新方向へ更新して小休止
+        if (willTurn && pauseOnTurn)
         {
-            if ((pathIndex == path.Count - 1 && pingDir > 0) ||
-                (pathIndex == 0 && pingDir < 0))
+            Vector2Int tgt = GetCurrentTargetOrFallback(pos);
+            Vector2Int st = DirToStep(tgt - pos);
+            if (st != Vector2Int.zero)
             {
-                pingDir *= -1;
+                forward = st;
+                targetYaw = FacingToYaw(StepToFacing(st));
+                if (board != null && board.snapGuardFacingOnMove)
+                {
+                    currentYaw = targetYaw;
+                    ApplyVisualYaw();
+                }
+                ApplyVisualByFacing();
             }
-            StepIndex(pingDir);
+            BeginFlipPause("end-turn");
         }
     }
 
