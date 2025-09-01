@@ -550,7 +550,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 折り返し時に小休止できるように拡張
-    void AdvanceTarget(bool pauseOnTurn = false)
+    void AdvanceTarget(bool pauseOnEndpoint = false)
     {
         if (path.Count == 0) return;
 
@@ -560,6 +560,10 @@ public class GuardController : MonoBehaviour
             return;
         }
 
+        // 端点にいるか
+        bool atEnd = (pathIndex == 0) || (pathIndex == path.Count - 1);
+
+        // PingPong の進行向き反転が必要か（従来条件）
         bool willTurn =
             (pathIndex == path.Count - 1 && pingDir > 0) ||
             (pathIndex == 0 && pingDir < 0);
@@ -569,8 +573,8 @@ public class GuardController : MonoBehaviour
         // 次の目標へ
         StepIndex(pingDir);
 
-        // 折り返しだった場合は、その場で向きだけ新方向へ更新して小休止
-        if (willTurn && pauseOnTurn)
+        // 端点にいたら、初回（pingDir非反転）でも必ず小休止
+        if (pauseOnEndpoint && atEnd)
         {
             Vector2Int tgt = GetCurrentTargetOrFallback(pos);
             Vector2Int st = DirToStep(tgt - pos);
@@ -738,7 +742,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 視界：プレイヤーを見ているか
-    bool CanSeePlayer()
+    public　bool CanSeePlayer()
     {
         if (board == null || board.player == null) return false;
         if (IsFlipping()) return false;
@@ -771,7 +775,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 追加: 汎用セル視認判定（泥棒用）
-    bool CanSeeCell(Vector2Int gp)
+    public bool CanSeeCell(Vector2Int gp)
     {
         if (board == null) return false;
         if ((gp - pos).sqrMagnitude > viewRange * viewRange) return false;

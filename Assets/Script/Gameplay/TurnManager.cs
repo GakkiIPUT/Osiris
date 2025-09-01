@@ -294,9 +294,24 @@ public class TurnManager : MonoBehaviour
     public void TryClearAtExit()
     {
         if (gameOver || cleared) return;
-        // goalReachedがtrueなら強制クリア
+
+        // クリア直前の視界チェック（無敵はスキップ）
+        bool IsPlayerSeenNow()
+        {
+            if (board == null || board.player == null || board.player.invincible) return false;
+            var gs = board.guards;
+            for (int i = 0; i < gs.Count; i++)
+            {
+                var g = gs[i];
+                if (g != null && g.CanSeePlayer()) return true;
+            }
+            return false;
+        }
+
+        // goalReachedがtrueなら即クリア
         if (goalReached)
         {
+            if (IsPlayerSeenNow()) { TriggerGameOver(); return; }
             cleared = true;
             playerTurn = false;
             var gf = UnityCompat.FindFirst<GameFlow>();
@@ -321,16 +336,17 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        // 必須（鍵）を全て取っていなければクリア不可
+        // 必須アイテムが全て揃っていないならクリア不可
         if (!AllRequiredCollected()) return;
+
+        // ここで見られていたら死亡を優先
+        if (IsPlayerSeenNow()) { TriggerGameOver(); return; }
 
         cleared = true;
         playerTurn = false;
-
         int parRotValue2 = 0;
         var gf2 = UnityCompat.FindFirst<GameFlow>();
         if (gf2 != null) parRotValue2 = Mathf.Max(0, gf2.parRot);
-
         var res2 = ComputeScoreForCurrentMode(parRotValue2);
 
         if (scoreMode == ScoreMode.ActionPoint)
