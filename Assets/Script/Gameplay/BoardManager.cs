@@ -54,6 +54,8 @@ public class BoardManager : MonoBehaviour
         new ItemType{ symbol="t", prefab=null, label="Treasure", previewColor = new Color(1.0f,0.7f,0.2f,1f) },
         // d = 泥棒（視認で宝箱に変化／侵入不可）
         new ItemType{ symbol="d", prefab=null, label="Thief", previewColor = new (0.8f,0.4f,1.0f,1f) },
+        // e = 鍵泥棒（視認で鍵に変化／侵入不可）← 追加
+        new ItemType{ symbol="e", prefab=null, label="Thief (Key)", previewColor = new (0.25f,0.8f,1.0f,1f) },
     };
 
     public Transform itemsRoot; // アイテムの親（未設定ならAwakeで作る）
@@ -487,7 +489,8 @@ public class BoardManager : MonoBehaviour
                     if (!string.IsNullOrEmpty(itemTypes[ii].symbol) && itemTypes[ii].symbol[0] == ch)
                     {
                         itemSpawns.Add((p, itemTypes[ii]));
-                        if (itemTypes[ii].symbol[0] == 'i') // ★ 鍵のみ必須扱い
+                        // 鍵 or 鍵泥棒は「鍵1つ」として必須にカウント
+                        if (itemTypes[ii].symbol[0] == 'i' || itemTypes[ii].symbol[0] == 'e')
                             requiredSymbols.Add('i');
                         break;
                     }
@@ -600,7 +603,7 @@ public class BoardManager : MonoBehaviour
                 g.pattern = "D5";
                 break;
 
-            case 'K': // 四角巡回 R3,U3,L3,D3
+            case 'K': // 四角巡回 R4,U4,L4,D4
                 g.patrolMode = GuardController.PatrolMode.Loop;
                 g.pattern = "R4,U4,L4,D4";
                 break;
@@ -669,7 +672,7 @@ public class BoardManager : MonoBehaviour
         if (itemAt.TryGetValue(p, out var t) && t.go != null)
         {
             // 泥棒は取得不可（そもそも侵入できない想定）
-            if (t.sym == 'd') return false;
+            if (t.sym == 'd' || t.sym == 'e') return false;
             itemAt.Remove(p);
             SafeDestroy(t.go); // エディタ/実行の両対応破棄
 
@@ -698,7 +701,7 @@ public class BoardManager : MonoBehaviour
     // ===== 泥棒ユーティリティ =====
     public bool IsThiefAt(Vector2Int p)
     {
-        return itemAt.TryGetValue(p, out var t) && t.sym == 'd';
+        return itemAt.TryGetValue(p, out var t) && (t.sym == 'd' || t.sym == 'e');
     }
 
     public bool TransformThiefToTreasureAt(Vector2Int p)
@@ -734,6 +737,43 @@ public class BoardManager : MonoBehaviour
 
         // 位置 → 宝箱を登録
         itemAt[p] = ('t', chestGo);
+        return true;
+    }
+
+    // 鍵泥棒（e）→ 鍵（i）に変換
+    public bool TransformThiefToKeyAt(Vector2Int p)
+    {
+        if (!itemAt.TryGetValue(p, out var t) || t.sym != 'e') return false;
+
+        // 泥棒見た目を消す
+        if (t.go) SafeDestroy(t.go);
+        itemAt.Remove(p);
+
+        // 鍵プレハブを検索
+        GameObject keyPf = null;
+        for (int i = 0; i < itemTypes.Count; i++)
+        {
+            if (!string.IsNullOrEmpty(itemTypes[i].symbol) && itemTypes[i].symbol[0] == 'i')
+            {
+                keyPf = itemTypes[i].prefab;
+                break;
+            }
+        }
+
+        GameObject keyGo = null;
+        if (keyPf != null)
+        {
+            keyGo = Instantiate(keyPf, GridToWorld(p), Quaternion.identity, itemsRoot);
+            keyGo.name = $"Item_{p.x}_{p.y}_i";
+            AutoAlign2DObject(keyGo, true, GetItemVisualScaleBySymbol('i'));
+        }
+        else
+        {
+            Debug.LogWarning("[Thief] Key prefab for symbol 'i' is not assigned in BoardManager.itemTypes.");
+        }
+
+        // 位置 → 鍵を登録（UIの必須進捗は拾得時に更新）
+        itemAt[p] = ('i', keyGo);
         return true;
     }
 
@@ -1146,12 +1186,6 @@ public class BoardManager : MonoBehaviour
                     if (go) go.transform.SetParent(pivotGO.transform, true);
                     var dest = Rot90(p, center, dir);
                     movedItems.Add((p, dest, sym, go));
-                    //var go = kv.Value.go;
-                    //if (go)
-                    //{
-                    //    go.transform.SetParent(pivotGO.transform, true);
-                    //    freeItems.Add(go.transform);
-                    //}
                 }
             }
         }
@@ -1750,7 +1784,8 @@ public class BoardManager : MonoBehaviour
     Vector2 GetItemVisualScaleBySymbol(char sym)
     {
         // 泥棒だけ1セルサイズ、その他は従来の小さめ表示
-        if (sym == 'd') return new Vector2(0.2f, 0.2f);
+        if (sym == 'd' ) return new Vector2(0.2f, 0.2f);
+        if (sym == 'e') return new Vector2(0.25f, 0.25f);
         return new Vector2(0.07f, 0.07f);
     }
 }

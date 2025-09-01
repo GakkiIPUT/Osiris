@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 1911133786874595540}
   - component: {fileID: 9032715968400853954}
   m_Layer: 0
-  m_Name: Item_robber
+  m_Name: Item_robKey
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -77,7 +77,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: efe3007b3d844cb42a86853ff9d97e4a, type: 3}
+  m_Sprite: {fileID: 21300000, guid: d36448277763cff4696d2298be90a3d7, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0

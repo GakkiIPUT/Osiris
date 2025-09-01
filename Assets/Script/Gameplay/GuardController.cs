@@ -490,7 +490,7 @@ public class GuardController : MonoBehaviour
 
         if (board.player != null && !board.player.invincible && CanSeePlayer())
             turn.TriggerGameOver();
-        // 移動系の処理後に泥棒の発見→宝箱化
+        // 移動系の処理後に泥棒の発見→変換
         RevealThievesInSight();
     }
 
@@ -822,25 +822,32 @@ public class GuardController : MonoBehaviour
     }
 
     // 追加: 視界内の泥棒を宝箱へ変える
-    void RevealThievesInSight()
+// 追加: 視界内の泥棒を変換（d=宝箱, e=鍵）
+void RevealThievesInSight()
+{
+    if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
+
+    var toTreasure = new List<Vector2Int>();
+    var toKey = new List<Vector2Int>();
+
+    foreach (var kv in board.itemAt)
     {
-        if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
-
-        // 変換中に辞書を触らないよう、まず収集
-        var toReveal = new List<Vector2Int>();
-        foreach (var kv in board.itemAt)
+        char sym = kv.Value.sym;
+        if (sym != 'd' && sym != 'e') continue; // 対象は泥棒系のみ
+        var p = kv.Key;
+        if (CanSeeCell(p))
         {
-            if (kv.Value.sym != 'd') continue; // 泥棒のみ対象
-            var p = kv.Key;
-            if (CanSeeCell(p)) toReveal.Add(p);
-        }
-
-        for (int i = 0; i < toReveal.Count; i++)
-        {
-            board.TransformThiefToTreasureAt(toReveal[i]);
+            if (sym == 'd') toTreasure.Add(p);
+            else if (sym == 'e') toKey.Add(p);
         }
     }
 
+    for (int i = 0; i < toTreasure.Count; i++)
+        board.TransformThiefToTreasureAt(toTreasure[i]);
+
+    for (int i = 0; i < toKey.Count; i++)
+        board.TransformThiefToKeyAt(toKey[i]);
+}
     // セル中心（BoardManager.CellCenter に統一）
     Vector3 WorldCenter(Vector2Int p, float y)
     {
