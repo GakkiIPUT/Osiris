@@ -17,7 +17,7 @@ public class StageSelectUI : MonoBehaviour
 
     public int padLeft = 16, padRight = 16, padTop = 16, padBottom = 16;
 
-    public float minCellW = 220f;
+    public float minCellW = 160f;
     public float minCellH = 72f;
 
     GameState gs;

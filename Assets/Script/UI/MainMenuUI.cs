@@ -6,10 +6,18 @@ using UnityEngine.EventSystems;
 public class MainMenuUI : MonoBehaviour
 {
     public Button[] worldButtons;
+    public Button startButton;       // スタート
+    public Button settingsButton;    // 設定
+    public Button collectionButton;  // コレクション
+    public GameObject titlePanel;
+    public GameObject worldPanel;
     GameState gs;
+
+
 
     void Awake()
     {
+
         gs = UnityCompat.FindFirst<GameState>();
         if (gs == null)
         {
@@ -17,16 +25,67 @@ public class MainMenuUI : MonoBehaviour
             enabled = false;
             return;
         }
+
+        if (startButton)
+        {
+            startButton.onClick.RemoveAllListeners();
+            startButton.onClick.AddListener(OnStartButton);
+        }
+
+        if (settingsButton)
+        {
+            settingsButton.onClick.RemoveAllListeners();
+            settingsButton.onClick.AddListener(OnSettingsButton);
+        }
+
+        if (collectionButton)
+        {
+            collectionButton.onClick.RemoveAllListeners();
+            collectionButton.onClick.AddListener(OnCollectionButton);
+        }
         WireButtons();
     }
 
     void OnEnable()
     {
         if (!enabled) return;
+
+        // タイトル表示
+        titlePanel?.SetActive(true);
+
+        // ワールドボタンは非表示にしておく
+        foreach (var b in worldButtons)
+        {
+            if (b) b.gameObject.SetActive(false);
+        }
+
+        // 最初のフォーカスをスタートボタンへ
+        if (EventSystem.current && startButton)
+        {
+            EventSystem.current.SetSelectedGameObject(startButton.gameObject);
+        }
+    }
+
+    void OnStartButton()
+    {
+        // タイトル隠す
+        titlePanel?.SetActive(false);
+
+        // ワールド選択表示
         FitButtonsState();
         StartCoroutine(CoSelectFirst());
     }
 
+    void OnSettingsButton()
+    {
+        // ここで設定画面を開く処理
+        Debug.Log("[MainMenuUI] 終了ボタン押下");
+    }
+    void OnCollectionButton()
+    {
+        // ここでコレクション画面を開く処理
+        Debug.Log("[MainMenuUI] コレクションボタン押下");
+    }
     System.Collections.IEnumerator CoSelectFirst()
     {
         yield return null; // 次フレームで選択（UI再構築後）
