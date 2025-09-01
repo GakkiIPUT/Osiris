@@ -40,6 +40,9 @@ public class GuardController : MonoBehaviour
     public bool debugDrawPath = false;
     public bool useBoardDefaultViewRange = true;
 
+    [Tooltip("Loop中に壁でブロックされたら次の角へ進まず折り返す（往復）")]
+    public bool bounceOnBlockedInLoop = true;  // ← 追加
+
     public enum Facing { Up, Right, Down, Left }
     public Facing startFacing = Facing.Right;
 
@@ -54,6 +57,7 @@ public class GuardController : MonoBehaviour
     readonly List<Vector2Int> path = new();
     int pathIndex = 0;
     int pingDir = +1;
+    int loopDir = +1; // ← 追加：Loop用の進行向き
 
     // 視界
     public bool showVision = true;
@@ -263,6 +267,7 @@ public class GuardController : MonoBehaviour
 
             pathIndex = 0;
             pingDir = +1;
+            loopDir = +1; // ← 追加：初期化
             return;
         }
 
@@ -514,6 +519,27 @@ public class GuardController : MonoBehaviour
         }
         else // Loop
         {
+            if (bounceOnBlockedInLoop)
+            {
+                // 折り返し（コーナーへは進まず、その場で逆走へ）
+                loopDir *= -1; // 進行向きを反転
+                forward = -step;
+                targetYaw = FacingToYaw(StepToFacing(forward));
+                if (board.snapGuardFacingOnMove)
+                {
+                    currentYaw = targetYaw;
+                    ApplyVisualYaw();
+                }
+                ApplyVisualByFacing();
+
+                // 目標も逆方向へ1つ戻す（次Tickから逆側の頂点に向かう）
+                StepIndex(loopDir);
+
+                BeginFlipPause("blocked-loop-bounce");
+                return true; // この手は停止
+            }
+
+            // 旧挙動: 次レグへローテして進める
             int tries = Mathf.Max(1, path.Count);
             for (int i = 0; i < tries; i++)
             {
@@ -558,8 +584,7 @@ public class GuardController : MonoBehaviour
         {
             // 次レグの方向を取得して、方向が変わるなら小休止
             Vector2Int prevForward = forward;
-
-            StepIndex(+1); // 次のターゲットへ
+            StepIndex(loopDir); // ← +1 固定から変更
             Vector2Int tgt = GetCurrentTargetOrFallback(pos);
             Vector2Int newStep = DirToStep(tgt - pos);
 
@@ -567,7 +592,6 @@ public class GuardController : MonoBehaviour
                 prevForward != Vector2Int.zero &&
                 newStep != prevForward)
             {
-                // 見た目の向きも即時更新
                 forward = newStep;
                 targetYaw = FacingToYaw(StepToFacing(newStep));
                 if (board != null && board.snapGuardFacingOnMove)
