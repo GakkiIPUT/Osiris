@@ -602,7 +602,7 @@ public class BoardManager : MonoBehaviour
 
             case 'K': // 四角巡回 R3,U3,L3,D3
                 g.patrolMode = GuardController.PatrolMode.Loop;
-                g.pattern = "R3,U3,L3,D3";
+                g.pattern = "R4,U4,L4,D4";
                 break;
 
             case 'L': // 寄り道巡回（2マス）
