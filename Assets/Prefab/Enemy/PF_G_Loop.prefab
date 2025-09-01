@@ -103,7 +103,7 @@ MonoBehaviour:
   pos: {x: 0, y: 0}
   viewRange: 5
   fovAngle: 90
-  patrolMode: 2
+  patrolMode: 3
   pattern: R3,U3,L3,D3
   patternIsRelative: 1
   debugDrawPath: 0

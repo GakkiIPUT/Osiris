@@ -2862,7 +2862,7 @@ MonoBehaviour:
     previewColor: {r: 0.6528301, g: 0, b: 0, a: 1}
   - symbol: L
     prefab: {fileID: 3842610496939543256, guid: 263494d7c0e6c2f40899ae110bb4de6e, type: 3}
-    label: "L\u2192\u2191\u2190"
+    label: "L\u2192\u2191"
     previewColor: {r: 0.78867924, g: 0, b: 0.3553425, a: 1}
   - symbol: M
     prefab: {fileID: 3842610496939543256, guid: cdc6d424cd646504ab1359f5a3c3ccda, type: 3}
@@ -2892,6 +2892,10 @@ MonoBehaviour:
     prefab: {fileID: 3842610496939543256, guid: 1fb84ae3f7fa42d449e9e283944e51b0, type: 3}
     label: Up
     previewColor: {r: 0.5849056, g: 0.55069417, b: 0.55069417, a: 1}
+  - symbol: Z
+    prefab: {fileID: 3842610496939543256, guid: 7ad388e1327cd7b43a0b46968e384784, type: 3}
+    label: Test
+    previewColor: {r: 1, g: 0.91285497, b: 0, a: 1}
   itemTypes:
   - symbol: i
     prefab: {fileID: 3724295039916806632, guid: 5c67cbc312025144eb1ddd8862f36dba, type: 3}
@@ -2928,18 +2932,17 @@ MonoBehaviour:
   previewAnchor: {r: 0, g: 0, b: 0, a: 1}
   previewPit: {r: 0.15, g: 0.15, b: 0.6, a: 1}
   level:
-  - '#E####@##@@@######################'
-  - '#......#.......#.......#...T.....#'
-  - '#...t..#...I...#N......#.........#'
-  - '#......#.......#.......#.........#'
-  - '#...P..#.Q.....#.......#.........#'
-  - '#.T.@i.#################........E#'
-  - '#..x...#...G...#.......#.........#'
-  - '#..........G.........M.#.........#'
-  - '#......#.......#.......#.........#'
-  - '#......#.S.....#.......#..O......#'
-  - '#......###########################'
-  - ..................................
+  - '@@@@@@@@@@@@@@@'
+  - '@.............@'
+  - '@....K........@'
+  - '@....L........@'
+  - '@.............@'
+  - '@.JI..........@'
+  - '@.............@'
+  - '@.............@'
+  - '@......H.....E@'
+  - '@......G......@'
+  - '@@@@@@@@@@@@@@@'
   previewY: 0.0001
   visionY: 0.0002
   tilesRoot: {fileID: 114234969}
@@ -7299,8 +7302,8 @@ MonoBehaviour:
   iconPrefab: {fileID: 8193571484458128685, guid: f89e877920f9c884092c9fbdc5d5193a, type: 3}
   icons:
   - symbol: 105
-    sprite: {fileID: 21300000, guid: 56b4d993fd1d2234e88e682164983ff0, type: 3}
-    label: bangles
+    sprite: {fileID: 21300000, guid: 7b9087a77a5fcb14e834ba22b6b80673, type: 3}
+    label: key
   fallbackSprite: {fileID: 21300000, guid: ca789ae9867c15d40ab758ea5e3ed48d, type: 3}
   uncollectedAlpha: 0.35
   groupGap: 16

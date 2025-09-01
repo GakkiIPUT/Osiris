@@ -556,14 +556,34 @@ public class GuardController : MonoBehaviour
 
         if (patrolMode == PatrolMode.Loop)
         {
-            StepIndex(+1);
+            // 次レグの方向を取得して、方向が変わるなら小休止
+            Vector2Int prevForward = forward;
+
+            StepIndex(+1); // 次のターゲットへ
+            Vector2Int tgt = GetCurrentTargetOrFallback(pos);
+            Vector2Int newStep = DirToStep(tgt - pos);
+
+            if (newStep != Vector2Int.zero &&
+                prevForward != Vector2Int.zero &&
+                newStep != prevForward)
+            {
+                // 見た目の向きも即時更新
+                forward = newStep;
+                targetYaw = FacingToYaw(StepToFacing(newStep));
+                if (board != null && board.snapGuardFacingOnMove)
+                {
+                    currentYaw = targetYaw;
+                    ApplyVisualYaw();
+                }
+                ApplyVisualByFacing();
+
+                BeginFlipPause("loop-turn"); // 停止＆視界無効
+            }
             return;
         }
 
-        // 端点にいるか
+        // 端点（PingPong系）
         bool atEnd = (pathIndex == 0) || (pathIndex == path.Count - 1);
-
-        // PingPong の進行向き反転が必要か（従来条件）
         bool willTurn =
             (pathIndex == path.Count - 1 && pingDir > 0) ||
             (pathIndex == 0 && pingDir < 0);

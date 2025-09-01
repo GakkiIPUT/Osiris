@@ -579,14 +579,12 @@ public class BoardManager : MonoBehaviour
     {
         if (g == null) return;
 
-        // まずデフォルトを明示的に（フォールバック無効化のため）
-        g.patrolMode = GuardController.PatrolMode.PingPong;
-        g.patternIsRelative = true;
-        g.pattern = ""; // 記号に応じて必ず上書き
-
+        // 既定：未定義記号はプレファブ設定をそのまま使う
         switch (sym)
         {
             case 'G': // R5
+                g.patrolMode = GuardController.PatrolMode.PingPong;
+                g.patternIsRelative = true;
                 g.pattern = "R5";
                 break;
 
@@ -609,7 +607,7 @@ public class BoardManager : MonoBehaviour
 
             case 'L': // 寄り道巡回（2マス）
                 g.patrolMode = GuardController.PatrolMode.Loop;
-                g.pattern = "R2,U2,L2,D2"; // ←三角にしたいなら ",D2" を外す
+                g.pattern = "R3,U3"; // ←三角にしたいなら ",D2" を外す
                 break;
 
             case 'T': // 上を監視（その場）
