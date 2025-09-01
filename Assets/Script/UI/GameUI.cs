@@ -9,6 +9,35 @@ public class GameUI : MonoBehaviour
     // devMode追加
     public bool devMode = false;
 
+    // ===== 初期設定（インスペクター） =====
+    [Header("Editor 用 初期設定")]
+    [SerializeField] bool editorDevMode = false;
+    [Tooltip("Editor再生時の無敵初期値")]
+    [SerializeField] bool editorInvincible = false;
+    [SerializeField, Range(3, 9)] int editorAreaSize = 3;
+
+    [Header("Editor 用 Board初期設定")]
+    [SerializeField] bool editorRotatePlayerWithArea = true;
+    [SerializeField, Range(1, 10)] int editorRotationCenterMaxDistance = 3;
+    [SerializeField] bool editorFreeRotate = true;           // 自由回転は有効
+    [SerializeField] bool editorAllow180Rotation = false;
+
+    [Header("Development Build 用 初期設定")]
+    [SerializeField] bool devBuildDevMode = false;            // 基本 Dev モード
+    [SerializeField] bool devBuildInvincible = false;
+    [SerializeField, Range(3, 9)] int devBuildAreaSize = 3;
+
+    [Header("Development Build 用 Board初期設定")]
+    [SerializeField] bool devBuildRotatePlayerWithArea = true;
+    [SerializeField, Range(1, 10)] int devBuildRotationCenterMaxDistance = 3;
+    [SerializeField] bool devBuildFreeRotate = true;         // 自由回転は有効
+    [SerializeField] bool devBuildAllow180Rotation = false;
+
+    [Header("適用タイミング")]
+    [SerializeField] bool applyInitialOnStart = true;
+
+    bool _appliedInitial = false;
+
     void Awake()
     {
         // ボタン紐付
@@ -18,6 +47,11 @@ public class GameUI : MonoBehaviour
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
     }
 
+    void Start()
+    {
+        if (applyInitialOnStart) ApplyInitialSettingsOnce();
+    }
+
     void OnEnable() { ResolveRefs(); }  // 表示時に再解決
 
     void ResolveRefs()
@@ -25,6 +59,69 @@ public class GameUI : MonoBehaviour
         if (!stage) stage = UnityCompat.FindFirst<StageManager>();
         if (!player) player = UnityCompat.FindFirst<PlayerController>();
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
+    }
+
+    void ApplyInitialSettingsOnce()
+    {
+        if (_appliedInitial) return;
+        _appliedInitial = true;
+
+        ResolveRefs();
+        var board = Object.FindFirstObjectByType<BoardManager>();
+
+#if UNITY_EDITOR
+        // Editor
+        devMode = editorDevMode;
+
+        if (player != null)
+        {
+            player.invincible = editorInvincible;
+            player.areaSize = Mathf.RoundToInt(Mathf.Clamp(editorAreaSize, 3, 9));
+            player.SaveDevModeSettings();
+        }
+        if (board != null)
+        {
+            board.rotatePlayerWithArea = editorRotatePlayerWithArea;
+            board.rotationCenterMaxDistance = Mathf.RoundToInt(Mathf.Clamp(editorRotationCenterMaxDistance, 1, 10));
+            board.devEnableFreeRotate = editorFreeRotate;     // 自由回転ON
+            board.devAllow180Rotation = editorAllow180Rotation;
+            board.SaveDevModeSettings();
+        }
+#elif DEVELOPMENT_BUILD
+        // Development Build
+        devMode = devBuildDevMode;                            // 基本 Dev モード
+
+        if (player != null)
+        {
+            player.invincible = devBuildInvincible;
+            player.areaSize = Mathf.RoundToInt(Mathf.Clamp(devBuildAreaSize, 3, 9));
+            player.SaveDevModeSettings();
+        }
+        if (board != null)
+        {
+            board.rotatePlayerWithArea = devBuildRotatePlayerWithArea;
+            board.rotationCenterMaxDistance = Mathf.RoundToInt(Mathf.Clamp(devBuildRotationCenterMaxDistance, 1, 10));
+            board.devEnableFreeRotate = devBuildFreeRotate;   // 自由回転ON
+            board.devAllow180Rotation = devBuildAllow180Rotation;
+            board.SaveDevModeSettings();
+        }
+#else
+        // 本番ビルド（非Development)
+        devMode = false;
+
+        if (player != null)
+        {
+            player.invincible = false;                        // 無敵は必ずオフ
+            player.areaSize = Mathf.Clamp(player.areaSize, 3, 9);
+            player.SaveDevModeSettings();
+        }
+        if (board != null)
+        {
+            board.devEnableFreeRotate = true;                // 自由回転
+            board.devAllow180Rotation = false;
+            board.SaveDevModeSettings();
+        }
+#endif
     }
 
     void ActionRotateL() { ResolveRefs(); player?.UI_RotateCCW(); }
@@ -64,6 +161,7 @@ public class GameUI : MonoBehaviour
         if (btnRotateL) btnRotateL.interactable = canRotate;
         if (btnRotateR) btnRotateR.interactable = canRotate;
     }
+
     void OnGUI()
     {
         if (!devMode) return; // devModeはboolで管理

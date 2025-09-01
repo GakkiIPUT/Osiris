@@ -170,7 +170,7 @@ public class BoardManager : MonoBehaviour
     [Tooltip("ドラッグ式の自由回転を有効にする（ON時でも T はキャンセル専用）")]
     public bool devEnableFreeRotate = true;
     [Tooltip("180°回転を許可（許可時は2AP想定）")]
-    public bool devAllow180Rotation = false;
+    public bool devAllow180Rotation = true;
     [Tooltip("スナップ角度（最近傍吸着の目安、将来用）")]
     [Range(1f, 45f)] public float devSnapAngleDeg = 15f;
     [Tooltip("コミット許容角（将来用）。この角以内なら確定吸着する想定")]
