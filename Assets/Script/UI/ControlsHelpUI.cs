@@ -1,10 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
 
 public class ControlsHelpUI : MonoBehaviour
 {
-    [Header("Tab Buttons")]
+    [Header("Tab Buttons")] 
     public Button tabKeyboardButton;
     public Button tabGamepadButton;
 
@@ -16,10 +17,14 @@ public class ControlsHelpUI : MonoBehaviour
     public TMP_Text keyboardText;
     public TMP_Text gamepadText;
 
+    [Header("Close")]
+    public Button closeButton; // 追加: クローズボタン
+
     void Awake()
     {
         if (tabKeyboardButton) tabKeyboardButton.onClick.AddListener(SelectKeyboard);
         if (tabGamepadButton) tabGamepadButton.onClick.AddListener(SelectGamepad);
+        if (closeButton) closeButton.onClick.AddListener(Close); // 追加: クリックで閉じる
     }
 
     void OnEnable()
@@ -27,6 +32,29 @@ public class ControlsHelpUI : MonoBehaviour
         // デフォルトはキーボードタブ
         RefreshTexts();
         SelectKeyboard();
+
+        // ボタン選択式: どちらのボタンも常に選択可能に
+        SetTabInteractable(keyboard: true, gamepad: true);
+    }
+
+    // 親(ESCメニュー)ごと閉じられた場合でも、次回は説明を自動で開かないように自身を必ずOFFにする
+    void OnDisable()
+    {
+        if (gameObject.activeSelf)
+        {
+            // 既に自分でClose()している場合はactiveSelf=falseだが、
+            // 親が閉じられて非表示になったケースではactiveSelf=trueのままなのでOFFに倒す
+            gameObject.SetActive(false);
+        }
+    }
+
+    void Update()
+    {
+        // Escキーでも説明を閉じてESCメニューへ戻す
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            Close();
+        }
     }
 
     public void RefreshTexts()
@@ -70,21 +98,52 @@ public class ControlsHelpUI : MonoBehaviour
     {
         SetActiveSafe(keyboardRoot, true);
         SetActiveSafe(gamepadRoot, false);
-        SetTabInteractable(keyboard: false, gamepad: true);
+        // ボタン選択式: どちらも選択可能に保つ
+        SetTabInteractable(keyboard: true, gamepad: true);
     }
 
     public void SelectGamepad()
     {
         SetActiveSafe(keyboardRoot, false);
         SetActiveSafe(gamepadRoot, true);
-        SetTabInteractable(keyboard: true, gamepad: false);
+        // ボタン選択式: どちらも選択可能に保つ
+        SetTabInteractable(keyboard: true, gamepad: true);
+    }
+
+    public void Close()
+    {
+        // この説明パネルを閉じる（次回自動で出ないようactiveSelf=false）
+        gameObject.SetActive(false);
+        // ESCメニュー側へフォーカスを戻す（GameFlow/GlobalEscMenuの両対応）
+        TryFocusEscMenu();
+    }
+
+    void TryFocusEscMenu()
+    {
+        if (EventSystem.current == null) return;
+
+        // Gameシーン（GameFlow側のESC）
+        var gf = UnityCompat.FindFirst<GameFlow>();
+        if (gf != null && gf.escCloseButton != null && gf.escCloseButton.gameObject.activeInHierarchy)
+        {
+            EventSystem.current.SetSelectedGameObject(gf.escCloseButton.gameObject);
+            return;
+        }
+
+        // その他シーン（GlobalEscMenu）
+        var gm = UnityCompat.FindFirst<GlobalEscMenu>();
+        if (gm != null && gm.closeButton != null && gm.closeButton.gameObject.activeInHierarchy)
+        {
+            EventSystem.current.SetSelectedGameObject(gm.closeButton.gameObject);
+        }
     }
 
     void SetActiveSafe(GameObject go, bool on) { if (go) go.SetActive(on); }
 
     void SetTabInteractable(bool keyboard, bool gamepad)
     {
-        if (tabKeyboardButton) tabKeyboardButton.interactable = keyboard;
-        if (tabGamepadButton) tabGamepadButton.interactable = gamepad;
+        // ボタン選択式: 常に両方trueにする（引数は無視）
+        if (tabKeyboardButton) tabKeyboardButton.interactable = true;
+        if (tabGamepadButton) tabGamepadButton.interactable = true;
     }
 }

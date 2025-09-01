@@ -774,6 +774,7 @@ GameObject:
   - component: {fileID: 286696872}
   - component: {fileID: 286696871}
   - component: {fileID: 286696870}
+  - component: {fileID: 286696874}
   m_Layer: 0
   m_Name: SettingPanel
   m_TagString: Untagged
@@ -799,6 +800,7 @@ MonoBehaviour:
   gamepadRoot: {fileID: 708032781}
   keyboardText: {fileID: 238174548}
   gamepadText: {fileID: 980253901}
+  closeButton: {fileID: 0}
 --- !u!114 &286696871
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -858,6 +860,21 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &286696874
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 286696869}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84569cbcb2765b449ac3618526a9a071, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  firstSelected: {fileID: 0}
+  trapFocus: 1
+  focusOnEnable: 1
 --- !u!1 &300417602
 GameObject:
   m_ObjectHideFlags: 0
@@ -990,7 +1007,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 9833738a841ce2242992ad18d3b7cfde, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 4bd9185fa12b956499ff6631a087b114, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1610,6 +1627,7 @@ GameObject:
   - component: {fileID: 832902922}
   - component: {fileID: 832902926}
   - component: {fileID: 832902927}
+  - component: {fileID: 832902928}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -1745,6 +1763,21 @@ MonoBehaviour:
   bindResetKeyButton: {fileID: 0}
   bindResetKeyLabel: {fileID: 0}
   firstSelected: {fileID: 0}
+--- !u!114 &832902928
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 832902921}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84569cbcb2765b449ac3618526a9a071, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  firstSelected: {fileID: 2110439025}
+  trapFocus: 1
+  focusOnEnable: 1
 --- !u!1 &980253900
 GameObject:
   m_ObjectHideFlags: 0

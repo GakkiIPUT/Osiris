@@ -27,12 +27,15 @@ public class GlobalEscMenu : MonoBehaviour
     bool waitingResetRebind = false;
     public static bool IsMenuOpen { get; private set; } = false;
 
+    CanvasGroup _panelCg;
+    UIFocusScope _focusScope;
+
     void Start()
     {
         if (escMenuPanel) escMenuPanel.SetActive(false);
         IsMenuOpen = false;
 
-        // Game シーンでは GameFlow が ESC を扱うため無効化
+        // Game シーンでは GameFlow が ESC を握るので無効化
         if (UnityCompat.FindFirst<GameFlow>() != null)
         {
             enabled = false;
@@ -52,7 +55,7 @@ public class GlobalEscMenu : MonoBehaviour
     {
         if (!enabled) return;
 
-        // キーリバインド待機
+        // キーバインド待機
         if (waitingResetRebind)
         {
             if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
@@ -80,7 +83,7 @@ public class GlobalEscMenu : MonoBehaviour
         var gp = Gamepad.current;
         if (gp != null && gp.startButton.wasPressedThisFrame) ToggleMenu();
 
-        // PS4/PS5 対応: Options / Touchpad押し込みでもトグル
+        // PS4/PS5 対応: Options / Touchpadからでもトグル
         var ds4 = DualShockGamepad.current;
         if (ds4 != null && (ds4.optionsButton.wasPressedThisFrame || ds4.touchpadButton.wasPressedThisFrame))
             ToggleMenu();
@@ -109,13 +112,35 @@ public class GlobalEscMenu : MonoBehaviour
     void Open()
     {
         if (!escMenuPanel) return;
+
+        // モーダル化（パッド/マウス両方を前面で受ける）
+        EnsureCanvasGroupAndFocusScope();
+
         escMenuPanel.SetActive(true);
         escMenuPanel.transform.SetAsLastSibling();
+
+        // レイキャスト/操作を前面で受け止める
+        _panelCg.blocksRaycasts = true;
+        _panelCg.interactable = true;
+        _panelCg.alpha = 1f;
+
         if (pauseOnEsc) Time.timeScale = 0f;
         IsMenuOpen = true;
         UpdateResetKeyLabel();
-        // 次フレームで必ずフォーカスを当てる（競合回避）
-        StartCoroutine(CoFocusFirst());
+
+        // 最初の選択を確実にフォーカス
+        if (_focusScope != null)
+        {
+            _focusScope.firstSelected = firstSelected ? firstSelected : (Selectable)closeButton;
+            _focusScope.focusOnEnable = true;
+            _focusScope.trapFocus = true;
+            // 既にActiveにした後なので明示的にフォーカス実行
+            _focusScope.FocusFirst();
+        }
+        else
+        {
+            StartCoroutine(CoFocusFirst());
+        }
     }
 
     System.Collections.IEnumerator CoFocusFirst()
@@ -180,5 +205,14 @@ public class GlobalEscMenu : MonoBehaviour
     void UpdateResetKeyLabel()
     {
         if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
+    }
+
+    void EnsureCanvasGroupAndFocusScope()
+    {
+        _panelCg = escMenuPanel.GetComponent<CanvasGroup>();
+        if (_panelCg == null) _panelCg = escMenuPanel.AddComponent<CanvasGroup>();
+
+        _focusScope = escMenuPanel.GetComponent<UIFocusScope>();
+        if (_focusScope == null) _focusScope = escMenuPanel.AddComponent<UIFocusScope>();
     }
 }
