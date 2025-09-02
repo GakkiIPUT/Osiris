@@ -67,12 +67,26 @@ public class PlayerController : MonoBehaviour
     const float _triggerEdge = 0.5f;
 #endif
 
+
+    //効果音
+    public AudioClip walkAudio;
+    public AudioClip rotateAudio;
+    public AudioClip goalAudio;
+    public AudioClip gameoverAudio;
+    private AudioSource audioSource;
+
     public void Init(BoardManager b, Vector2Int start)
     {
         board = b;
         pos = start;
         transform.position = board.GridToWorldActor(pos);
         turn = UnityCompat.FindFirst<TurnManager>();
+        // ▼AudioSourceの準備
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     void Update()
@@ -229,6 +243,8 @@ public class PlayerController : MonoBehaviour
             if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
             turn?.EndPlayerTurn();
         }
+        
+        PlaySound(walkAudio);
         return true;
     }
 
@@ -297,6 +313,9 @@ public class PlayerController : MonoBehaviour
             aiming = false;
             ShowGhost(false);
             turn.EndPlayerTurn();
+
+
+            PlaySound(rotateAudio);
         });
     }
 
@@ -629,5 +648,21 @@ public class PlayerController : MonoBehaviour
         _prevLT = lt;
         _prevRT = rt;
 #endif
+    }
+    private void Awake()
+    {
+        // AudioSource を追加
+        audioSource = gameObject.AddComponent<AudioSource>();
+
+        // Resources からロード
+        walkAudio = Resources.Load<AudioClip>("Audio/walk");
+        rotateAudio = Resources.Load<AudioClip>("Audio/rotate");
+        goalAudio = Resources.Load<AudioClip>("Audio/goal");
+        gameoverAudio = Resources.Load<AudioClip>("Audio/gameover");
+    }
+    private void PlaySound(AudioClip clip)
+    {
+        if (clip != null && audioSource != null)
+            audioSource.PlayOneShot(clip);
     }
 }

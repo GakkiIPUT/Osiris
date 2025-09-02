@@ -41,6 +41,11 @@ public class TurnManager : MonoBehaviour
     public bool debugLogGuardStepping = false;
     bool wasAnimating = false;
     float lastGuardTickT = 0f;
+
+    //SE
+    public AudioClip goalAudio;
+    public AudioClip gameoverAudio;
+    private AudioSource audioSource;
     public void ResetScoreCounters()
     {
         rotCount = 0;
@@ -344,6 +349,7 @@ public class TurnManager : MonoBehaviour
 
         cleared = true;
         playerTurn = false;
+        PlaySound(goalAudio);
         int parRotValue2 = 0;
         var gf2 = UnityCompat.FindFirst<GameFlow>();
         if (gf2 != null) parRotValue2 = Mathf.Max(0, gf2.parRot);
@@ -369,6 +375,7 @@ public class TurnManager : MonoBehaviour
         if (gameOver || cleared) return;
         gameOver = true;
         playerTurn = false;
+        //PlaySound(gameoverAudio);
         onGameOver?.Invoke();
     }
 
@@ -460,5 +467,19 @@ public class TurnManager : MonoBehaviour
         if (scoreMode == ScoreMode.ActionPoint)
             return ComputeScoreAP();
         return ComputeScore(parRotFromGF);
+    }
+    private void PlaySound(AudioClip clip)
+    {
+        if (clip != null && audioSource != null)
+            audioSource.PlayOneShot(clip);
+    }
+    private void Awake()
+    {
+        // AudioSource Çí«â¡
+        audioSource = gameObject.AddComponent<AudioSource>();
+
+        // Resources Ç©ÇÁÉçÅ[Éh
+        goalAudio = Resources.Load<AudioClip>("Audio/goal");
+        gameoverAudio = Resources.Load<AudioClip>("Audio/gameover");
     }
 }
