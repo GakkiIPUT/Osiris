@@ -396,7 +396,7 @@ public class GuardController : MonoBehaviour
             }
         }
 
-        // 視界更新（更新頻度を抑制してGC/負荷を軽減）…省略（既存の60fps上限のまま）
+        // 視界更新（更新頻度を抑制してGC/負荷を軽減）
         if (board != null)
         {
             visionTimer += Time.deltaTime;
@@ -408,6 +408,20 @@ public class GuardController : MonoBehaviour
             {
                 visionTimer = 0f;
                 UpdateVisionOverlay();
+
+                // 視界更新タイミングでの泥棒変換（可視時間に同期）
+                if (showVision && !IsFlipping())
+                {
+                    RevealThievesInSight();
+                }
+            }
+
+            // 追加: 常時（毎フレーム）の死亡判定。視界が出ている間は必ずチェック
+            if (showVision && !IsFlipping())
+            {
+                var pl = board.player;
+                if (pl != null && !pl.invincible && CanSeePlayer())
+                    turn.TriggerGameOver();
             }
         }
     }
@@ -794,7 +808,6 @@ public class GuardController : MonoBehaviour
         Vector2Int p = board.player.pos;
         if ((p - pos).sqrMagnitude > viewRange * viewRange) return false;
 
-        // GridAligned はマス基準の専用判定
         if (visionMode == VisionMode.GridAligned)
         {
             Facing curF = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
@@ -802,12 +815,16 @@ public class GuardController : MonoBehaviour
             return IsCellVisibleGridAligned(p, curF, half);
         }
 
-        // それ以外は従来の角度＋LoS
+        // 非GridAlignedは見た目と同じサブセル原点補正を適用
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = YawToDir2D(yaw).normalized;
 
-        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+        Vector3 wc = WorldCenter(pos, board.visionY);
+        Vector3 offW = new Vector3(transform.position.x - wc.x, 0f, transform.position.z - wc.z);
+        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f)
+                       + new Vector2(offW.x, offW.z)
+                       + fwd * Mathf.Max(0f, visionOriginForwardOffset);
 
         Vector2 to = new Vector2(p.x + 0.5f, p.y + 0.5f);
         Vector2 dir = to - origin;
@@ -835,7 +852,12 @@ public class GuardController : MonoBehaviour
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = YawToDir2D(yaw).normalized;
 
-        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+        Vector3 wc = WorldCenter(pos, board.visionY);
+        Vector3 offW = new Vector3(transform.position.x - wc.x, 0f, transform.position.z - wc.z);
+        Vector2 origin = new Vector2(pos.x + 0.5f, pos.y + 0.5f)
+                       + new Vector2(offW.x, offW.z)
+                       + fwd * Mathf.Max(0f, visionOriginForwardOffset);
+
         Vector2 to = new Vector2(gp.x + 0.5f, gp.y + 0.5f);
         Vector2 dir = to - origin;
         if (dir.sqrMagnitude < 1e-6f) return false;
