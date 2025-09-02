@@ -912,42 +912,65 @@ public class BoardManager : MonoBehaviour
     }
 
     // 回転後にプレイヤー/衛兵位置へWallが来ないか（部分回転対応）
+    // BoardManager.cs 内のメソッド置換用
+    // WouldBeSafePartial: 90度回転の安全判定（敵マス＋移動中の前1マスも保護、Wall/PitでNG）
     bool WouldBeSafePartial(Vector2Int center, int size, int dir)
     {
         int k = (size - 1) / 2;
+
+        // 占有セルの収集
+        // - プレイヤーの現在位置
+        // - 全ガードの現在位置
+        // - さらに「移動中ガードのみ」NextPos（前1マス）も保護セルとして追加
         var occ = new List<Vector2Int>();
         if (player != null) occ.Add(player.pos);
-        foreach (var g in guards) occ.Add(g.pos);
+        if (guards != null)
+        {
+            for (int i = 0; i < guards.Count; i++)
+            {
+                var g = guards[i];
+                if (g == null) continue;
+                occ.Add(g.pos);
+                if (g.IsMoving && g.NextPos != g.pos)
+                    occ.Add(g.NextPos);
+            }
+        }
 
         bool playerIn = IsPlayerInsideArea(center, size);
 
         foreach (var o in occ)
         {
+            // 回転範囲外のセルは無視
             if (o.x < center.x - k || o.x > center.x + k ||
                 o.y < center.y - k || o.y > center.y + k) continue;
 
+            // 占有セル o の上に回転後に乗ってくるタイル種別を求める
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            int gdir = -dir; // 配列側は符号反転（見た目と逆）
+            int gdir = -dir; // グリッドは逆回転で対応
 
             int sx, sy;
-            if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 時計回り（配列）
-            else { sx = size - 1 - ly; sy = lx; } // 反時計（配列）
+            if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 右回り
+            else { sx = size - 1 - ly; sy = lx; }          // 左回り
 
             int gx = center.x - k + sx;
             int gy = center.y - k + sy;
 
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
 
-            // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
-            if (!playerIn && player != null && o == player.pos &&
-                (after == CellType.Wall || after == CellType.Pit))
-                return false;
-
-            // ガードは常に壁と重なるのを禁止
-            if (o != player.pos && after == CellType.Wall)
-                return false;
+            // プレイヤーは「回転範囲外にいるときのみ」壁/落とし穴が乗るのを禁止
+            if (player != null && o == player.pos)
+            {
+                if (!playerIn && (after == CellType.Wall || after == CellType.Pit))
+                    return false;
+            }
+            else
+            {
+                // ガード（および移動中前マス）は「壁または落とし穴」が乗るのを禁止
+                if (after == CellType.Wall || after == CellType.Pit)
+                    return false;
+            }
         }
         return true;
     }
@@ -1552,12 +1575,26 @@ public class BoardManager : MonoBehaviour
     }
 
     // 180°の安全判定（壁衝突）
+    // BoardManager.cs 内のメソッド置換用
+    // WouldBeSafePartial180: 180度回転の安全判定（敵マス＋移動中の前1マスも保護、Wall/PitでNG）
     bool WouldBeSafePartial180(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
+
+        // 占有セル（プレイヤー、全ガード、移動中ガードのNextPos）を収集
         var occ = new List<Vector2Int>();
         if (player != null) occ.Add(player.pos);
-        foreach (var g in guards) occ.Add(g.pos);
+        if (guards != null)
+        {
+            for (int i = 0; i < guards.Count; i++)
+            {
+                var g = guards[i];
+                if (g == null) continue;
+                occ.Add(g.pos);
+                if (g.IsMoving && g.NextPos != g.pos)
+                    occ.Add(g.NextPos);
+            }
+        }
 
         bool playerIn = IsPlayerInsideArea(center, size);
 
@@ -1569,7 +1606,7 @@ public class BoardManager : MonoBehaviour
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            // 180°の配列回転: (sx,sy) = (size-1-lx, size-1-ly)
+            // 180度の逆回転は (size-1-lx, size-1-ly)
             int sx = size - 1 - lx;
             int sy = size - 1 - ly;
 
@@ -1578,18 +1615,19 @@ public class BoardManager : MonoBehaviour
 
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
 
-            // プレイヤーが範囲外の場合のみ、壁と重なるのを禁止
-            if (!playerIn && player != null && o == player.pos &&
-                (after == CellType.Wall || after == CellType.Pit))
-                return false;
-
-            // ガードは常に壁と重なるのを禁止
-            if (o != player.pos && after == CellType.Wall)
-                return false;
+            if (player != null && o == player.pos)
+            {
+                if (!playerIn && (after == CellType.Wall || after == CellType.Pit))
+                    return false;
+            }
+            else
+            {
+                if (after == CellType.Wall || after == CellType.Pit)
+                    return false;
+            }
         }
         return true;
     }
-
     // 180°でプレイヤーがガードと重なるか
     public bool WouldPlayerOverlapGuard180(Vector2Int center, int size)
     {
