@@ -913,15 +913,12 @@ public class BoardManager : MonoBehaviour
 
     // 回転後にプレイヤー/衛兵位置へWallが来ないか（部分回転対応）
     // BoardManager.cs 内のメソッド置換用
-    // WouldBeSafePartial: 90度回転の安全判定（敵マス＋移動中の前1マスも保護、Wall/PitでNG）
+    // WouldBeSafePartial: 90度回転の安全判定（敵マス＋移動中の前1マスはWallのみNG）
     bool WouldBeSafePartial(Vector2Int center, int size, int dir)
     {
         int k = (size - 1) / 2;
 
         // 占有セルの収集
-        // - プレイヤーの現在位置
-        // - 全ガードの現在位置
-        // - さらに「移動中ガードのみ」NextPos（前1マス）も保護セルとして追加
         var occ = new List<Vector2Int>();
         if (player != null) occ.Add(player.pos);
         if (guards != null)
@@ -932,7 +929,7 @@ public class BoardManager : MonoBehaviour
                 if (g == null) continue;
                 occ.Add(g.pos);
                 if (g.IsMoving && g.NextPos != g.pos)
-                    occ.Add(g.NextPos);
+                    occ.Add(g.NextPos); // 移動中の前1マスも保護
             }
         }
 
@@ -940,16 +937,15 @@ public class BoardManager : MonoBehaviour
 
         foreach (var o in occ)
         {
-            // 回転範囲外のセルは無視
+            // 回転範囲外は無視
             if (o.x < center.x - k || o.x > center.x + k ||
                 o.y < center.y - k || o.y > center.y + k) continue;
 
-            // 占有セル o の上に回転後に乗ってくるタイル種別を求める
+            // o の上に回転後に来るタイル
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            int gdir = -dir; // グリッドは逆回転で対応
-
+            int gdir = -dir; // 配列は逆回転で計算
             int sx, sy;
             if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // 右回り
             else { sx = size - 1 - ly; sy = lx; }          // 左回り
@@ -959,7 +955,7 @@ public class BoardManager : MonoBehaviour
 
             CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
 
-            // プレイヤーは「回転範囲外にいるときのみ」壁/落とし穴が乗るのを禁止
+            // プレイヤーは範囲外のときのみ Wall/Pit を禁止（従来通り）
             if (player != null && o == player.pos)
             {
                 if (!playerIn && (after == CellType.Wall || after == CellType.Pit))
@@ -967,8 +963,8 @@ public class BoardManager : MonoBehaviour
             }
             else
             {
-                // ガード（および移動中前マス）は「壁または落とし穴」が乗るのを禁止
-                if (after == CellType.Wall || after == CellType.Pit)
+                // ガード（および移動中前マス）は Wall のみ禁止。Pit は許可
+                if (after == CellType.Wall)
                     return false;
             }
         }
@@ -1581,7 +1577,7 @@ public class BoardManager : MonoBehaviour
     {
         int k = (size - 1) / 2;
 
-        // 占有セル（プレイヤー、全ガード、移動中ガードのNextPos）を収集
+        // 占有セル（プレイヤー、全ガード、移動中ガードのNextPos）
         var occ = new List<Vector2Int>();
         if (player != null) occ.Add(player.pos);
         if (guards != null)
@@ -1606,7 +1602,7 @@ public class BoardManager : MonoBehaviour
             int lx = o.x - (center.x - k);
             int ly = o.y - (center.y - k);
 
-            // 180度の逆回転は (size-1-lx, size-1-ly)
+            // 180度の逆回転
             int sx = size - 1 - lx;
             int sy = size - 1 - ly;
 
@@ -1622,7 +1618,8 @@ public class BoardManager : MonoBehaviour
             }
             else
             {
-                if (after == CellType.Wall || after == CellType.Pit)
+                // ガード側は Wall のみ禁止。Pit は許可
+                if (after == CellType.Wall)
                     return false;
             }
         }
@@ -1826,4 +1823,5 @@ public class BoardManager : MonoBehaviour
         if (sym == 'e') return new Vector2(0.25f, 0.25f);
         return new Vector2(0.07f, 0.07f);
     }
+
 }

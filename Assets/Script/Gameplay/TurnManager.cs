@@ -376,6 +376,21 @@ public class TurnManager : MonoBehaviour
         gameOver = true;
         playerTurn = false;
         //PlaySound(gameoverAudio);
+        StartCoroutine(GameOverSequence());
+    }
+
+    // 追加：ゲームオーバー直前に視界を可視化してからUIを出す
+    private IEnumerator GameOverSequence()
+    {
+        if (board == null) board = UnityCompat.FindFirst<BoardManager>();
+        if (board != null)
+        {
+            // 視界ON → 即時再生成 → 1フレーム待機（描画確保）
+            board.SetAllGuardVision(true);
+            board.RefreshAllGuardVision();
+            yield return null; // または: yield return new WaitForEndOfFrame();
+        }
+
         onGameOver?.Invoke();
     }
 
