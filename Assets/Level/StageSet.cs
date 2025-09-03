@@ -19,6 +19,14 @@ public class StageSet : ScriptableObject
         public string collectName = "不思議なコレクション";
         [Tooltip("授与コレクションの見た目（UI表示用Sprite）")]
         public Sprite collectSprite;
+
+        [Header("Tutorial (Optional)")]
+        [Tooltip("ステージ開始時にチュートリアルを表示する")]
+        public bool showTutorialOnStart = false;
+        [Tooltip("チュートリアルに表示する画像")]
+        public Sprite tutorialSprite;
+        [Tooltip("初回のみ表示する（idで既読管理）")]
+        public bool tutorialOnlyOnce = true;
     }
 
     public List<Entry> stages = new List<Entry>();

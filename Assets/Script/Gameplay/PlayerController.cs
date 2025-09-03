@@ -11,7 +11,7 @@ public class PlayerController : MonoBehaviour
 
     public Vector2Int pos;
 
-    public bool invincible = false; // ���G���[�h
+    public bool invincible = false; // 無敵モード
     public int areaSize
     {
         get => _areaSize;
@@ -60,7 +60,6 @@ public class PlayerController : MonoBehaviour
     Vector2Int aimHoldDir = Vector2Int.zero;
     float aimHoldNextTime = 0f;
 
-    // Padトリガーの立ち上がり検出用
 #if ENABLE_INPUT_SYSTEM
     float _prevLT = 0f, _prevRT = 0f;
     bool _ltDown = false, _rtDown = false;
@@ -94,9 +93,12 @@ public class PlayerController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null && (turn.gameOver || turn.cleared)) return;
         if (GlobalEscMenu.IsMenuOpen) return;
+        // 追加: チュートリアル表示中は入力停止
+        if (GameFlow.TutorialOverlayOpen) return;
+
         UpdatePadState();
 
-        // �X���[�Y�ړ��X�V
+        // スムーズ移動更新
         if (board != null && board.smoothPlayerMove && isMoving)
         {
             if (board.IsAnimating) return;
@@ -116,7 +118,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // キーマウ: QE回転は自由回転ON/OFFに関係なく有効（両立）
+        // キーマウ: QE回転
         if (aiming && (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.E)))
         {
             if (board != null)
@@ -126,7 +128,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 既存のキーマウ入力
+        // 既存入力
         if (Input.mouseScrollDelta.y != 0f) { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
         if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
         if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }

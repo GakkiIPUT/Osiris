@@ -13,7 +13,7 @@ public class GameFlow : MonoBehaviour
     public GameObject escMenuPanel;
     public Button escCloseButton;
     public Button escToStageButton;
-    public Button escQuitButton; // 終了（強制終了）
+    public Button escQuitButton; // 終了（ゲーム終了）
     public bool pauseOnEsc = true;
 
     [Header("Game Over")]
@@ -27,9 +27,9 @@ public class GameFlow : MonoBehaviour
     public bool pauseOnClear = true;
 
     [Header("Clear Result (optional)")]
-    [Tooltip("目標（パー）：ステージ内に表記")]
+    [Tooltip("想定（パー）：ステージUIに表示")]
     public int parRot = 6;
-    public int parAP = 6; // ※ 追加: ActionPoint用パー値
+    public int parAP = 6; // 新 親： ActionPointパー値
     public TMP_Text rankText;          // 例: "S"
     public TMP_Text scoreText;         // 例: "92"
     public TMP_Text detailRotText;     // 例: "回転 8 / 6（+2）"
@@ -39,8 +39,8 @@ public class GameFlow : MonoBehaviour
     public TMP_Text detailStepText;    // 例: "歩数 8"
 
     [Header("Treasure (Collection) UI")]
-    public GameObject treasurePanel;   // クリアパネル表示中に重ねて最上に出す
-    public TMP_Text treasureText;      // 表示: 「◯◯を入手！」
+    public GameObject treasurePanel;   // クリアパネル表示時に同時に出すオーバーレイ
+    public TMP_Text treasureText;      // 表示: 「○○コレクション！」
     public Image treasureImage;        // コレクションSprite
     public Button treasureCloseButton; // とじる
 
@@ -48,14 +48,24 @@ public class GameFlow : MonoBehaviour
     public Button bindResetKeyButton;
     public TMP_Text bindResetKeyLabel;
 
+    [Header("Tutorial (Optional)")]
+    [Tooltip("チュートリアル用のパネル（Canvas上の子オブジェクト）")]
+    public GameObject tutorialPanel;
+    public Image tutorialImage;
+    public Button tutorialCloseButton;
+    public bool pauseOnTutorial = true;
+
+    // チュートリアル等のオーバーレイ表示中にゲーム入力を止めるためのフラグ
+    public static bool TutorialOverlayOpen { get; private set; } = false;
+
     StageManager stage;
     TurnManager turn;
 
-    // クリア表示後に使う: コレクションパネルを最上表示するためのフラグ
+    // クリアパネル表示時：コレクションパネルを最前面に重ねる保留フラグ
     bool treasureOverlayPending = false;
     bool waitingResetRebind = false;
 
-    // 最前面パネルの追跡（Padフォーカス更新のため）
+    // 最前面パネルの記録（Padフォーカス更新のため）
     GameObject _lastTopPanel = null;
 
     void Start()
@@ -63,12 +73,12 @@ public class GameFlow : MonoBehaviour
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
 
-        // ステージ選択経由フラグを確認し、次回のためにクリア
+        // ステージ選択判定
         bool viaStageSelect = PlayerPrefs.GetInt("enteredViaStageSelect", 0) == 1;
         PlayerPrefs.SetInt("enteredViaStageSelect", 0);
         PlayerPrefs.Save();
 
-        // レベルペインタのオーバーライド読み込み
+        // LevelPainterオーバーライド
         bool hasDevOverride = PlayerPrefs.GetInt("dev_level_override_present", 0) == 1;
         string devText = hasDevOverride ? PlayerPrefs.GetString("dev_level_override_text", "") : "";
 
@@ -122,35 +132,43 @@ public class GameFlow : MonoBehaviour
             }
         }
 
-        // 初期UI非表示
+        // UI初期状態
         turn = UnityCompat.FindFirst<TurnManager>();
 
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
+        if (tutorialPanel) tutorialPanel.SetActive(false);
+        TutorialOverlayOpen = false;
 
-        // ESC メニュー
+        // ESCメニュー
         if (escCloseButton) escCloseButton.onClick.AddListener(CloseEscMenu);
         if (escToStageButton) escToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (escQuitButton) escQuitButton.onClick.AddListener(QuitGame);
 
-        // GameOver/クリア ボタン
+        // GameOver/クリア
         if (retryButton) retryButton.onClick.AddListener(RequestRetry);
         if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
 
-        // コレクションパネル
+        // コレクション
         if (treasureCloseButton) treasureCloseButton.onClick.AddListener(() =>
         {
             if (treasurePanel) treasurePanel.SetActive(false);
         });
 
-        // キーコンフィグ（ESC内）
+        // キーコンフィグ
         if (bindResetKeyButton) bindResetKeyButton.onClick.AddListener(BeginRebindResetKey);
         UpdateResetKeyLabel();
 
+        // チュートリアル
+        if (tutorialCloseButton) tutorialCloseButton.onClick.AddListener(CloseTutorial);
+
         HookTurnManager();
+
+        // ステージ開始時に必要ならチュートリアル表示
+        MaybeShowTutorialAtStart();
     }
 
     void OnDestroy()
@@ -172,7 +190,7 @@ public class GameFlow : MonoBehaviour
             // カウンタ初期化
             turn.ResetScoreCounters();
 
-            // StageManagerで設定済みの parAP を反映
+            // StageManagerで設定済みの parAP を尊重
             if (parAP != 0) turn.parAP = Mathf.Max(0, parAP);
         }
     }
@@ -181,17 +199,37 @@ public class GameFlow : MonoBehaviour
     {
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
+        // 追加: キーリバインドのキャプチャ処理を完結させる
+        if (waitingResetRebind)
+        {
+            if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
+            {
+                if (kc == KeyCode.Escape)
+                {
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture();
+                    UpdateResetKeyLabel();
+                }
+                else
+                {
+                    InputBindings.SetResetKey(kc);
+                    waitingResetRebind = false;
+                    InputBindings.EndCapture();
+                    UpdateResetKeyLabel();
+                }
+            }
+        }
+
         bool isOver = (turn && turn.gameOver);
         bool isClear = (turn && turn.cleared);
 
-        // ESC（キーボード）
+        // ESC
         if (!isOver && !isClear && Input.GetKeyDown(KeyCode.Escape))
         {
             if (escMenuPanel && escMenuPanel.activeSelf) CloseEscMenu();
             else OpenEscMenu();
         }
 
-        // Pad: Start/Options で ESC メニュー
 #if ENABLE_INPUT_SYSTEM
         if (!isOver && !isClear)
         {
@@ -210,7 +248,7 @@ public class GameFlow : MonoBehaviour
             }
         }
 
-        // Pad: 北ボタン＝リセット（ESCメニュー表示中は無効）
+        // Pad: 北ボタン→リセット（ESCメニュー開いてない時のみ）
         {
             var gp = Gamepad.current;
             if (gp != null && gp.buttonNorth.wasPressedThisFrame && !waitingResetRebind)
@@ -218,26 +256,24 @@ public class GameFlow : MonoBehaviour
                 if (escMenuPanel == null || !escMenuPanel.activeSelf)
                 {
                     RequestRetry();
-                    // リセット要求後は他処理をスキップ
                     return;
                 }
             }
         }
 #endif
 
-        // Game Over 表示
+        // Game Over
         if (gameOverPanel)
         {
             if (isOver && !gameOverPanel.activeSelf)
             {
                 ShowOnTop(gameOverPanel);
-                // 最初に選択するボタン（Pad対応）
                 SelectDefault(retryButton ? retryButton.gameObject : null, gameOverPanel);
             }
             if (!isOver && gameOverPanel.activeSelf) gameOverPanel.SetActive(false);
         }
 
-        // Clear 表示（一時停止）
+        // Clear
         if (clearPanel)
         {
             if (isClear && !clearPanel.activeSelf)
@@ -245,7 +281,6 @@ public class GameFlow : MonoBehaviour
                 ShowOnTop(clearPanel);
                 if (pauseOnClear) Time.timeScale = 0f;
 
-                // 最初に選択するボタン（Pad対応）
                 SelectDefault(clearToStageButton ? clearToStageButton.gameObject : null, clearPanel);
 
                 if (treasureOverlayPending)
@@ -257,29 +292,86 @@ public class GameFlow : MonoBehaviour
             if (!isClear && clearPanel.activeSelf) clearPanel.SetActive(false);
         }
 
-        // 最前面のみ操作可能にする（Padナビゲーションの誤選択防止）
+        // 最前面のみ操作可能に
         ApplyExclusiveFocus();
     }
 
-    // りバインド開始
-    void BeginRebindResetKey()
+    // ==== Tutorial ====
+    void MaybeShowTutorialAtStart()
     {
-        waitingResetRebind = true;
-        InputBindings.BeginCapture(); // ※ 追加済み
-        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （次の入力で設定）";
+        if (!tutorialPanel) return;
+
+        var st = UnityCompat.FindFirst<StageManager>();
+        var entry = st != null ? st.GetCurrentEntry() : null;
+        if (entry == null) return;
+        if (!entry.showTutorialOnStart) return;
+        if (entry.tutorialSprite == null) return;
+
+        if (entry.tutorialOnlyOnce)
+        {
+            string key = $"tut_seen_{entry.id}";
+            if (PlayerPrefs.GetInt(key, 0) == 1)
+            {
+#if UNITY_EDITOR
+                Debug.Log($"[Tutorial] already seen ({entry.id})");
+#endif
+                return;
+            }
+            PlayerPrefs.SetInt(key, 1);
+            PlayerPrefs.Save();
+        }
+
+        if (tutorialImage)
+        {
+            tutorialImage.sprite = entry.tutorialSprite;
+            tutorialImage.enabled = true;
+        }
+
+        ShowTutorial();
     }
 
-    void UpdateResetKeyLabel()
+    void ShowTutorial()
     {
-        if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
+        if (!tutorialPanel) return;
+        TutorialOverlayOpen = true;
+
+        ShowOnTop(tutorialPanel);
+        if (pauseOnTutorial) Time.timeScale = 0f;
+
+        SelectDefault(tutorialCloseButton ? tutorialCloseButton.gameObject : null, tutorialPanel);
+        ApplyExclusiveFocus();
     }
 
-    // ==== クリア時の結果反映 ====
+    void CloseTutorial()
+    {
+        if (!tutorialPanel) return;
+        tutorialPanel.SetActive(false);
+        TutorialOverlayOpen = false;
+
+        if (!IsAnyBlockingPanelActive())
+            ResumeIfPaused();
+
+        if (EventSystem.current && EventSystem.current.currentSelectedGameObject != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        ApplyExclusiveFocus();
+    }
+
+    bool IsAnyBlockingPanelActive()
+    {
+        return (escMenuPanel && escMenuPanel.activeInHierarchy) ||
+               (gameOverPanel && gameOverPanel.activeInHierarchy) ||
+               (clearPanel && clearPanel.activeInHierarchy) ||
+               (treasurePanel && treasurePanel.activeInHierarchy) ||
+               (tutorialPanel && tutorialPanel.activeInHierarchy);
+    }
+
+    // ==== 既存（結果通知など） ====
     void OnStageCleared(TurnManager.ScoreResult res)
     {
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
         if (detailRotText) detailRotText.text = $"回転数: {res.rot}回";
-        if (detailRetryText) detailRetryText.text = $"リトライ数: {res.retries}回";
+        if (detailRetryText) detailRetryText.text = $"リトライ回数: {res.retries}回";
         if (detailStepText) detailStepText.text = $"歩数: {res.steps}歩";
 
         var tm = UnityCompat.FindFirst<TurnManager>();
@@ -288,7 +380,6 @@ public class GameFlow : MonoBehaviour
         Debug.Log($"[Result/UI] rank:{res.rank} score:{res.score} rot:{res.rot} steps:{res.steps} retries:{res.retries}");
     }
 
-    // クリアパネルの上にコレクションパネルを最前面表示
     void ShowTreasureOverlayOnTop()
     {
         if (!treasurePanel) return;
@@ -314,7 +405,6 @@ public class GameFlow : MonoBehaviour
         }
 
         ShowOnTop(treasurePanel);
-        // とじるボタンを初期選択
         SelectDefault(treasureCloseButton ? treasureCloseButton.gameObject : null, treasurePanel);
     }
 
@@ -348,9 +438,7 @@ public class GameFlow : MonoBehaviour
     {
         panel.SetActive(true);
         panel.transform.SetAsLastSibling();
-        // 表示した時点で最前面のみ操作に限定
         ApplyExclusiveFocus();
-        // 何か1つでも選択されていなければ、このパネル内の最初の操作可能なSelectableを選ぶ
         if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == null)
         {
             SelectDefault(null, panel);
@@ -365,10 +453,8 @@ public class GameFlow : MonoBehaviour
         if (pauseOnEsc) Time.timeScale = 0f;
         UpdateResetKeyLabel();
 
-        // 表示直後にフォーカス設定（Padで動くように）
         SelectDefault(escCloseButton ? escCloseButton.gameObject : null, escMenuPanel);
 
-        // ESCメニュー最前面を強制（下のUIは非操作化）
         ApplyExclusiveFocus();
     }
 
@@ -377,13 +463,14 @@ public class GameFlow : MonoBehaviour
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
         waitingResetRebind = false;
-        InputBindings.EndCapture(); // 前回の続きがあれば解除
-        ResumeIfPaused();
+        InputBindings.EndCapture();
+
+        if (!IsAnyBlockingPanelActive())
+            ResumeIfPaused();
 
         if (EventSystem.current && EventSystem.current.currentSelectedGameObject != null)
             EventSystem.current.SetSelectedGameObject(null);
 
-        // 排他制御更新
         ApplyExclusiveFocus();
     }
 
@@ -392,26 +479,26 @@ public class GameFlow : MonoBehaviour
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
-    // ==== リトライ：スコア初期化 → 現在ステージ再読込 ====
     public void RequestRetry()
     {
         var tm = UnityCompat.FindFirst<TurnManager>();
         tm?.RegisterRetry();
         tm?.ResetForRestart();
 
-        ResumeIfPaused();
+        if (!IsAnyBlockingPanelActive())
+            ResumeIfPaused();
         if (escMenuPanel) escMenuPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (clearPanel) clearPanel.SetActive(false);
         if (treasurePanel) treasurePanel.SetActive(false);
+        if (tutorialPanel) tutorialPanel.SetActive(false);
+        TutorialOverlayOpen = false;
 
         UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
 
-        // 排他制御リセット
         ApplyExclusiveFocus();
     }
 
-    // Editor/Web/Android等の終了
     void QuitGame()
     {
         ResumeIfPaused();
@@ -419,7 +506,7 @@ public class GameFlow : MonoBehaviour
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #elif UNITY_WEBGL
-        // WebGLは終了不可
+        // WebGLでは終了なし
 #else
     #if UNITY_ANDROID
         try
@@ -436,7 +523,6 @@ public class GameFlow : MonoBehaviour
 #endif
     }
 
-    // 指定パネル内から最初に操作できる Selectable を探して選択
     void SelectDefault(GameObject preferred, GameObject panel)
     {
         if (EventSystem.current == null || panel == null || !panel.activeInHierarchy) return;
@@ -469,17 +555,16 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    // 最前面のアクティブなパネルだけ操作可能にする（他はPadナビゲーション無効化）
     void ApplyExclusiveFocus()
     {
         var top = GetTopActivePanel();
         if (_lastTopPanel == top)
         {
-            // 変化なしでも、非表示化されたものを念のため抑止
             SetPanelInteractable(escMenuPanel, escMenuPanel == top);
             SetPanelInteractable(gameOverPanel, gameOverPanel == top);
             SetPanelInteractable(clearPanel, clearPanel == top);
             SetPanelInteractable(treasurePanel, treasurePanel == top);
+            SetPanelInteractable(tutorialPanel, tutorialPanel == top);
             return;
         }
 
@@ -489,15 +574,14 @@ public class GameFlow : MonoBehaviour
         SetPanelInteractable(gameOverPanel, gameOverPanel == top);
         SetPanelInteractable(clearPanel, clearPanel == top);
         SetPanelInteractable(treasurePanel, treasurePanel == top);
+        SetPanelInteractable(tutorialPanel, tutorialPanel == top);
 
-        // 最前面が切り替わったら、そのパネルから初期フォーカスも設定
         if (top != null)
         {
             SelectDefault(null, top);
         }
         else
         {
-            // どのパネルも無ければ選択解除
             if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
                 EventSystem.current.SetSelectedGameObject(null);
         }
@@ -505,7 +589,7 @@ public class GameFlow : MonoBehaviour
 
     GameObject GetTopActivePanel()
     {
-        GameObject[] ps = new GameObject[] { escMenuPanel, gameOverPanel, clearPanel, treasurePanel };
+        GameObject[] ps = new GameObject[] { escMenuPanel, gameOverPanel, clearPanel, treasurePanel, tutorialPanel };
         GameObject top = null;
         int topIndex = -1;
         foreach (var p in ps)
@@ -530,6 +614,19 @@ public class GameFlow : MonoBehaviour
         if (cg == null) cg = panel.AddComponent<CanvasGroup>();
         cg.interactable = on;
         cg.blocksRaycasts = on;
-        // alpha は見た目に関与するので触らない
+    }
+
+    // 追加: リセットキーのリバインド開始
+    void BeginRebindResetKey()
+    {
+        waitingResetRebind = true;
+        InputBindings.BeginCapture();
+        if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （次の入力で設定）";
+    }
+
+    // 追加: リセットキー表示更新
+    void UpdateResetKeyLabel()
+    {
+        if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
     }
 }
