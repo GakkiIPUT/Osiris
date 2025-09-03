@@ -479,8 +479,49 @@ public class GameFlow : MonoBehaviour
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
+    //public void RequestRetry()
+    //{
+
+
+    //    var tm = UnityCompat.FindFirst<TurnManager>();
+    //    if (tm != null)
+    //    {
+    //        // ゲームオーバー中のリトライは減点対象外
+    //        bool fromGameOver = tm.gameOver;
+    //        if (!fromGameOver)
+    //        {
+    //            tm.RegisterRetry();
+    //        }
+    //        // スコア系はゼロから再開（retryCountのみ、ゲームオーバー時は0維持）
+    //        tm.ResetForRestart();
+    //    }
+
+    //    if (!IsAnyBlockingPanelActive())
+    //        ResumeIfPaused();
+    //    if (escMenuPanel) escMenuPanel.SetActive(false);
+    //    if (gameOverPanel) gameOverPanel.SetActive(false);
+    //    if (clearPanel) clearPanel.SetActive(false);
+    //    if (treasurePanel) treasurePanel.SetActive(false);
+    //    if (tutorialPanel) tutorialPanel.SetActive(false);
+    //    TutorialOverlayOpen = false;
+
+    //    UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
+
+    //    ApplyExclusiveFocus();
+    //}
     public void RequestRetry()
     {
+        // 回転中・自由回転プレビュー中はリセットを拒否
+        var board = UnityCompat.FindFirst<BoardManager>();
+        if (board != null && (board.IsAnimating || board.IsFreePreviewActive))
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning("[GameFlow] Reset rejected: board is rotating or free-preview active.");
+#endif
+            // 視覚フィードバックは行わない（Ghost/aimingを壊さないため）
+            return;
+        }
+
         var tm = UnityCompat.FindFirst<TurnManager>();
         if (tm != null)
         {
@@ -507,7 +548,6 @@ public class GameFlow : MonoBehaviour
 
         ApplyExclusiveFocus();
     }
-
     void QuitGame()
     {
         ResumeIfPaused();

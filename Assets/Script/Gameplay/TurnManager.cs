@@ -377,7 +377,7 @@ public class TurnManager : MonoBehaviour
         playerTurn = false;
 
         // ゲームオーバー時点でスコア系は完全リセット（引き継がない）
-        ResetScoreCounters();
+        //ResetScoreCounters();
 
         //PlaySound(gameoverAudio);
         StartCoroutine(GameOverSequence());

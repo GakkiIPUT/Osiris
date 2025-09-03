@@ -258,9 +258,11 @@ public class BoardManager : MonoBehaviour
 #endif
         Destroy(o);
     }
-
     void ClearAll()
     {
+        // 自由回転プレビュー中だった場合は必ず元に戻してから破棄
+        RestoreFreePreview();
+
         if (player != null)
         {
             player.ClearGhost();
@@ -281,6 +283,43 @@ public class BoardManager : MonoBehaviour
         player = null;
         itemAt.Clear();
     }
+
+    // 追加: 破棄時にもプレビューを確実に戻す
+    void OnDisable()
+    {
+        if (Application.isPlaying)
+        {
+            RestoreFreePreview();
+        }
+    }
+
+    void OnDestroy()
+    {
+        RestoreFreePreview();
+    }
+    //void ClearAll()
+    //{
+
+    //    if (player != null)
+    //    {
+    //        player.ClearGhost();
+    //    }
+    //    if (tilesRoot != null)
+    //        for (int i = tilesRoot.childCount - 1; i >= 0; --i)
+    //            SafeDestroy(tilesRoot.GetChild(i).gameObject);
+
+    //    if (actorsRoot != null)
+    //        for (int i = actorsRoot.childCount - 1; i >= 0; --i)
+    //            SafeDestroy(actorsRoot.GetChild(i).gameObject);
+
+    //    if (itemsRoot != null)
+    //        for (int i = itemsRoot.childCount - 1; i >= 0; --i)
+    //            SafeDestroy(itemsRoot.GetChild(i).gameObject);
+
+    //    guards.Clear();
+    //    player = null;
+    //    itemAt.Clear();
+    //}
 
     // ===== Y合わせユーティリティ =====
     Bounds GetWorldBounds(GameObject go)
