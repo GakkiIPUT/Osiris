@@ -294,6 +294,7 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
+    // TryRotate 内の RotateArea 呼び出しを置き換え
     void TryRotate(int dirRot)
     {
         if (!IsCenterAllowed(AimCenter)) { UpdateGhostVisual(); return; }
@@ -307,7 +308,7 @@ public class PlayerController : MonoBehaviour
             UpdateGhostVisual(); return;
         }
 
-        board.RotateArea(AimCenter, areaSize, dirRot, () =>
+        bool started = board.TryRotateArea(AimCenter, areaSize, dirRot, () =>
         {
             var t = UnityCompat.FindFirst<TurnManager>();
             t?.RegisterRotation();
@@ -316,9 +317,14 @@ public class PlayerController : MonoBehaviour
             ShowGhost(false);
             turn.EndPlayerTurn();
 
-
             PlaySound(rotateAudio);
         });
+
+        if (!started)
+        {
+            // 回転失敗: AP消費せず継続
+            UpdateGhostVisual();
+        }
     }
 
     // ====== ゴースト表示（エイム時のみNxN半透明を出す） ======

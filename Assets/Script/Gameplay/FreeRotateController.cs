@@ -275,15 +275,23 @@ public class FreeRotateController : MonoBehaviour
 
         player?.ClearGhost();
 
+        int applied = 0;
         for (int i = 0; i < count; i++)
         {
-            board.RotateAreaInstant(center, size, dirPerStep);
+            if (!board.RotateAreaInstantIfPossible(center, size, dirPerStep))
+                break;
+
             if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
             turn?.RegisterRotation();
+            applied++;
         }
-        turn?.EndPlayerTurn();
-    }
 
+        if (applied > 0)
+        {
+            turn?.EndPlayerTurn();
+        }
+        // 0回適用なら何もしない（NGフラッシュは上位で済ませている）
+    }
     bool TryGetMouseGrid(out Vector2Int grid)
     {
         grid = default;

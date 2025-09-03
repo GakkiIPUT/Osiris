@@ -46,6 +46,7 @@ public class TurnManager : MonoBehaviour
     public AudioClip goalAudio;
     public AudioClip gameoverAudio;
     private AudioSource audioSource;
+
     public void ResetScoreCounters()
     {
         rotCount = 0;
@@ -55,6 +56,7 @@ public class TurnManager : MonoBehaviour
         totalAP = 0;
         Debug.Log("[Score] ResetScoreCounters: rot=0, walk=0, totalAP=0, retries=0");
     }
+
     public void RegisterRotation()
     {
         rotCount++;
@@ -77,7 +79,7 @@ public class TurnManager : MonoBehaviour
         Debug.Log($"AP加算(歩行): walkCount={walkCount}, totalAP={totalAP}");
     }
 
-    // ======= 必須アイテム（全回収でゴール可） =======
+    // ======= 必須アイテム（全回収でゴール可）=======
     [Serializable]
     public struct RequiredItem
     {
@@ -163,6 +165,16 @@ public class TurnManager : MonoBehaviour
         }
     }
 
+    // ======= GameOver時のスコア引き継ぎポリシー =======
+    public enum GameOverRetryBehavior
+    {
+        ResetScoreOnGameOver,     // 現行: GO時に全スコアをリセット（リトライは加算しない）
+        KeepScoreAndAddRetry      // 旧仕様: GO時にリトライ加算し、スコアは引き継ぐ
+    }
+
+    [Header("Game Over / Retry Policy")]
+    public GameOverRetryBehavior gameOverRetryBehavior = GameOverRetryBehavior.ResetScoreOnGameOver;
+
     // TurnManager.cs 内（クラス直下の任意の場所）に追加
     public void ResetForRestart(bool keepRetryCount = true)
     {
@@ -172,21 +184,44 @@ public class TurnManager : MonoBehaviour
         playerTurn = true;
         runningGuards = false;
 
-        // リトライ時に回数系はゼロに戻す（リトライ回数だけ維持）
-        rotCount = 0;
-        walkCount = 0;
-        totalRotate = 0;
-        totalAP = 0;
-
-        // 取得フラグ系リセット
+        // 取得フラグ系リセット（ラン再開のため毎回）
         treasurePicked = false;
         itemCollected = false;
         goalReached = false;
 
-        if (!keepRetryCount) retryCount = 0;
-        Debug.Log($"[Score] ResetForRestart: rot=0, walk=0, totalAP=0, retries={retryCount}");
-    }
+        // スコア系のリセットは状況・ポリシーで決定
+        bool comingFromGameOver = true; // このAPIは主に再開用なので gameOver 終了直後に来る
+        // ただし、外部から任意タイミングでも呼べるため、直前状態を見る
+        // cleared は別扱い
+        if (!this.gameOver && !this.cleared)
+        {
+            // ゲームプレイ中の手動リセット（ESCのリセット等）
+            comingFromGameOver = false;
+        }
 
+        bool shouldResetScoreCounters =
+            // クリアや通常リトライ時はカウンタをリセット
+            (!comingFromGameOver)
+            // GO→再開時でも「リセット」ポリシーならリセット
+            || (comingFromGameOver && gameOverRetryBehavior == GameOverRetryBehavior.ResetScoreOnGameOver);
+
+        if (shouldResetScoreCounters)
+        {
+            rotCount = 0;
+            walkCount = 0;
+            totalRotate = 0;
+            totalAP = 0;
+        }
+        else
+        {
+            // 旧仕様モード: GO→再開ではスコアカウンタを保持
+            Debug.Log($"[Score] Keep counters on restart after GameOver (rot={rotCount}, walk={walkCount}, totalAP={totalAP}, retries={retryCount})");
+        }
+
+        if (!keepRetryCount) retryCount = 0;
+
+        Debug.Log($"[Score] ResetForRestart: countersReset={shouldResetScoreCounters}, retries={retryCount}");
+    }
 
     // ======= ターン制制御 =======
     public bool IsPlayerTurn()
@@ -370,14 +405,26 @@ public class TurnManager : MonoBehaviour
 
         onStageCleared?.Invoke(res2);
     }
+
     public void TriggerGameOver()
     {
         if (gameOver || cleared) return;
         gameOver = true;
         playerTurn = false;
 
-        // ゲームオーバー時点でスコア系は完全リセット（引き継がない）
-        //ResetScoreCounters();
+        // ポリシーによりGO時の処理を切替
+        if (gameOverRetryBehavior == GameOverRetryBehavior.ResetScoreOnGameOver)
+        {
+            // 現行仕様: スコア系は完全リセット（引き継がない／リトライ加算もしない）
+            ResetScoreCounters();
+            Debug.Log("[GameOver] ResetScoreOnGameOver: counters reset.");
+        }
+        else
+        {
+            // 旧仕様: リトライを加算し、スコアは引き継ぐ
+            RegisterRetry();
+            Debug.Log($"[GameOver] KeepScoreAndAddRetry: keep counters (rot={rotCount}, walk={walkCount}, totalAP={totalAP}), retries={retryCount}");
+        }
 
         //PlaySound(gameoverAudio);
         StartCoroutine(GameOverSequence());
@@ -398,7 +445,7 @@ public class TurnManager : MonoBehaviour
         onGameOver?.Invoke();
     }
 
-    // ======= スコア計算（回転差/リトライのみ・100点満点の減点式） =======
+    // ======= スコア計算（回転差/リトライのみ・100点満点の減点式）=======
     public ScoreResult ComputeScore(int parRot, int ROT_PEN = 3, int RETRY_PEN = 10)
     {
         int over = Mathf.Max(0, rotCount - parRot);
@@ -420,8 +467,6 @@ public class TurnManager : MonoBehaviour
             steps = walkCount
         };
     }
-
-
 
     public enum ScoreMode
     {
@@ -487,11 +532,13 @@ public class TurnManager : MonoBehaviour
             return ComputeScoreAP();
         return ComputeScore(parRotFromGF);
     }
+
     private void PlaySound(AudioClip clip)
     {
         if (clip != null && audioSource != null)
             audioSource.PlayOneShot(clip);
     }
+
     private void Awake()
     {
         // AudioSource を追加

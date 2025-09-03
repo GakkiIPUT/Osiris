@@ -15,6 +15,9 @@ public class BoardManager : MonoBehaviour
     public GameObject pfPit;      // 落とし穴（x）
     public GameObject pfPlayer;   // PlayerはAddComponentでPlayerController付与（Prefab側にあってもOK）
 
+    // TurnManager のイベント購読用（重複防止）
+    TurnManager _turn;
+
     // ===== Guard 種類のマッピング（記号 → Prefab） =====
     [System.Serializable]
     public struct GuardType
@@ -291,11 +294,13 @@ public class BoardManager : MonoBehaviour
         {
             RestoreFreePreview();
         }
+        UnsubscribeTurnEvents();
     }
 
     void OnDestroy()
     {
         RestoreFreePreview();
+        UnsubscribeTurnEvents();
     }
     //void ClearAll()
     //{
@@ -475,6 +480,8 @@ public class BoardManager : MonoBehaviour
     {
         // まずロジックだけ最新化
         ParseCellsFromLevel();
+        // 再購読前に解除
+        UnsubscribeTurnEvents();
 
         // エディタのプレビュー時は見た目を一旦全消しして終了（Hierarchy汚さない）
         if (!Application.isPlaying && editorPreview)
@@ -604,6 +611,11 @@ public class BoardManager : MonoBehaviour
         tm.ResetGoalState();
         tm.InitRequiredItems(requiredSymbols);
 
+        // Exit の初期状態を受け取るため、InitRequiredItems より前に購読
+        _turn = tm;
+        _turn.onRequiredChanged += OnRequiredChanged_UpdateExitOpenState;
+        tm.InitRequiredItems(requiredSymbols); // ここで初期コールバックが飛ぶ（未達成→閉）
+
         // カメラ追従
         var camFollow = UnityCompat.FindFirst<CameraFollow>();
         if (camFollow != null && player != null)
@@ -615,6 +627,44 @@ public class BoardManager : MonoBehaviour
 
         // 生成後に視界可視化を更新
         RefreshAllGuardVision();
+    }
+
+    // 必須アイテムの進捗 → Exit を一括で開閉
+    void OnRequiredChanged_UpdateExitOpenState(IReadOnlyList<TurnManager.RequiredItem> reqs)
+    {
+        bool all = true;
+        if (reqs != null)
+        {
+            for (int i = 0; i < reqs.Count; i++)
+                if (!reqs[i].collected) { all = false; break; }
+        }
+        SetAllExitsOpen(all);
+    }
+
+    // 盤面にある全 Exit へ開閉状態を反映（ExitController 経由）
+    public void SetAllExitsOpen(bool open)
+    {
+        if (tileGOs == null) return;
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                if (cells[y, x] != CellType.Exit) continue;
+                var go = tileGOs[y, x];
+                if (go == null) continue;
+                var ec = go.GetComponentInChildren<ExitController>(true);
+                if (ec != null) ec.SetOpen(open);
+            }
+        }
+    }
+
+    void UnsubscribeTurnEvents()
+    {
+        if (_turn != null)
+        {
+            _turn.onRequiredChanged -= OnRequiredChanged_UpdateExitOpenState;
+            _turn = null;
+        }
     }
 
     void ConfigureGuardFromSymbol(GuardController g, char sym)
@@ -1064,15 +1114,30 @@ public class BoardManager : MonoBehaviour
         StartCoroutine(RotateCoro(center, size, dir, onDone));
     }
 
-    public void RotateAreaInstant(Vector2Int center, int size, int dir, System.Action onDone = null)
+    // 成功時だけ回転を開始して onSuccess を呼ぶ。失敗時は false（コールバックは呼ばない）
+    public bool TryRotateArea(Vector2Int center, int size, int dir, System.Action onSuccess)
     {
-        // 同一フレームで即時反映（ガードの歩行等をブロックするため短時間だけON）
-        IsAnimating = true;
+        if (IsAnimating) return false;
+        if (AreaHasExit(center, size)) return false;
+        if (!WouldBeSafePartial(center, size, dir)) return false;
 
-        // 事前NGチェックはRotateAreaと同等
-        if (AreaHasExit(center, size)) { IsAnimating = false; onDone?.Invoke(); return; }
-        if (!WouldBeSafePartial(center, size, dir)) { IsAnimating = false; onDone?.Invoke(); return; }
-        if (WouldPlayerOverlapGuard(center, size, dir)) { IsAnimating = false; onDone?.Invoke(); return; }
+        // プレイヤーが範囲内/外に関係なく、回転後に敵と重なるなら禁止
+        if (WouldPlayerOverlapGuard(center, size, dir)) return false;
+
+        StartCoroutine(RotateCoro(center, size, dir, onSuccess));
+        return true;
+    }
+
+    // 成功可否を返す即時回転（成功時のみ実行して true）
+    public bool RotateAreaInstantIfPossible(Vector2Int center, int size, int dir)
+    {
+        if (IsAnimating) return false;
+        if (AreaHasExit(center, size)) return false;
+        if (!WouldBeSafePartial(center, size, dir)) return false;
+        if (WouldPlayerOverlapGuard(center, size, dir)) return false;
+
+        // 以降は RotateAreaInstant と同等（onDone なし）
+        IsAnimating = true;
 
         int k = (size - 1) / 2;
 
@@ -1087,7 +1152,7 @@ public class BoardManager : MonoBehaviour
                 var dest = new Vector2Int(gx, gy);
                 if (!InBounds(dest)) continue;
 
-                int gdir = -dir; // 配列側は符号反転（見た目と逆）
+                int gdir = -dir; // 配列は逆回転で計算
                 int sx, sy;
                 if (gdir > 0) { sx = j; sy = size - 1 - i; }
                 else { sx = size - 1 - j; sy = i; }
@@ -1102,7 +1167,6 @@ public class BoardManager : MonoBehaviour
 
         // 2) 既存タイル破棄
         for (int j = 0; j < size; j++)
-        {
             for (int i = 0; i < size; i++)
             {
                 int gx = center.x + i - k;
@@ -1112,7 +1176,6 @@ public class BoardManager : MonoBehaviour
                 var oldGo = tileGOs[gy, gx];
                 if (oldGo) SafeDestroy(oldGo);
             }
-        }
 
         // 3) 新タイル生成
         foreach (var kv in newCells)
@@ -1136,7 +1199,7 @@ public class BoardManager : MonoBehaviour
             tileGOs[p.y, p.x] = go2;
         }
 
-        // 4) アイテムの更新（位置と辞書）
+        // 4) アイテム位置更新
         if (itemAt != null && itemAt.Count > 0)
         {
             var moved = new List<(Vector2Int from, Vector2Int to, char sym, GameObject go)>();
@@ -1162,23 +1225,19 @@ public class BoardManager : MonoBehaviour
             }
         }
 
-        // 5) プレイヤー位置更新（設定と範囲に応じて）
-        if (player != null)
+        // 5) プレイヤー位置更新（範囲内のみ）
+        if (player != null && IsPlayerInsideArea(center, size))
         {
-            bool playerIn = IsPlayerInsideArea(center, size);
-            if (playerIn)
-            {
-                var newP = Rot90(player.pos, center, dir);
-                player.pos = newP;
-                player.transform.position = GridToWorldActor(newP);
-            }
+            var newP = Rot90(player.pos, center, dir);
+            player.pos = newP;
+            player.transform.position = GridToWorldActor(newP);
         }
-        // ★ 回転後に落とし穴にいるガードを排除（アニメ版にも適用）
-        ResolvePitfallsAfterRotation();
 
+        // 6) 後処理
+        ResolvePitfallsAfterRotation();
         IsAnimating = false;
         RefreshAllGuardVision();
-        onDone?.Invoke();
+        return true;
     }
 
     Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
