@@ -375,6 +375,10 @@ public class TurnManager : MonoBehaviour
         if (gameOver || cleared) return;
         gameOver = true;
         playerTurn = false;
+
+        // ゲームオーバー時点でスコア系は完全リセット（引き継がない）
+        ResetScoreCounters();
+
         //PlaySound(gameoverAudio);
         StartCoroutine(GameOverSequence());
     }

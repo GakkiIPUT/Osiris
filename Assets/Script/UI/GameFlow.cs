@@ -482,8 +482,17 @@ public class GameFlow : MonoBehaviour
     public void RequestRetry()
     {
         var tm = UnityCompat.FindFirst<TurnManager>();
-        tm?.RegisterRetry();
-        tm?.ResetForRestart();
+        if (tm != null)
+        {
+            // ゲームオーバー中のリトライは減点対象外
+            bool fromGameOver = tm.gameOver;
+            if (!fromGameOver)
+            {
+                tm.RegisterRetry();
+            }
+            // スコア系はゼロから再開（retryCountのみ、ゲームオーバー時は0維持）
+            tm.ResetForRestart();
+        }
 
         if (!IsAnyBlockingPanelActive())
             ResumeIfPaused();
