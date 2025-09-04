@@ -24,23 +24,25 @@ public class GameFlow : MonoBehaviour
     [Header("Clear (Goal)")]
     public GameObject clearPanel;
     public Button clearToStageButton;
+    public Button clearNextButton;     // 追加: 次のステージへ
+    public Button clearRetryButton;    // 追加: もう一度
     public bool pauseOnClear = true;
 
     [Header("Clear Result (optional)")]
-    [Tooltip("想定（パー）：ステージUIに表示")]
+    [Tooltip("回転（パー）: ステージUIに表示")]
     public int parRot = 6;
-    public int parAP = 6; // 新 親： ActionPointパー値
+    public int parAP = 6; // 新 旧 ActionPointパー値
     public TMP_Text rankText;          // 例: "S"
     public TMP_Text scoreText;         // 例: "92"
     public TMP_Text detailRotText;     // 例: "回転 8 / 6（+2）"
     public TMP_Text detailRetryText;   // 例: "リトライ 1"
     public TMP_Text resultRankText;    // 結果表示用ランク
     public TMP_Text resultScoreText;   // 結果表示用スコア
-    public TMP_Text detailStepText;    // 例: "歩数 8"
+    public TMP_Text detailStepText;    // 例: "歩 8"
 
     [Header("Treasure (Collection) UI")]
-    public GameObject treasurePanel;   // クリアパネル表示時に同時に出すオーバーレイ
-    public TMP_Text treasureText;      // 表示: 「○○コレクション！」
+    public GameObject treasurePanel;   // クリアパネル表示時に横出しオーバーレイ
+    public TMP_Text treasureText;      // 表示: 『宝物コンプリート！』
     public Image treasureImage;        // コレクションSprite
     public Button treasureCloseButton; // とじる
 
@@ -49,31 +51,34 @@ public class GameFlow : MonoBehaviour
     public TMP_Text bindResetKeyLabel;
 
     [Header("Tutorial (Optional)")]
-    [Tooltip("チュートリアル用のパネル（Canvas上の子オブジェクト）")]
+    [Tooltip("チュートリアル用のパネル（Canvas下の子オブジェクト）")]
     public GameObject tutorialPanel;
     public Image tutorialImage;
     public Button tutorialCloseButton;
     public bool pauseOnTutorial = true;
 
-    // チュートリアル等のオーバーレイ表示中にゲーム入力を止めるためのフラグ
+    // チュートリアル中のオーバーレイ表示時にゲーム入力を止めるためのフラグ
     public static bool TutorialOverlayOpen { get; private set; } = false;
 
     StageManager stage;
     TurnManager turn;
 
-    // クリアパネル表示時：コレクションパネルを最前面に重ねる保留フラグ
+    // クリアパネル表示後：コレクションパネルを後出しするための保留フラグ
     bool treasureOverlayPending = false;
     bool waitingResetRebind = false;
 
-    // 最前面パネルの記録（Padフォーカス更新のため）
+    // 最上位パネルの記録（Padフォーカス更新のため）
     GameObject _lastTopPanel = null;
+
+    // 追加: 次ステージ遷移直後にクリアパネルの自動表示を1フレーム抑止
+    bool _suppressClearPanelOnce = false;
 
     void Start()
     {
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
 
-        // ステージ選択判定
+        // ステージ入口判定
         bool viaStageSelect = PlayerPrefs.GetInt("enteredViaStageSelect", 0) == 1;
         PlayerPrefs.SetInt("enteredViaStageSelect", 0);
         PlayerPrefs.Save();
@@ -132,7 +137,7 @@ public class GameFlow : MonoBehaviour
             }
         }
 
-        // UI初期状態
+        // UI初期化
         turn = UnityCompat.FindFirst<TurnManager>();
 
         if (escMenuPanel) escMenuPanel.SetActive(false);
@@ -151,6 +156,8 @@ public class GameFlow : MonoBehaviour
         if (retryButton) retryButton.onClick.AddListener(RequestRetry);
         if (toMenuButton) toMenuButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
         if (clearToStageButton) clearToStageButton.onClick.AddListener(() => { ResumeIfPaused(); SceneNavigator.GoStage(); });
+        if (clearNextButton) clearNextButton.onClick.AddListener(ClearGoNext);
+        if (clearRetryButton) clearRetryButton.onClick.AddListener(ClearRetry);
 
         // コレクション
         if (treasureCloseButton) treasureCloseButton.onClick.AddListener(() =>
@@ -167,7 +174,7 @@ public class GameFlow : MonoBehaviour
 
         HookTurnManager();
 
-        // ステージ開始時に必要ならチュートリアル表示
+        // ステージ開始時に必要ならチュートリアルを表示
         MaybeShowTutorialAtStart();
     }
 
@@ -190,7 +197,7 @@ public class GameFlow : MonoBehaviour
             // カウンタ初期化
             turn.ResetScoreCounters();
 
-            // StageManagerで設定済みの parAP を尊重
+            // StageManagerで設定済みの parAP を反映
             if (parAP != 0) turn.parAP = Mathf.Max(0, parAP);
         }
     }
@@ -199,7 +206,7 @@ public class GameFlow : MonoBehaviour
     {
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
-        // 追加: キーリバインドのキャプチャ処理を完結させる
+        // 追記: キーボインドのキャプチャ中処理
         if (waitingResetRebind)
         {
             if (InputBindings.TryGetAnyKeyboardKeyDown(out var kc))
@@ -248,7 +255,7 @@ public class GameFlow : MonoBehaviour
             }
         }
 
-        // Pad: 北ボタン→リセット（ESCメニュー開いてない時のみ）
+        // Pad: 北ボタン＝リセット（ESCメニュー開いてないとき）
         {
             var gp = Gamepad.current;
             if (gp != null && gp.buttonNorth.wasPressedThisFrame && !waitingResetRebind)
@@ -276,12 +283,13 @@ public class GameFlow : MonoBehaviour
         // Clear
         if (clearPanel)
         {
-            if (isClear && !clearPanel.activeSelf)
+            if (isClear && !clearPanel.activeSelf && !_suppressClearPanelOnce)
             {
                 ShowOnTop(clearPanel);
                 if (pauseOnClear) Time.timeScale = 0f;
 
-                SelectDefault(clearToStageButton ? clearToStageButton.gameObject : null, clearPanel);
+                // 次へ/もう一度ボタンの有効/無効とデフォルト選択を更新
+                UpdateClearButtonsAndSelection();
 
                 if (treasureOverlayPending)
                 {
@@ -290,9 +298,13 @@ public class GameFlow : MonoBehaviour
                 }
             }
             if (!isClear && clearPanel.activeSelf) clearPanel.SetActive(false);
+
+            // 抑止フラグは「クリア状態が解けた」ら解除
+            if (!isClear && _suppressClearPanelOnce)
+                _suppressClearPanelOnce = false;
         }
 
-        // 最前面のみ操作可能に
+        // 最上位のみ操作可能に
         ApplyExclusiveFocus();
     }
 
@@ -366,12 +378,12 @@ public class GameFlow : MonoBehaviour
                (tutorialPanel && tutorialPanel.activeInHierarchy);
     }
 
-    // ==== 既存（結果通知など） ====
+    // ==== 結果（通知など） ====
     void OnStageCleared(TurnManager.ScoreResult res)
     {
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
         if (detailRotText) detailRotText.text = $"回転数: {res.rot}回";
-        if (detailRetryText) detailRetryText.text = $"リトライ回数: {res.retries}回";
+        if (detailRetryText) detailRetryText.text = $"リトライ数: {res.retries}回";
         if (detailStepText) detailStepText.text = $"歩数: {res.steps}歩";
 
         var tm = UnityCompat.FindFirst<TurnManager>();
@@ -394,8 +406,8 @@ public class GameFlow : MonoBehaviour
         var st = UnityCompat.FindFirst<StageManager>();
         StageSet.Entry entry = st != null ? st.GetCurrentEntry() : null;
 
-        string name = (entry != null && !string.IsNullOrEmpty(entry.collectName)) ? entry.collectName : "？";
-        if (treasureText) treasureText.text = $"「{name}」を入手！";
+        string name = (entry != null && !string.IsNullOrEmpty(entry.collectName)) ? entry.collectName : "宝";
+        if (treasureText) treasureText.text = $"『{name}』獲得！";
 
         if (treasureImage)
         {
@@ -479,59 +491,29 @@ public class GameFlow : MonoBehaviour
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
-    //public void RequestRetry()
-    //{
-
-
-    //    var tm = UnityCompat.FindFirst<TurnManager>();
-    //    if (tm != null)
-    //    {
-    //        // ゲームオーバー中のリトライは減点対象外
-    //        bool fromGameOver = tm.gameOver;
-    //        if (!fromGameOver)
-    //        {
-    //            tm.RegisterRetry();
-    //        }
-    //        // スコア系はゼロから再開（retryCountのみ、ゲームオーバー時は0維持）
-    //        tm.ResetForRestart();
-    //    }
-
-    //    if (!IsAnyBlockingPanelActive())
-    //        ResumeIfPaused();
-    //    if (escMenuPanel) escMenuPanel.SetActive(false);
-    //    if (gameOverPanel) gameOverPanel.SetActive(false);
-    //    if (clearPanel) clearPanel.SetActive(false);
-    //    if (treasurePanel) treasurePanel.SetActive(false);
-    //    if (tutorialPanel) tutorialPanel.SetActive(false);
-    //    TutorialOverlayOpen = false;
-
-    //    UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
-
-    //    ApplyExclusiveFocus();
-    //}
     public void RequestRetry()
     {
-        // 回転中・自由回転プレビュー中はリセットを拒否
+        // 回転中・自由回転プレビュー中はリセット拒否
         var board = UnityCompat.FindFirst<BoardManager>();
         if (board != null && (board.IsAnimating || board.IsFreePreviewActive))
         {
 #if UNITY_EDITOR
             Debug.LogWarning("[GameFlow] Reset rejected: board is rotating or free-preview active.");
 #endif
-            // 視覚フィードバックは行わない（Ghost/aimingを壊さないため）
+            // 視覚フィードバックは行わない（Ghost/aimingが崩れないため）
             return;
         }
 
         var tm = UnityCompat.FindFirst<TurnManager>();
         if (tm != null)
         {
-            // ゲームオーバー中のリトライは減点対象外
+            // ゲームオーバー中のリトライは加点対象外
             bool fromGameOver = tm.gameOver;
             if (!fromGameOver)
             {
                 tm.RegisterRetry();
             }
-            // スコア系はゼロから再開（retryCountのみ、ゲームオーバー時は0維持）
+            // スコア系は残して再開（retryCountのみ、ゲームオーバー回数は0維持）
             tm.ResetForRestart();
         }
 
@@ -665,7 +647,7 @@ public class GameFlow : MonoBehaviour
         cg.blocksRaycasts = on;
     }
 
-    // 追加: リセットキーのリバインド開始
+    // 追記: リセットキーのリバインド開始
     void BeginRebindResetKey()
     {
         waitingResetRebind = true;
@@ -673,9 +655,105 @@ public class GameFlow : MonoBehaviour
         if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （次の入力で設定）";
     }
 
-    // 追加: リセットキー表示更新
+    // 追記: リセットキー表示更新
     void UpdateResetKeyLabel()
     {
         if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
+    }
+
+    // ====== 追加実装：クリア画面「次のステージへ」「もう一度」 ======
+
+    void UpdateClearButtonsAndSelection()
+    {
+        bool hasNext = HasNextStage();
+
+        if (clearNextButton)
+        {
+            clearNextButton.interactable = hasNext;
+            clearNextButton.gameObject.SetActive(true);
+        }
+        if (clearRetryButton)
+        {
+            clearRetryButton.interactable = true; // クリア後は常に有効
+            clearRetryButton.gameObject.SetActive(true);
+        }
+
+        // フォーカス優先は「次へ」→「もう一度」→「ステージ選択」
+        GameObject preferred =
+            (clearNextButton && clearNextButton.interactable) ? clearNextButton.gameObject :
+            (clearRetryButton ? clearRetryButton.gameObject : (clearToStageButton ? clearToStageButton.gameObject : null));
+
+        SelectDefault(preferred, clearPanel);
+    }
+
+    bool HasNextStage()
+    {
+        if (stage == null) stage = UnityCompat.FindFirst<StageManager>();
+        if (stage == null || stage.stageSet == null || stage.stageSet.stages == null) return false;
+        return (stage.currentIndex + 1) < stage.stageSet.stages.Count;
+    }
+
+    void ClearGoNext()
+    {
+        if (HasNextStage())
+        {
+            ResumeIfPaused();
+
+            // パネルを閉じる
+            if (clearPanel) clearPanel.SetActive(false);
+            if (treasurePanel) treasurePanel.SetActive(false);
+            if (tutorialPanel) tutorialPanel.SetActive(false);
+            TutorialOverlayOpen = false;
+
+            // クリア状態を解除（次フレームの自動オープン抑止）
+            var tm = UnityCompat.FindFirst<TurnManager>();
+            if (tm != null)
+            {
+                // ここを直接代入ではなくAPIで初期化に変更
+                tm.ResetForRestart(keepRetryCount: false);
+            }
+            _suppressClearPanelOnce = true;
+
+            // 次のステージへ
+            stage.Next();
+            ApplyExclusiveFocus();
+        }
+        else
+        {
+            // 次がなければステージ選択へ
+            ResumeIfPaused();
+            SceneNavigator.GoStage();
+        }
+    }
+    void ClearRetry()
+    {
+        // 回転中・自由回転プレビュー中は拒否（念のため）
+        var board = UnityCompat.FindFirst<BoardManager>();
+        if (board != null && (board.IsAnimating || board.IsFreePreviewActive))
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning("[GameFlow] ClearRetry rejected: board is rotating or free-preview active.");
+#endif
+            return;
+        }
+
+        // リトライ数は増やさずリスタート
+        var tm = UnityCompat.FindFirst<TurnManager>();
+        if (tm != null)
+        {
+            tm.ResetForRestart();
+        }
+
+        ResumeIfPaused();
+        if (escMenuPanel) escMenuPanel.SetActive(false);
+        if (gameOverPanel) gameOverPanel.SetActive(false);
+        if (clearPanel) clearPanel.SetActive(false);
+        if (treasurePanel) treasurePanel.SetActive(false);
+        if (tutorialPanel) tutorialPanel.SetActive(false);
+        TutorialOverlayOpen = false;
+
+        UnityCompat.FindFirst<StageManager>()?.ReloadCurrent();
+
+        ApplyExclusiveFocus();
     }
 }

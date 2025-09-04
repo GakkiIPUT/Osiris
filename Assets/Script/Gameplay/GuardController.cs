@@ -1448,17 +1448,40 @@ public class GuardController : MonoBehaviour
         if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
         if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
 
-        if (setAny)
-        {
-            r.SetPropertyBlock(_mpb);
-        }
+        if (setAny) r.SetPropertyBlock(_mpb);
         else
         {
-            // 最終手段（マテリアルインスタンス化）
             var inst = r.material;
             if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
             else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
             else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
+        }
+
+        // 追加: 犯人は後描画にする
+        ApplyVisionRenderOrder(r);
+    }
+    // 透明レンダーキュー（犯人を後描画にする）
+    const int VisionQueueBase = 3000;          // Transparent
+    const int VisionQueueKiller = VisionQueueBase + 20; // 犯人用に少し後ろ
+
+    void ApplyVisionRenderOrder(Renderer r)
+    {
+        if (!r) return;
+
+        if (_killerHighlighted)
+        {
+            // 犯人はマテリアルインスタンス化してレンダーキューを上げる
+            var inst = r.material; // インスタンス化
+            if (inst != null) inst.renderQueue = VisionQueueKiller;
+
+            // 念のためソーティングオーダーも上げておく（同一距離のタイブレーク）
+            r.sortingOrder = 10;
+        }
+        else
+        {
+            // 非犯人はデフォルトのまま（共有マテリアルのキュー=3000）
+            r.sortingOrder = 0;
+            // ここで inst に戻す必要は特にありません（再生成時に共有マテリアルへ戻るため）
         }
     }
 
