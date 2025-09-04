@@ -4,6 +4,12 @@ using UnityEngine.UI;
 public class GameUI : MonoBehaviour
 {
     public Button btnRotateL, btnRotateR, btnRangeToggle, btnReset;
+
+    // 追加: チュートリアルリセット用（任意でアサイン）
+    [Header("Tutorial Reset (Optional Buttons)")]
+    public Button btnResetTutorialCurrent;
+    public Button btnResetTutorialAll;
+
     StageManager stage; PlayerController player; TurnManager turn;
 
     // devMode追加
@@ -12,25 +18,25 @@ public class GameUI : MonoBehaviour
     // ===== 初期設定（インスペクター） =====
     [Header("Editor 用 初期設定")]
     [SerializeField] bool editorDevMode = false;
-    [Tooltip("Editor再生時の無敵初期値")]
+    [Tooltip("Editor実行時の無敵初期値")]
     [SerializeField] bool editorInvincible = false;
     [SerializeField, Range(3, 9)] int editorAreaSize = 3;
 
     [Header("Editor 用 Board初期設定")]
     [SerializeField] bool editorRotatePlayerWithArea = true;
     [SerializeField, Range(1, 10)] int editorRotationCenterMaxDistance = 3;
-    [SerializeField] bool editorFreeRotate = true;           // 自由回転は有効
+    [SerializeField] bool editorFreeRotate = true;           // 自由回転は許可
     [SerializeField] bool editorAllow180Rotation = false;
 
     [Header("Development Build 用 初期設定")]
-    [SerializeField] bool devBuildDevMode = false;            // 基本 Dev モード
+    [SerializeField] bool devBuildDevMode = false;            // 既定 Dev モード
     [SerializeField] bool devBuildInvincible = false;
     [SerializeField, Range(3, 9)] int devBuildAreaSize = 3;
 
     [Header("Development Build 用 Board初期設定")]
     [SerializeField] bool devBuildRotatePlayerWithArea = true;
     [SerializeField, Range(1, 10)] int devBuildRotationCenterMaxDistance = 3;
-    [SerializeField] bool devBuildFreeRotate = true;         // 自由回転は有効
+    [SerializeField] bool devBuildFreeRotate = true;         // 自由回転は許可
     [SerializeField] bool devBuildAllow180Rotation = false;
 
     [Header("適用タイミング")]
@@ -40,11 +46,15 @@ public class GameUI : MonoBehaviour
 
     void Awake()
     {
-        // ボタン紐付
+        // ボタンフック
         if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
         if (btnRotateR) btnRotateR.onClick.AddListener(ActionRotateR);
         if (btnRangeToggle) btnRangeToggle.onClick.AddListener(ActionToggleRange);
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
+
+        // 追加: チュートリアル既読リセットボタン
+        if (btnResetTutorialCurrent) btnResetTutorialCurrent.onClick.AddListener(ResetTutorialForCurrentStage);
+        if (btnResetTutorialAll) btnResetTutorialAll.onClick.AddListener(ResetTutorialForAllStages);
     }
 
     void Start()
@@ -89,7 +99,7 @@ public class GameUI : MonoBehaviour
         }
 #elif DEVELOPMENT_BUILD
         // Development Build
-        devMode = devBuildDevMode;                            // 基本 Dev モード
+        devMode = devBuildDevMode;                            // 既定 Dev モード
 
         if (player != null)
         {
@@ -111,7 +121,7 @@ public class GameUI : MonoBehaviour
 
         if (player != null)
         {
-            player.invincible = false;                        // 無敵は必ずオフ
+            player.invincible = false;                        // 無敵は必ずOFF
             player.areaSize = Mathf.Clamp(player.areaSize, 3, 9);
             player.SaveDevModeSettings();
         }
@@ -136,9 +146,58 @@ public class GameUI : MonoBehaviour
         else stage?.ReloadCurrent(); // フォールバック
     }
 
+    // 追加: チュートリアル既読を現在ステージのみリセット
+    public void ResetTutorialForCurrentStage()
+    {
+        var st = UnityCompat.FindFirst<StageManager>();
+        var entry = st != null ? st.GetCurrentEntry() : null;
+        if (entry == null)
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning("[GameUI] ResetTutorialForCurrentStage: Stage entry not found.");
+#endif
+            return;
+        }
+
+        string key = $"tut_seen_{entry.id}";
+        PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.Save();
+#if UNITY_EDITOR
+        Debug.Log($"[GameUI] Tutorial seen-flag cleared for stage: {entry.id} (key={key})");
+#endif
+    }
+
+    // 追加: チュートリアル既読を全ステージ分リセット
+    public void ResetTutorialForAllStages()
+    {
+        var st = UnityCompat.FindFirst<StageManager>();
+        var set = st != null ? st.stageSet : null;
+        if (set == null || set.stages == null || set.stages.Count == 0)
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning("[GameUI] ResetTutorialForAllStages: StageSet not found or empty.");
+#endif
+            return;
+        }
+
+        int cnt = 0;
+        for (int i = 0; i < set.stages.Count; i++)
+        {
+            var e = set.stages[i];
+            if (e == null || string.IsNullOrEmpty(e.id)) continue;
+            string key = $"tut_seen_{e.id}";
+            PlayerPrefs.DeleteKey(key);
+            cnt++;
+        }
+        PlayerPrefs.Save();
+#if UNITY_EDITOR
+        Debug.Log($"[GameUI] Tutorial seen-flags cleared for all stages. count={cnt}");
+#endif
+    }
+
     void Update()
     {
-        // 追加: メニュー/チュートリアル表示中はゲームUIの入力処理を停止
+        // 追加: メニュー/チュートリアルオーバーレイ表示中はゲームUIの入力処理を停止
         if (GlobalEscMenu.IsMenuOpen) return;
         if (GameFlow.TutorialOverlayOpen) return;
 
@@ -165,9 +224,9 @@ public class GameUI : MonoBehaviour
 
     void OnGUI()
     {
-        if (!devMode) return; // devModeはboolで管理
+        if (!devMode) return; // devModeでUI表示制御
 
-        GUILayout.BeginArea(new Rect(10, 10, 330, 520), "開発者モード", GUI.skin.window);
+        GUILayout.BeginArea(new Rect(10, 10, 330, 560), "開発モード", GUI.skin.window);
 
         // 回転に関する設定
         BoardManager board = Object.FindFirstObjectByType<BoardManager>();
@@ -175,8 +234,8 @@ public class GameUI : MonoBehaviour
         {
             bool changed = false;
 
-            // プレイヤーを回転に含める
-            bool rpwa = GUILayout.Toggle(board.rotatePlayerWithArea, "プレイヤーを回転に含める");
+            // プレイヤー回転に追従
+            bool rpwa = GUILayout.Toggle(board.rotatePlayerWithArea, "プレイヤー回転に追従");
             if (rpwa != board.rotatePlayerWithArea) { board.rotatePlayerWithArea = rpwa; changed = true; }
 
             // 回転中心最大距離
@@ -188,12 +247,12 @@ public class GameUI : MonoBehaviour
             GUILayout.Label("回転モード", EditorLabel());
 
             // 自由回転ON/OFF
-            bool free = GUILayout.Toggle(board.devEnableFreeRotate, "自由回転（ドラッグ）を有効にする");
+            bool free = GUILayout.Toggle(board.devEnableFreeRotate, "自由回転（デバッグ）を有効にする");
             if (free != board.devEnableFreeRotate) { board.devEnableFreeRotate = free; changed = true; }
-            GUILayout.Label("※ 自由回転ONの間はQ/E回転は無効。Tはキャンセル専用");
+            GUILayout.Label("※ 自由回転ONの間はQ/E回転は無効、Tはクリックスナップ");
 
-            // 180度回転を許可
-            bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180°回転を許可（2AP想定）");
+            // 180度回転許可
+            bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180度回転許可（2AP消費）");
             if (allow180 != board.devAllow180Rotation) { board.devAllow180Rotation = allow180; changed = true; }
 
             if (changed) board.SaveDevModeSettings();
@@ -223,6 +282,12 @@ public class GameUI : MonoBehaviour
             turn.itemCollected = GUILayout.Toggle(turn.itemCollected, "アイテム取得フラグ");
             turn.goalReached = GUILayout.Toggle(turn.goalReached, "ゴール到達フラグ");
         }
+
+        GUILayout.Space(10);
+        GUILayout.Label("チュートリアル", EditorLabel());
+        if (GUILayout.Button("既読リセット（現在ステージ）")) { ResetTutorialForCurrentStage(); }
+        if (GUILayout.Button("既読リセット（全ステージ）")) { ResetTutorialForAllStages(); }
+        GUILayout.Label("注: 次回ロード時にチュートリアルが再表示されます。");
 
         GUILayout.EndArea();
     }

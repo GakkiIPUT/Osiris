@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class GuardController : MonoBehaviour
@@ -179,35 +180,101 @@ public class GuardController : MonoBehaviour
 
     MaterialPropertyBlock _mpb;
 
-    // 色の適用（マテリアルの色プロパティ名差異に対応）
-    void ApplyVisionColor(Renderer r)
+    // ======== 追加: GameOver時の強調表示 ========
+    [Header("Game Over Highlight")]
+    [Tooltip("ゲームオーバー時にボディも赤くする（オフならボディは変えず、アウトラインのみ）")]
+    public bool useBodyTintOnHighlight = false;
+
+    [Tooltip("ゲームオーバー時に『倒した敵』として強調するボディ色（SpriteRenderer.tint）")]
+    public Color killerBodyTint = new Color(1f, 0.2f, 0.2f, 1f);
+
+    [Tooltip("ゲームオーバー時に『倒した敵』として強調する視界色")]
+    public Color killerVisionColor = new Color(1f, 0.2f, 0.2f, 0.6f);
+
+    [Tooltip("ゲームオーバー時、犯人以外の視界色（薄くする等）")]
+    public Color othersVisionColorOnGameOver = new Color(1f, 1f, 1f, 0.15f);
+
+    // ===== 追加: アウトライン（周りに色） =====
+    [Header("Killer Outline (Ring)")]
+    [Tooltip("アウトライン色")]
+    public Color killerOutlineColor = new Color(1f, 0.2f, 0.2f, 0.8f);
+    [Tooltip("半径（セル単位）")]
+    public float killerOutlineRadius = 0.45f;
+    [Tooltip("線幅（ワールド単位）")]
+    public float killerOutlineWidth = 0.05f;
+    [Tooltip("Yオフセット（床からの高さ）")]
+    public float killerOutlineYOffset = 0.02f;
+    [Tooltip("円のセグメント数（多いほど滑らか）")]
+    [Range(12, 128)] public int killerOutlineSegments = 48;
+
+    // ===== 追加: 『！』スプライト =====
+    [Header("Killer Mark (!) / World Placement")]
+    [Tooltip("ガードのワールド位置に対する相対オフセット（X/Z/高さ）。例: (0,0.7,0) で頭上")]
+    public Vector3 exclamationWorldOffset = new Vector3(0f, 0.7f, 0f);
+
+    [Tooltip("『！』を床面に寝かせる（X=90°）。OFFなら直立（X=0°）")]
+    public bool exclamationLayOnFloor = true;
+
+    [Tooltip("『！』のワールドY軸回転（度）")]
+    public float exclamationWorldYaw = 0f;
+
+    [Tooltip("SpriteRenderer の Sorting Layer 名（空なら変更しない）")]
+    public string exclamationSortingLayer = "";
+
+    [Tooltip("SpriteRenderer の Sorting Order（大きいほど手前）")]
+    public int exclamationSortingOrder = 2000;
+
+    [Tooltip("Zファイティング回避の微小浮上量（メートル）")]
+    public float exclamationLiftEpsilon = 0.001f;
+
+    // 追加: 『！』をローカル座標（Prefab基準）で配置する。OFFならワールドY=高さオフセットを使用
+    public bool exclamationUseLocalOffset = true;
+
+    // 追加: 『！』のローカル座標オフセット（Prefab基準）。注意: 本プロジェクトではガードがX=90°のため、ローカルZがワールドY(高さ)に相当
+    public Vector3 exclamationLocalOffset = new Vector3(0f, 0f, 0.7f);
+
+    // 『！』の基本設定（スプライト／色／サイズ／高さ）
+    [Tooltip("『！』に使用するスプライト（必須）")]
+    public Sprite exclamationSprite;
+
+    [Tooltip("『！』の色（ティント）")]
+    public Color exclamationTint = new Color(1f, 0.15f, 0.15f, 1f);
+
+    [Tooltip("『！』の表示サイズ（ワールド単位）")]
+    public Vector2 exclamationSize = new Vector2(0.35f, 0.35f);
+
+    [Tooltip("ワールドYでの高さ（exclamationWorldOffset.y が 0 のときの後方互換用）")]
+    public float exclamationHeight = 0.7f;
+
+    // 内部
+    SpriteRenderer[] _bodySRs;
+    Color[] _bodySRsDefault;
+    Renderer[] _bodyRenderers;
+    MaterialPropertyBlock _bodyMpb;
+    Color _savedVisionColor;
+    bool _killerHighlighted = false;
+
+    GameObject _killerMarkGO;
+    LineRenderer _killerOutlineLR;
+
+    // 監視向きの設定（開始時・ターン開始時）
+    public void SetFacing(Facing f)
     {
-        if (!r) return;
-        var mat = r.sharedMaterial;
-        if (!mat) return;
+        startFacing = f;
+        forward = FacingToVec(f);
+        targetYaw = FacingToYaw(f);
+        currentYaw = targetYaw; // 即スナップ
 
-        _mpb ??= new MaterialPropertyBlock();
-        _mpb.Clear();
+        ApplyVisualByFacing();
+        ApplyVisualYaw(); // ← 追加：初期フレームから正しい向きに回転
 
-        bool setAny = false;
-        if (mat.HasProperty("_Color")) { _mpb.SetColor("_Color", visionColor); setAny = true; }
-        if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
-        if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
+        // 体のRendererをキャッシュ（強調表示で使用）
+        CacheBodyRenderers();
 
-        if (setAny)
-        {
-            r.SetPropertyBlock(_mpb);
-        }
-        else
-        {
-            // フォールバック（1回だけ色を差し替え）：SmoothFanは単一Renderer、CellFanは生成時のみ
-            // ここはマテリアルインスタンスを生成する点に注意（毎フレームは呼ばれない）
-            var inst = r.material;
-            if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
-            else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
-            else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
-        }
+        if (showFacingArrow) EnsureFacingArrow();
+        UpdateVisionOverlay();
     }
+
     // ===== 初期化 =====
     public void Init(BoardManager b, Vector2Int start)
     {
@@ -242,6 +309,9 @@ public class GuardController : MonoBehaviour
         baseRot = Quaternion.Euler(90f, 0f, 0f);
         ApplyVisualByFacing();
         ApplyVisualYaw(); // ← 追加：初期フレームから正しい向きに回転
+
+        // 体のRendererをキャッシュ（強調表示で使用）
+        CacheBodyRenderers();
 
         if (showFacingArrow) EnsureFacingArrow();
         UpdateVisionOverlay();
@@ -421,7 +491,7 @@ public class GuardController : MonoBehaviour
             {
                 var pl = board.player;
                 if (pl != null && !pl.invincible && CanSeePlayer())
-                    turn.TriggerGameOver();
+                    turn.TriggerGameOver(this); // ← 犯人を通知
             }
         }
     }
@@ -455,7 +525,7 @@ public class GuardController : MonoBehaviour
         if (patrolMode == PatrolMode.Static)
         {
             if (board.player != null && !board.player.invincible && CanSeePlayer())
-                turn.TriggerGameOver();
+                turn.TriggerGameOver(this); // ← 犯人を通知
             // 静止監視でも泥棒を発見したら宝箱化
             RevealThievesInSight();
             return;
@@ -508,7 +578,7 @@ public class GuardController : MonoBehaviour
         }
 
         if (board.player != null && !board.player.invincible && CanSeePlayer())
-            turn.TriggerGameOver();
+            turn.TriggerGameOver(this); // ← 犯人を通知
         // 移動系の処理後に泥棒の発見→変換
         RevealThievesInSight();
     }
@@ -868,32 +938,32 @@ public class GuardController : MonoBehaviour
     }
 
     // 追加: 視界内の泥棒を宝箱へ変える
-// 追加: 視界内の泥棒を変換（d=宝箱, e=鍵）
-void RevealThievesInSight()
-{
-    if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
-
-    var toTreasure = new List<Vector2Int>();
-    var toKey = new List<Vector2Int>();
-
-    foreach (var kv in board.itemAt)
+    // 追加: 視界内の泥棒を変換（d=宝箱, e=鍵）
+    void RevealThievesInSight()
     {
-        char sym = kv.Value.sym;
-        if (sym != 'd' && sym != 'e') continue; // 対象は泥棒系のみ
-        var p = kv.Key;
-        if (CanSeeCell(p))
+        if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
+
+        var toTreasure = new List<Vector2Int>();
+        var toKey = new List<Vector2Int>();
+
+        foreach (var kv in board.itemAt)
         {
-            if (sym == 'd') toTreasure.Add(p);
-            else if (sym == 'e') toKey.Add(p);
+            char sym = kv.Value.sym;
+            if (sym != 'd' && sym != 'e') continue; // 対象は泥棒系のみ
+            var p = kv.Key;
+            if (CanSeeCell(p))
+            {
+                if (sym == 'd') toTreasure.Add(p);
+                else if (sym == 'e') toKey.Add(p);
+            }
         }
+
+        for (int i = 0; i < toTreasure.Count; i++)
+            board.TransformThiefToTreasureAt(toTreasure[i]);
+
+        for (int i = 0; i < toKey.Count; i++)
+            board.TransformThiefToKeyAt(toKey[i]);
     }
-
-    for (int i = 0; i < toTreasure.Count; i++)
-        board.TransformThiefToTreasureAt(toTreasure[i]);
-
-    for (int i = 0; i < toKey.Count; i++)
-        board.TransformThiefToKeyAt(toKey[i]);
-}
     // セル中心（BoardManager.CellCenter に統一）
     Vector3 WorldCenter(Vector2Int p, float y)
     {
@@ -1199,6 +1269,244 @@ void RevealThievesInSight()
         UpdateVisionOverlay();
     }
 
+    // ======== 追加: GameOver時の強調表示 ========
+    // 強調表示のON/OFF
+    public void SetKillerHighlight(bool on)
+    {
+        if (on == _killerHighlighted) return;
+        _killerHighlighted = on;
+
+        if (on)
+        {
+            if (_bodyRenderers == null) CacheBodyRenderers();
+
+            _savedVisionColor = visionColor;
+            if (useBodyTintOnHighlight) ApplyBodyTint(killerBodyTint);
+            visionColor = killerVisionColor;
+            UpdateVisionOverlay();
+            ShowKillerOutline(true);
+        }
+        else
+        {
+            if (useBodyTintOnHighlight) RestoreBodyTint();
+            visionColor = _savedVisionColor;
+            UpdateVisionOverlay();
+            ShowKillerOutline(false);
+        }
+    }
+
+    public void SetVisionColorAndRefresh(Color c)
+    {
+        visionColor = c;
+        UpdateVisionOverlay();
+    }
+
+    // ===== 追加: アウトライン（周りに色） =====
+    public void ShowKillerOutline(bool on)
+    {
+        if (on)
+        {
+            if (_killerOutlineLR == null) BuildKillerOutline();
+            if (_killerOutlineLR != null) _killerOutlineLR.enabled = true;
+        }
+        else
+        {
+            if (_killerOutlineLR != null) _killerOutlineLR.enabled = false;
+        }
+    }
+
+    void BuildKillerOutline()
+    {
+        if (board == null) return;
+
+        var go = new GameObject("KillerOutline");
+        if (board.actorsRoot != null) go.transform.SetParent(board.actorsRoot, false);
+        go.transform.position = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one;
+
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true; // ワールド空間で直接描く
+        lr.loop = true;
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.receiveShadows = false;
+        lr.textureMode = LineTextureMode.Stretch;
+        lr.alignment = LineAlignment.View; // 水平リングで問題なし
+        lr.startWidth = killerOutlineWidth;
+        lr.endWidth = killerOutlineWidth;
+
+        var mat = new Material(Shader.Find("Sprites/Default"));
+        lr.material = mat;
+        lr.startColor = killerOutlineColor;
+        lr.endColor = killerOutlineColor;
+        lr.numCornerVertices = 2;
+        lr.numCapVertices = 2;
+
+        int seg = Mathf.Clamp(killerOutlineSegments, 12, 128);
+        lr.positionCount = seg;
+        float r = Mathf.Max(0.01f, killerOutlineRadius);
+
+        Vector3 center = transform.position + new Vector3(0f, killerOutlineYOffset, 0f);
+        for (int i = 0; i < seg; i++)
+        {
+            float t = (i / (float)seg) * Mathf.PI * 2f;
+            float x = Mathf.Cos(t) * r;
+            float z = Mathf.Sin(t) * r; // XZ平面に配置
+            lr.SetPosition(i, new Vector3(center.x + x, center.y, center.z + z));
+        }
+
+        _killerOutlineLR = lr;
+    }
+    void ClearKillerOutline()
+    {
+        if (_killerOutlineLR != null)
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying) DestroyImmediate(_killerOutlineLR.gameObject);
+            else
+#endif
+                Destroy(_killerOutlineLR.gameObject);
+            _killerOutlineLR = null;
+        }
+    }
+
+    // ===== 追加: 体のRendererキャッシュ/ティント適用/復元 =====
+    void CacheBodyRenderers()
+    {
+        _bodySRs = GetComponentsInChildren<SpriteRenderer>(true);
+        if (_bodySRs != null && _bodySRs.Length > 0)
+        {
+            _bodySRsDefault = new Color[_bodySRs.Length];
+            for (int i = 0; i < _bodySRs.Length; i++)
+                _bodySRsDefault[i] = _bodySRs[i].color;
+        }
+        var allRends = GetComponentsInChildren<Renderer>(true);
+        var list = new List<Renderer>(allRends.Length);
+        for (int i = 0; i < allRends.Length; i++)
+        {
+            var r = allRends[i];
+            if (r == null) continue;
+            if (facingArrow != null && r.gameObject == facingArrow) continue; // 矢印は除外
+            list.Add(r);
+        }
+        _bodyRenderers = list.ToArray();
+        _bodyMpb = new MaterialPropertyBlock();
+    }
+
+    void ApplyBodyTint(Color tint)
+    {
+        if (_bodySRs != null)
+        {
+            for (int i = 0; i < _bodySRs.Length; i++)
+                if (_bodySRs[i]) _bodySRs[i].color = tint;
+        }
+        if (_bodyRenderers != null)
+        {
+            for (int i = 0; i < _bodyRenderers.Length; i++)
+            {
+                var r = _bodyRenderers[i];
+                if (!r) continue;
+                var mat = r.sharedMaterial;
+                if (!mat) continue;
+
+                _bodyMpb.Clear();
+                bool setAny = false;
+                if (mat.HasProperty("_Color")) { _bodyMpb.SetColor("_Color", tint); setAny = true; }
+                if (mat.HasProperty("_BaseColor")) { _bodyMpb.SetColor("_BaseColor", tint); setAny = true; }
+                if (mat.HasProperty("_TintColor")) { _bodyMpb.SetColor("_TintColor", tint); setAny = true; }
+                if (setAny) r.SetPropertyBlock(_bodyMpb);
+            }
+        }
+    }
+
+    void RestoreBodyTint()
+    {
+        if (_bodySRs != null && _bodySRsDefault != null && _bodySRsDefault.Length == _bodySRs.Length)
+        {
+            for (int i = 0; i < _bodySRs.Length; i++)
+                if (_bodySRs[i]) _bodySRs[i].color = _bodySRsDefault[i];
+        }
+        if (_bodyRenderers != null)
+        {
+            for (int i = 0; i < _bodyRenderers.Length; i++)
+                if (_bodyRenderers[i]) _bodyRenderers[i].SetPropertyBlock(null);
+        }
+    }
+
+    // ===== 追加: 視界色の適用 =====
+    void ApplyVisionColor(Renderer r)
+    {
+        if (!r) return;
+        var mat = r.sharedMaterial;
+        if (!mat) return;
+
+        _mpb ??= new MaterialPropertyBlock();
+        _mpb.Clear();
+
+        bool setAny = false;
+        if (mat.HasProperty("_Color")) { _mpb.SetColor("_Color", visionColor); setAny = true; }
+        if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
+        if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
+
+        if (setAny)
+        {
+            r.SetPropertyBlock(_mpb);
+        }
+        else
+        {
+            // 最終手段（マテリアルインスタンス化）
+            var inst = r.material;
+            if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
+            else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
+            else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
+        }
+    }
+
+    // ===== 追加: 『！』表示（寿命なし常時表示/破棄） =====
+    public void ShowKillerMarkPersistent()
+    {
+        HideKillerMark();
+        if (exclamationSprite == null) return;
+
+        _killerMarkGO = new GameObject("KillerMark_Exclamation");
+        if (board != null && board.actorsRoot != null)
+            _killerMarkGO.transform.SetParent(board.actorsRoot, false);
+
+        var sr = _killerMarkGO.AddComponent<SpriteRenderer>();
+        sr.sprite = exclamationSprite;
+        sr.color = exclamationTint;
+        if (!string.IsNullOrEmpty(exclamationSortingLayer))
+            sr.sortingLayerName = exclamationSortingLayer;
+        sr.sortingOrder = exclamationSortingOrder;
+        sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        sr.receiveShadows = false;
+
+        // ワールド相対位置（exclamationWorldOffset が優先。後方互換として y=0 の場合は exclamationHeight を足す）
+        Vector3 offset = exclamationWorldOffset;
+        if (Mathf.Approximately(offset.y, 0f) && exclamationHeight > 0f)
+            offset.y = exclamationHeight;
+
+        Vector3 worldPos = transform.position + offset + Vector3.up * Mathf.Max(0f, exclamationLiftEpsilon);
+        _killerMarkGO.transform.position = worldPos;
+
+        // 姿勢：床に寝かせる or 直立
+        float pitch = exclamationLayOnFloor ? 90f : 0f;
+        _killerMarkGO.transform.rotation = Quaternion.Euler(pitch, exclamationWorldYaw, 0f);
+
+        // 表示サイズ
+        _killerMarkGO.transform.localScale = new Vector3(exclamationSize.x, exclamationSize.y, 1f);
+    }
+    void HideKillerMark()
+    {
+        if (_killerMarkGO == null) return;
+#if UNITY_EDITOR
+        if (!Application.isPlaying) DestroyImmediate(_killerMarkGO);
+        else
+#endif
+            Destroy(_killerMarkGO);
+        _killerMarkGO = null;
+    }
+
     void OnDestroy()
     {
         // 視界オーバーレイを確実に破棄
@@ -1222,6 +1530,10 @@ void RevealThievesInSight()
                 Destroy(facingArrow);
             facingArrow = null;
         }
+
+        // 追加: 『！』を確実に破棄＋アウトライン破棄
+        HideKillerMark();
+        ClearKillerOutline();
     }
 
     // 個別停止の診断用

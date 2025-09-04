@@ -406,40 +406,64 @@ public class TurnManager : MonoBehaviour
         onStageCleared?.Invoke(res2);
     }
 
+    // 犯人を保持（GameOver演出で使用）
+    public GuardController lastKiller { get; private set; }
+
+    public void TriggerGameOver(GuardController killer)
+    {
+        // すでにGO中なら上書きしない
+        if (gameOver || cleared) return;
+        lastKiller = killer;
+        TriggerGameOver();
+    }
+
     public void TriggerGameOver()
     {
         if (gameOver || cleared) return;
         gameOver = true;
         playerTurn = false;
 
-        // ポリシーによりGO時の処理を切替
         if (gameOverRetryBehavior == GameOverRetryBehavior.ResetScoreOnGameOver)
         {
-            // 現行仕様: スコア系は完全リセット（引き継がない／リトライ加算もしない）
             ResetScoreCounters();
             Debug.Log("[GameOver] ResetScoreOnGameOver: counters reset.");
         }
         else
         {
-            // 旧仕様: リトライを加算し、スコアは引き継ぐ
             RegisterRetry();
             Debug.Log($"[GameOver] KeepScoreAndAddRetry: keep counters (rot={rotCount}, walk={walkCount}, totalAP={totalAP}), retries={retryCount}");
         }
 
-        //PlaySound(gameoverAudio);
+        //StartCoroutine(GameOverSequence());
         StartCoroutine(GameOverSequence());
     }
 
-    // 追加：ゲームオーバー直前に視界を可視化してからUIを出す
     private IEnumerator GameOverSequence()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
         if (board != null)
         {
-            // 視界ON → 即時再生成 → 1フレーム待機（描画確保）
             board.SetAllGuardVision(true);
             board.RefreshAllGuardVision();
-            yield return null; // または: yield return new WaitForEndOfFrame();
+            yield return null; // 1フレーム待って描画更新
+        }
+
+        if (board != null)
+        {
+            if (lastKiller != null)
+            {
+                lastKiller.SetKillerHighlight(true);     // 視界色変更＋アウトライン表示
+                lastKiller.ShowKillerMarkPersistent();    // 『！』常時表示
+                lastKiller.ShowKillerOutline(true);       // 念のため明示
+            }
+            var gs = board.guards;
+            for (int i = 0; i < gs.Count; i++)
+            {
+                var g = gs[i];
+                if (g == null) continue;
+                if (g == lastKiller) continue;
+                g.SetVisionColorAndRefresh(g.othersVisionColorOnGameOver); // ほかは薄く
+            }
         }
 
         onGameOver?.Invoke();

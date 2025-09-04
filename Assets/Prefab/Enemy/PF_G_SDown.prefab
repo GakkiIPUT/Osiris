@@ -108,6 +108,7 @@ MonoBehaviour:
   patternIsRelative: 1
   debugDrawPath: 0
   useBoardDefaultViewRange: 1
+  bounceOnBlockedInLoop: 1
   startFacing: 2
   watchMode: 0
   rotatePeriod: 1
@@ -142,3 +143,24 @@ MonoBehaviour:
     flipX: 0
     flipY: 0
   visionColor: {r: 1, g: 0.2245282, b: 0.2245282, a: 0.35}
+  useBodyTintOnHighlight: 0
+  killerBodyTint: {r: 0.9622642, g: 0, b: 0, a: 1}
+  killerVisionColor: {r: 1, g: 0, b: 0, a: 0.6}
+  othersVisionColorOnGameOver: {r: 1, g: 1, b: 1, a: 0.15}
+  killerOutlineColor: {r: 1, g: 0, b: 0, a: 0}
+  killerOutlineRadius: 0.5
+  killerOutlineWidth: 0.5
+  killerOutlineYOffset: 0.02
+  killerOutlineSegments: 48
+  exclamationWorldOffset: {x: 0, y: 0.7, z: 0.8}
+  exclamationLayOnFloor: 1
+  exclamationWorldYaw: 0
+  exclamationSortingLayer: 
+  exclamationSortingOrder: 2000
+  exclamationLiftEpsilon: 0.001
+  exclamationUseLocalOffset: 0
+  exclamationLocalOffset: {x: 1, y: 1, z: 1}
+  exclamationSprite: {fileID: 21300000, guid: 3000b1cf65815564fac2e2d4533a58c1, type: 3}
+  exclamationTint: {r: 1, g: 1, b: 1, a: 1}
+  exclamationSize: {x: 0.7, y: 0.7}
+  exclamationHeight: 1

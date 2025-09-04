@@ -1442,6 +1442,25 @@ public class BoardManager : MonoBehaviour
     // =========== LoSiŠp”²‚¯–h~‚Ìsupercover”Åj ===========
     public bool HasLineOfSight(Vector2Int from, Vector2Int to)
     {
+        // “¯ˆêƒZƒ‹‚Íí‚ÉŒ©‚¦‚éˆµ‚¢
+        if (from == to) return true;
+
+        // ŠÈˆÕƒQ[ƒg: from¨to ‚Ìå²•ûŒü‚É1ƒ}ƒXi‚ñ‚¾ƒZƒ‹‚ªÕ•Á‚È‚ç‹ŠE‚ğ‘¦ƒJƒbƒg
+        int dx0 = to.x - from.x;
+        int dy0 = to.y - from.y;
+        Vector2Int primaryDir;
+        if (Mathf.Abs(dx0) >= Mathf.Abs(dy0))
+            primaryDir = new Vector2Int(System.Math.Sign(dx0), 0); // © ‚±‚±‚ğC³
+        else
+            primaryDir = new Vector2Int(0, System.Math.Sign(dy0)); // © ‚±‚±‚ğC³
+
+        if (primaryDir != Vector2Int.zero)
+        {
+            var gate = from + primaryDir;
+            if (BlocksVision(gate)) return false;
+        }
+
+        // ˆÈ~‚Í]—ˆ‚Ì supercover BresenhamiŠp”²‚¯–h~j
         int x0 = from.x, y0 = from.y, x1 = to.x, y1 = to.y;
         int dx = Mathf.Abs(x1 - x0);
         int dy = Mathf.Abs(y1 - y0);
@@ -1453,17 +1472,14 @@ public class BoardManager : MonoBehaviour
 
         while (true)
         {
-            // n“_‚Í–³‹AˆÈ~‚Ì’Ê‰ßƒZƒ‹‚ÅÕ•Á”»’è
             if (!(x0 == from.x && y0 == from.y))
             {
                 if (BlocksVision(new Vector2Int(x0, y0))) return false;
 
-                // ’¼‘O‚©‚ç "Î‚ß‚É“®‚¢‚½" ƒtƒŒ[ƒ€‚Å‚ÍŠp”²‚¯ƒ`ƒFƒbƒN
                 if (x0 != prevX && y0 != prevY)
                 {
-                    // ’†ŠÔ‚ÉÚ‚µ‚Ä‚¢‚é2ƒZƒ‹i‰¡Ecj‚ª—¼•û‚Æ‚à•Ç‚È‚çÕ’f
-                    var sideA = new Vector2Int(prevX + sx, prevY); // ‰¡
-                    var sideB = new Vector2Int(prevX, prevY + sy); // c
+                    var sideA = new Vector2Int(prevX + sx, prevY);
+                    var sideB = new Vector2Int(prevX, prevY + sy);
                     if (BlocksVision(sideA) && BlocksVision(sideB)) return false;
                 }
             }
@@ -1473,14 +1489,12 @@ public class BoardManager : MonoBehaviour
             int e2 = 2 * err;
             prevX = x0; prevY = y0;
 
-            // supercover: “¯ˆêƒtƒŒ[ƒ€‚ÅX/Y‚Ì—¼•û‚ªi‚Ş‰Â”\«‚ğc‚·
             if (e2 > -dy) { err -= dy; x0 += sx; }
             if (e2 < dx) { err += dx; y0 += sy; }
         }
 
         return true;
     }
-
     // ‚»‚ÌƒZƒ‹‚ÉƒK[ƒh‚ª‚¢‚éH
     bool IsGuardAt(Vector2Int p)
     {
