@@ -121,10 +121,12 @@ public class GuardController : MonoBehaviour
     // ===== 反転時の挙動 =====
     [Header("Flip (Reverse) Control")]
     [Tooltip("反転（監視向き切替/行動反転）時に停止する秒数（視界も無効）")]
-    [Min(0f)] public float flipPauseSeconds = 0.5f; // ← 0.5s に変更
+    [Min(0f)] public float flipPauseSeconds = 0.5f; // 反転後の視界OFF待機
     float flippingUntil = 0f;
 
     // 追加: 反転前ホールド（移動だけ停止・視界は維持）
+    [Tooltip("反転前に停止する時間（視界は維持）。デフォルト0.5s")]
+    [Min(0f)] public float preFlipHoldSeconds = 0.5f;  // ← 追加: Inspector で編集可能
     float preFlipUntil = 0f;
     bool preFlipActive = false;
     bool pendingTurn = false;
@@ -512,6 +514,10 @@ public class GuardController : MonoBehaviour
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
 
+        // レース解消: pre-flip 終了直後のフレームで先に反転を確定させる
+        if (pendingTurn && !IsPreFlipHolding())
+            TryApplyPendingTurn();
+
         // 反転前待機 or 反転中 はこのTickの移動を止める
         if (IsPreFlipHolding() || IsFlipping()) return;
 
@@ -808,13 +814,16 @@ public class GuardController : MonoBehaviour
     }
 
     // 視界の子オブジェクト/メッシュをクリア
+    // 視界の子オブジェクト/メッシュをクリア
     void ClearVision()
     {
         if (visionRoot == null) return;
 
         if (visionMode == VisionMode.SmoothFan)
         {
+            // Mesh を空にしつつ Renderer も明示的に無効化して完全に非表示化
             if (visionMesh != null) visionMesh.Clear();
+            if (visionMr != null) visionMr.enabled = false; // ← 追加
             return;
         }
 
@@ -828,7 +837,6 @@ public class GuardController : MonoBehaviour
                 Destroy(visionRoot.transform.GetChild(i).gameObject);
         }
     }
-
     // グリッド上で前方に進み、遮蔽セルで停止する簡易レイ
     Vector2 CastVisionRay(Vector2Int start, float rad, int maxRange, float step, float startOffset = 0f)
     {
@@ -1103,18 +1111,19 @@ public class GuardController : MonoBehaviour
                  : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
         if (visionMr.sharedMaterial != mat) visionMr.sharedMaterial = mat;
 
+        // flipPause 中は UpdateVisionOverlay が先に return するため通常ここは呼ばれませんが、
+        // 念のため描画再開時に有効化
+        if (!visionMr.enabled) visionMr.enabled = true; // ← 追加
+
         int rays = Mathf.Clamp(visionRayCount, 12, 256);
         float half = fovAngle * 0.5f;
 
-        // 現在の向きで視界を計算
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
         float yaw = FacingToYaw(curFacing) + visionYawOffsetDeg;
         Vector2 fwd = GetForward2DFromYaw(yaw).normalized;
 
-        // 扇形原点（セル中心 + サブセルオフセット + 前方オフセット）
         Vector3 origin = WorldCenter(pos, board.visionY) + offsetWorld + new Vector3(fwd.x, 0f, fwd.y) * Mathf.Max(0f, visionOriginForwardOffset);
 
-        // ワークバッファ（再利用）
         _visionVerts ??= new List<Vector3>(rays + 2);
         _visionTris  ??= new List<int>(rays * 3);
 
@@ -1131,7 +1140,6 @@ public class GuardController : MonoBehaviour
             float t = (rays == 0) ? 0f : (i / (float)rays);
             float ang = (yaw - half) + (fovAngle * t);
 
-            // グリッドCast結果（中心座標系の連続値）→ 丸めずにワールドへ変換
             Vector2 end = CastVisionRay(pos, ang * Mathf.Deg2Rad, viewRange, visionRayStep, visionOriginForwardOffset);
             Vector3 v = WorldFromGridCenterCoords(end, board.visionY) + offsetWorld;
             _visionVerts.Add(v);
@@ -1147,7 +1155,6 @@ public class GuardController : MonoBehaviour
         visionMesh.SetTriangles(_visionTris, 0);
         visionMesh.RecalculateBounds();
 
-        // Vision のルートは常に上向き・ワールド固定
         root.transform.rotation = Quaternion.identity;
     }
 
@@ -1548,6 +1555,11 @@ public class GuardController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
+
+        // レース解消: pre-flip 終了直後は反転を先に確定
+        if (pendingTurn && !IsPreFlipHolding())
+            TryApplyPendingTurn();
+
         if (IsPreFlipHolding() || IsFlipping()) return;
 
         DoOneStepCore();
@@ -1559,8 +1571,8 @@ public class GuardController : MonoBehaviour
     // 反転前待機を開始（移動だけ止める。視界はそのまま）
     void BeginPreFlipHold(Vector2Int newForward, string reason)
     {
-        float cps = (board != null) ? Mathf.Max(0.0001f, board.guardMoveCellsPerSec) : 2f;
-        float hold = 1f / cps;
+        // Inspector で指定した固定秒数を使用
+        float hold = Mathf.Max(0f, preFlipHoldSeconds);
 
         preFlipActive = true;
         preFlipUntil = Time.time + hold;
@@ -1570,7 +1582,7 @@ public class GuardController : MonoBehaviour
         pendingTargetYaw = FacingToYaw(StepToFacing(newForward));
         pendingFlipReason = reason;
 
-        // 視界は維持するため、ここでは ClearVision は呼ばない
+        // 視界は維持（消さない）
         Debug.Log($"[GuardPause] {name} preHold={hold:F3}s reason={reason} until={preFlipUntil:F3}");
     }
 
