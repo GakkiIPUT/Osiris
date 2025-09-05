@@ -124,6 +124,14 @@ public class GuardController : MonoBehaviour
     [Min(0f)] public float flipPauseSeconds = 0.5f; // ← 0.5s に変更
     float flippingUntil = 0f;
 
+    // 追加: 反転前ホールド（移動だけ停止・視界は維持）
+    float preFlipUntil = 0f;
+    bool preFlipActive = false;
+    bool pendingTurn = false;
+    Vector2Int pendingForward;
+    float pendingTargetYaw = 0f;
+    string pendingFlipReason = "";
+
     // ===== Visual Aid =====
     [Header("Visual Aid")]
     public bool showFacingArrow = true;
@@ -428,6 +436,9 @@ public class GuardController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null || turn.gameOver || turn.cleared) return;
 
+        // 反転前待機 → 反転確定 への遷移を処理
+        TryApplyPendingTurn();
+
         // スムーズ回転
         if (board != null)
         {
@@ -466,7 +477,7 @@ public class GuardController : MonoBehaviour
             }
         }
 
-        // 視界更新（更新頻度を抑制してGC/負荷を軽減）
+        // 視界更新（pre-flip中もOK。flip中は無効）
         if (board != null)
         {
             visionTimer += Time.deltaTime;
@@ -479,19 +490,17 @@ public class GuardController : MonoBehaviour
                 visionTimer = 0f;
                 UpdateVisionOverlay();
 
-                // 視界更新タイミングでの泥棒変換（可視時間に同期）
-                if (showVision && !IsFlipping())
+                if (showVision && !IsFlipping()) // ← pre-flip中は判定OK
                 {
                     RevealThievesInSight();
                 }
             }
 
-            // 追加: 常時（毎フレーム）の死亡判定。視界が出ている間は必ずチェック
-            if (showVision && !IsFlipping())
+            if (showVision && !IsFlipping()) // ← pre-flip中は判定OK
             {
                 var pl = board.player;
                 if (pl != null && !pl.invincible && CanSeePlayer())
-                    turn.TriggerGameOver(this); // ← 犯人を通知
+                    turn.TriggerGameOver(this);
             }
         }
     }
@@ -503,30 +512,29 @@ public class GuardController : MonoBehaviour
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
 
-        // 反転中は動作・視界判定を停止
-        if (IsFlipping()) return;
+        // 反転前待機 or 反転中 はこのTickの移動を止める
+        if (IsPreFlipHolding() || IsFlipping()) return;
 
-        // すでに移動中なら、このTick分をキューして即終了（取りこぼしを後で消化）
+        // すでに移動中なら、このTick分をキュー
         if (board != null && board.smoothGuardMove && isMoving)
         {
             stepQueued = true;
             return;
         }
 
-        DoOneStepCore(); // 通常の1手実行
+        DoOneStepCore();
     }
 
     // 実際の1手（watch更新＋移動/衝突処理＋視界→GO判定）
     void DoOneStepCore()
     {
-        // 監視向き更新
+        // 監視向き更新（pre-flip/flip中は別処理で止める）
         UpdateFacingByWatchMode();
 
         if (patrolMode == PatrolMode.Static)
         {
             if (board.player != null && !board.player.invincible && CanSeePlayer())
-                turn.TriggerGameOver(this); // ← 犯人を通知
-            // 静止監視でも泥棒を発見したら宝箱化
+                turn.TriggerGameOver(this);
             RevealThievesInSight();
             return;
         }
@@ -536,9 +544,9 @@ public class GuardController : MonoBehaviour
         Vector2Int step = DirToStep(tgt - pos);
         if (step == Vector2Int.zero)
         {
-            // エンド到達→折り返し時に小休止（視界OFF）
+            // エンド到達→反転前待機（移動停止・視界維持）
             AdvanceTarget(true);
-            if (IsFlipping()) return; // この手は終了（停止中）
+            if (IsPreFlipHolding() || IsFlipping()) return; // この手は終了
             tgt = GetCurrentTargetOrFallback(pos);
             step = DirToStep(tgt - pos);
         }
@@ -578,48 +586,28 @@ public class GuardController : MonoBehaviour
         }
 
         if (board.player != null && !board.player.invincible && CanSeePlayer())
-            turn.TriggerGameOver(this); // ← 犯人を通知
-        // 移動系の処理後に泥棒の発見→変換
+            turn.TriggerGameOver(this);
         RevealThievesInSight();
     }
-
     // ブロック時の対処（反転時は移動を止めて小休止）
     bool HandleBlocked(ref Vector2Int step)
     {
         if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
         {
-            // 反転して停止（即時移動はしない）
+            // 進行向きを反転 → まずは反転前待機（視界維持）
             pingDir *= -1;
-            forward = -step;
-            targetYaw = FacingToYaw(StepToFacing(forward));
-            if (board.snapGuardFacingOnMove)
-            {
-                currentYaw = targetYaw;
-                ApplyVisualYaw();
-            }
-            BeginFlipPause("blocked-pingpong");
-            AdvanceTarget(); // 目標も進め直し
+            BeginPreFlipHold(-step, "blocked-pingpong");
+            AdvanceTarget(); // 目標だけ進め直す（pauseOnEndpoint=false）
             return true;
         }
         else // Loop
         {
             if (bounceOnBlockedInLoop)
             {
-                // 折り返し（コーナーへは進まず、その場で逆走へ）
+                // 折り返し（逆走へ）。次Tickから逆側の頂点に向かう
                 loopDir *= -1; // 進行向きを反転
-                forward = -step;
-                targetYaw = FacingToYaw(StepToFacing(forward));
-                if (board.snapGuardFacingOnMove)
-                {
-                    currentYaw = targetYaw;
-                    ApplyVisualYaw();
-                }
-                ApplyVisualByFacing();
-
-                // 目標も逆方向へ1つ戻す（次Tickから逆側の頂点に向かう）
-                StepIndex(loopDir);
-
-                BeginFlipPause("blocked-loop-bounce");
+                StepIndex(loopDir); // 目標も逆方向へ1つ戻す
+                BeginPreFlipHold(-step, "blocked-loop-bounce");
                 return true; // この手は停止
             }
 
@@ -642,7 +630,6 @@ public class GuardController : MonoBehaviour
             return false;
         }
     }
-
     // ターゲット管理
     Vector2Int GetCurrentTargetOrFallback(Vector2Int fallback)
     {
@@ -666,9 +653,8 @@ public class GuardController : MonoBehaviour
 
         if (patrolMode == PatrolMode.Loop)
         {
-            // 次レグの方向を取得して、方向が変わるなら小休止
             Vector2Int prevForward = forward;
-            StepIndex(loopDir); // ← +1 固定から変更
+            StepIndex(loopDir);
             Vector2Int tgt = GetCurrentTargetOrFallback(pos);
             Vector2Int newStep = DirToStep(tgt - pos);
 
@@ -676,16 +662,8 @@ public class GuardController : MonoBehaviour
                 prevForward != Vector2Int.zero &&
                 newStep != prevForward)
             {
-                forward = newStep;
-                targetYaw = FacingToYaw(StepToFacing(newStep));
-                if (board != null && board.snapGuardFacingOnMove)
-                {
-                    currentYaw = targetYaw;
-                    ApplyVisualYaw();
-                }
-                ApplyVisualByFacing();
-
-                BeginFlipPause("loop-turn"); // 停止＆視界無効
+                // 向きをまだ変えず、反転前待機だけ開始（視界維持）
+                BeginPreFlipHold(newStep, "loop-turn");
             }
             return;
         }
@@ -701,26 +679,22 @@ public class GuardController : MonoBehaviour
         // 次の目標へ
         StepIndex(pingDir);
 
-        // 端点にいたら、初回（pingDir非反転）でも必ず小休止
         if (pauseOnEndpoint && atEnd)
         {
             Vector2Int tgt = GetCurrentTargetOrFallback(pos);
             Vector2Int st = DirToStep(tgt - pos);
             if (st != Vector2Int.zero)
             {
-                forward = st;
-                targetYaw = FacingToYaw(StepToFacing(st));
-                if (board != null && board.snapGuardFacingOnMove)
-                {
-                    currentYaw = targetYaw;
-                    ApplyVisualYaw();
-                }
-                ApplyVisualByFacing();
+                // ここでは向きを変えず、pre-flipのみ（視界維持）
+                BeginPreFlipHold(st, "end-turn");
             }
-            BeginFlipPause("end-turn");
+            else
+            {
+                // 進行不可でも一応 flip 小休止のみ
+                BeginFlipPause("end-turn");
+            }
         }
     }
-
     void StepIndex(int d)
     {
         if (path.Count == 0) { pathIndex = 0; return; }
@@ -805,11 +779,19 @@ public class GuardController : MonoBehaviour
     bool IsFlipping() => Time.time < flippingUntil;
     void BeginFlipPause() => BeginFlipPause("default");
 
+    // 反転小休止
     void BeginFlipPause(string reason)
     {
-        flippingUntil = Time.time + Mathf.Max(0f, flipPauseSeconds);
+        // flipPauseSeconds をそのまま使用（pre-flipは別で1セル時間待つ）
+        float pause = Mathf.Max(0f, flipPauseSeconds);
+
+        flippingUntil = Time.time + pause;
         lastFlipReason = reason;
-        Debug.Log($"[GuardPause] {name} reason={reason} dur={flipPauseSeconds:F3} until={flippingUntil:F3} t={Time.time:F3}");
+
+        // 反転確定直後は視界を消す（更新間隔を待たずに即時クリア）
+        if (showVision) ClearVision();
+
+        Debug.Log($"[GuardPause] {name} reason={reason} dur={pause:F3} until={flippingUntil:F3} t={Time.time:F3}");
     }
 
     // 前方(2D)単位ベクトル（0°=Up(+Z)）
@@ -1229,6 +1211,7 @@ public class GuardController : MonoBehaviour
     void UpdateFacingByWatchMode()
     {
         if (watchMode == WatchMode.OneDir) return;
+        if (IsPreFlipHolding() || IsFlipping()) return; // ← 追加: 待機中は回さない
         if (Time.time - lastRotateTime < rotatePeriod) return;
         lastRotateTime = Time.time;
 
@@ -1249,19 +1232,15 @@ public class GuardController : MonoBehaviour
         forward = FacingToVec(startFacing);
         targetYaw = FacingToYaw(startFacing);
 
-        // 即スナップ（体感遅延を抑える）
         if (board != null && board.snapGuardFacingOnMove)
         {
             currentYaw = targetYaw;
             ApplyVisualYaw();
         }
 
-        // 反転中は一定時間停止＋視界無効（理由: watch-rotate）
         BeginFlipPause("watch-rotate");
-        // 見た目更新（2系統＋反転）
         ApplyVisualByFacing();
     }
-
     // 外部から切替したい場合に呼べるトグル
     public void SetVisionMode(VisionMode mode)
     {
@@ -1569,9 +1548,55 @@ public class GuardController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null) return;
         if (turn.gameOver || turn.cleared) return;
-        if (IsFlipping()) return;
+        if (IsPreFlipHolding() || IsFlipping()) return;
 
-        // すぐまた isMoving を立てる可能性があるが、そのためのキューは次回以降に任せる
         DoOneStepCore();
+    }
+
+    // 反転前待機中か
+    bool IsPreFlipHolding() => preFlipActive && Time.time < preFlipUntil;
+
+    // 反転前待機を開始（移動だけ止める。視界はそのまま）
+    void BeginPreFlipHold(Vector2Int newForward, string reason)
+    {
+        float cps = (board != null) ? Mathf.Max(0.0001f, board.guardMoveCellsPerSec) : 2f;
+        float hold = 1f / cps;
+
+        preFlipActive = true;
+        preFlipUntil = Time.time + hold;
+
+        pendingTurn = true;
+        pendingForward = newForward;
+        pendingTargetYaw = FacingToYaw(StepToFacing(newForward));
+        pendingFlipReason = reason;
+
+        // 視界は維持するため、ここでは ClearVision は呼ばない
+        Debug.Log($"[GuardPause] {name} preHold={hold:F3}s reason={reason} until={preFlipUntil:F3}");
+    }
+
+    // 反転前待機が終わったら反転を適用し、flip pause へ遷移
+    void TryApplyPendingTurn()
+    {
+        if (!pendingTurn) return;
+        if (IsPreFlipHolding()) return;
+
+        // ここで初めて向きを反転
+        forward = pendingForward;
+        targetYaw = pendingTargetYaw;
+
+        if (board != null && board.snapGuardFacingOnMove)
+        {
+            currentYaw = targetYaw;
+            ApplyVisualYaw();
+        }
+        ApplyVisualByFacing();
+
+        pendingTurn = false;
+        preFlipActive = false;
+        preFlipUntil = 0f;
+
+        // 次段: 反転後は視界OFFの小休止
+        BeginFlipPause(pendingFlipReason);
+        pendingFlipReason = "";
     }
 }

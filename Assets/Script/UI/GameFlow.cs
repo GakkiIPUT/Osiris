@@ -368,7 +368,11 @@ public class GameFlow : MonoBehaviour
 
         ApplyExclusiveFocus();
     }
-
+    public void ShowTutorialIfNeededForCurrentStage()
+    {
+        // Start() で使っている既存の判定ロジックを再利用
+        MaybeShowTutorialAtStart();
+    }
     bool IsAnyBlockingPanelActive()
     {
         return (escMenuPanel && escMenuPanel.activeInHierarchy) ||
@@ -709,13 +713,16 @@ public class GameFlow : MonoBehaviour
             var tm = UnityCompat.FindFirst<TurnManager>();
             if (tm != null)
             {
-                // ここを直接代入ではなくAPIで初期化に変更
                 tm.ResetForRestart(keepRetryCount: false);
             }
             _suppressClearPanelOnce = true;
 
             // 次のステージへ
             stage.Next();
+
+            // ここで次ステージのチュートリアル判定・表示を即実行
+            ShowTutorialIfNeededForCurrentStage();
+
             ApplyExclusiveFocus();
         }
         else

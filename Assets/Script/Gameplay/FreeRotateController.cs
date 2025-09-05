@@ -19,20 +19,20 @@ public class FreeRotateController : MonoBehaviour
     float freeStartAngleDeg = 0f;
     float freeDeltaDeg = 0f; // 現在までの角度（CCWが+）
 
-    // 安定化用（遊び・ヒステリシス・平滑化）
+    // 安定化（マウス・スティック共通）
     [Header("Free Rotate Stabilizer")]
-    [Tooltip("回転中心近傍の無反応半径（セル=1.0）。この半径未満では角度更新しない")]
+    [Tooltip("回転中心付近の無視する半径（正規化=1.0）。この半径未満では角度更新しない")]
     [Range(0.0f, 0.5f)] public float mouseDeadZoneRadius = 0.18f;
-    // スナップは board.devSnapAngleDeg（IN）と board.devCommitAngleDeg（OUTの追加幅）を使用
-    // 平滑化は board.devStickiness を係数として使う（0=弱,1=強）
+    // スナップは board.devSnapAngleDeg（IN）と board.devCommitAngleDeg（OUT）のヒステリシスを使用
+    // 平滑度は board.devStickiness を重みとして使用（0=弱,1=強）
 
     // 内部状態（スナップのラッチ）
     bool _isSnapped = false;
     int _latchedSteps = 0;             // -2..2
-    float _previewDegSmoothed = 0f;    // 表示用角度（平滑化後）
+    float _previewDegSmoothed = 0f;    // 表示用角度（平滑化）
 
 #if ENABLE_INPUT_SYSTEM
-    // スティック回転のコミット待ち（既存）
+    // スティック回転のコミット待ち（離して少し静止したらコミット）
     bool _padLeftWasActive = false;
     float _padLeftInactiveSince = 0f;
     const float _padCommitIdleSec = 0.12f;
@@ -67,27 +67,35 @@ public class FreeRotateController : MonoBehaviour
 
     void HandleFreeRotate()
     {
-        // キーマウス右クリック/Esc/T でキャンセル
+        // キーマウス・右クリック/Esc/T でキャンセル
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.T))
         {
             if (freeDragging) CancelIfNeeded();
             return;
         }
 
-        // マウス開始（左クリックで中心取得→ドラッグで回転）
+        // マウス開始（クリック位置を中心にプレビュー開始）
         if (Input.GetMouseButtonDown(0))
         {
             if (!TryGetMouseGrid(out var center)) return;
             freeSize = player != null ? player.areaSize : 3;
             if (!IsCenterAllowed(center)) { FlashNg(center); return; }
             if (!HasAnyStep(center)) { FlashNg(center); return; }
-            if (!TryGetMouseWorld(center, out var startAngle)) return; // デッドゾーン内は開始しない
-            BeginPreview(center, startAngle);
+
+            // 角度が取れなくてもプレビューは開始してゴーストを出す（Padと同様の見た目）
+            float startAngle;
+            bool hasAngle = TryGetMouseWorld(center, out startAngle);
+            BeginPreview(center, hasAngle ? startAngle : 0f);
+            if (!hasAngle)
+            {
+                // 初期角を0としてプレビューを静止表示。ドラッグでデッドゾーンを超えたら角度更新。
+                board.UpdateFreePreviewAngle(0f);
+            }
             return;
         }
 
 #if ENABLE_INPUT_SYSTEM
-        // パッド入力（既存） … 略（元コード維持）
+        // Pad入力（参考：既存仕様のまま）
         var gp = Gamepad.current;
         if (gp != null)
         {
@@ -138,7 +146,7 @@ public class FreeRotateController : MonoBehaviour
         }
 #endif
 
-        // マウス：ドラッグ中は角度更新（デッドゾーン内はTryGetMouseWorld=falseで更新しない）
+        // マウス・ドラッグ中の角度更新（デッドゾーン内は角度未更新でもOK）
         if (freeDragging && Input.GetMouseButton(0))
         {
             if (!TryGetMouseWorld(freeCenter, out var curAngle)) return;
@@ -146,7 +154,7 @@ public class FreeRotateController : MonoBehaviour
             return;
         }
 
-        // マウス：ボタンを離したら確定/取消
+        // マウス・ボタンアップで確定/取消
         if (freeDragging && Input.GetMouseButtonUp(0))
         {
             EndPreviewAndCommit();
@@ -164,11 +172,12 @@ public class FreeRotateController : MonoBehaviour
         freeStepOK = false;
         freeDragging = true;
 
-        // 安定化状態リセット
+        // スナップ状態リセット
         _isSnapped = false;
         _latchedSteps = 0;
         _previewDegSmoothed = 0f;
 
+        // Padと同様に開始直後からゴーストを表示し、回転ピボットに追従させる
         player?.ShowGhostExtern(true, center, freeSize, false);
         var pivot = board.GetFreePreviewPivot();
         if (pivot != null) player?.AttachGhostTo(pivot, true);
@@ -176,30 +185,26 @@ public class FreeRotateController : MonoBehaviour
 
     void UpdateAngleFrom(float curAngle)
     {
-        // 角度差（-180..180）
+        // 差分角（-180..180）
         freeDeltaDeg = Mathf.DeltaAngle(freeStartAngleDeg, curAngle);
 
         // 許容ステップ範囲
         int minStep = (board != null && board.devAllow180Rotation) ? -2 : -1;
         int maxStep = (board != null && board.devAllow180Rotation) ?  2 :  1;
 
-        // 候補ステップ
+        // 最寄りステップ
         int candSteps = Mathf.Clamp(Mathf.RoundToInt(freeDeltaDeg / 90f), minStep, maxStep);
 
-        // スナップのしきい値（IN/OUT ヒステリシス）
+        // スナップのヒステリシス（IN/OUT）
         float snapInDeg = Mathf.Max(1f, board != null ? board.devSnapAngleDeg : 15f);
         float snapOutDeg = snapInDeg + Mathf.Max(0f, board != null ? board.devCommitAngleDeg : 10f);
 
-        // スナップ・ラッチ制御（シュミットトリガ）
+        // スナップ維持/解除判定
         if (_isSnapped)
         {
             // いまのラッチ目標からどれだけズレたか
             float err = Mathf.DeltaAngle(freeDeltaDeg, _latchedSteps * 90f);
-            if (Mathf.Abs(err) > snapOutDeg)
-            {
-                // ラッチ解除（再びフリーへ）
-                _isSnapped = false;
-            }
+            if (Mathf.Abs(err) > snapOutDeg) _isSnapped = false;
         }
         if (!_isSnapped)
         {
@@ -211,17 +216,15 @@ public class FreeRotateController : MonoBehaviour
             }
         }
 
-        // プレビュー角度（スナップ中は目標に固定、非スナップ時はフリー）
+        // 表示角度（スナップ時は厳密、非スナップはフリー）を平滑化
         float previewWantedDeg = _isSnapped ? (_latchedSteps * 90f) : freeDeltaDeg;
-
-        // 平滑化（devStickinessで係数を調整：0=弱~1=強）
         float alpha = Mathf.Lerp(0.18f, 0.45f, board != null ? Mathf.Clamp01(board.devStickiness) : 0.5f);
         _previewDegSmoothed = Mathf.LerpAngle(_previewDegSmoothed, previewWantedDeg, alpha);
 
-        // +Yは右手系なのでCWが正回転
+        // +Yは右手系なのでCWが負回転
         board.UpdateFreePreviewAngle(-_previewDegSmoothed);
 
-        // 可否チェック（スナップしているステップのみ確定候補）
+        // ステップ可否とNG条件
         var v = board.GetStepValidity(freeCenter, freeSize);
         bool lockedExceptCenter = board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
         int checkSteps = _isSnapped ? _latchedSteps : candSteps;
@@ -230,7 +233,7 @@ public class FreeRotateController : MonoBehaviour
         freeNearestSteps = checkSteps;
         freeStepOK = _isSnapped && stepAllowed && !lockedExceptCenter;
 
-        // ゴースト色（緑/赤）は「スナップ中か」で示す
+        // ゴースト色は「スナップできているか」で表現（Padと同様）
         player?.UpdateGhostOkExtern(_isSnapped);
     }
 
@@ -290,7 +293,7 @@ public class FreeRotateController : MonoBehaviour
         {
             turn?.EndPlayerTurn();
         }
-        // 0回適用なら何もしない（NGフラッシュは上位で済ませている）
+        // 0は適用なし（NGフラッシュは直前に実施）
     }
     bool TryGetMouseGrid(out Vector2Int grid)
     {
@@ -308,7 +311,7 @@ public class FreeRotateController : MonoBehaviour
         return false;
     }
 
-    // デッドゾーン（中心近傍）では angleDeg を返さず false にする
+    // デッドゾーン内では angleDeg を返さず false にする
     bool TryGetMouseWorld(Vector2Int center, out float angleDeg)
     {
         angleDeg = 0f;
@@ -321,8 +324,8 @@ public class FreeRotateController : MonoBehaviour
             Vector3 hit = r.GetPoint(enter);
             Vector3 wc = board.GridToWorld(center);
             Vector2 v = new Vector2(hit.x - wc.x, hit.z - wc.z);
-            float deadSqr = mouseDeadZoneRadius * mouseDeadZoneRadius; // セル基準
-            if (v.sqrMagnitude < deadSqr) return false;                // 中心近傍は無視（遊び）
+            float deadSqr = mouseDeadZoneRadius * mouseDeadZoneRadius; // 正規化半径
+            if (v.sqrMagnitude < deadSqr) return false;                // デッドゾーン内は無効（角度未確定）
             angleDeg = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg; // +X基準CCW
             return true;
         }
