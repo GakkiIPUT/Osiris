@@ -3416,6 +3416,7 @@ GameObject:
   - component: {fileID: 926001099}
   - component: {fileID: 926001100}
   - component: {fileID: 926001101}
+  - component: {fileID: 926001102}
   m_Layer: 0
   m_Name: BoardManager
   m_TagString: Untagged
@@ -3612,6 +3613,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   mouseDeadZoneRadius: 0.18
+--- !u!114 &926001102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 926001098}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 869613c18a739e740a2b7f495b699dc1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  board: {fileID: 926001100}
+  innerSize: 3
+  outerRadius: 3
+  frameThickness: 0.06
+  innerOkColor: {r: 0, g: 1, b: 0.9243698, a: 1}
+  innerNgColor: {r: 1, g: 0.25, b: 0.25, a: 0.9}
+  outerColor: {r: 1, g: 1, b: 1, a: 0.05490196}
+  innerYOffset: 0.0003
+  outerYOffset: 0.00025
+  applyInspectorEveryFrame: 1
+  showOuter: 1
 --- !u!1 &970574184
 GameObject:
   m_ObjectHideFlags: 0
@@ -3833,7 +3857,7 @@ MonoBehaviour:
   btnResetTutorialAll: {fileID: 0}
   devMode: 0
   editorDevMode: 0
-  editorInvincible: 0
+  editorInvincible: 1
   editorAreaSize: 3
   editorRotatePlayerWithArea: 1
   editorRotationCenterMaxDistance: 3

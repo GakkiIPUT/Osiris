@@ -627,6 +627,12 @@ public class BoardManager : MonoBehaviour
 
         // 生成後に視界可視化を更新
         RefreshAllGuardVision();
+
+        var overlay = GetComponent<SelectionFramesOverlay>();
+        if (overlay == null) overlay = gameObject.AddComponent<SelectionFramesOverlay>();
+        overlay.board = this;
+        overlay.innerSize = 3;
+        overlay.outerRadius = 3;
     }
 
     // 必須アイテムの進捗 → Exit を一括で開閉

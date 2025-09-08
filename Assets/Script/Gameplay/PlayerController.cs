@@ -17,19 +17,21 @@ public class PlayerController : MonoBehaviour
         get => _areaSize;
         set
         {
-            _areaSize = Mathf.Clamp(value, 3, 9); // 3,5,7,9など
-            if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
+            // 常に3×3固定
+            _areaSize = 3;
+            // 見た目更新のみ（Overlay側が追従）
+            UpdateGhostVisual();
         }
     }
     private int _areaSize = 3;
 
-    bool aiming = false;
+    bool aiming = true;           // 常時ON
     Vector2Int aimCenter;
 
     // 公開: FreeRotateController から参照
     public Vector2Int AimCenter => aimCenter;   
 
-    GameObject ghostRoot;
+    GameObject ghostRoot; // 互換のため残置（未使用）
 
     // スムーズ移動
     bool isMoving = false;
@@ -50,7 +52,7 @@ public class PlayerController : MonoBehaviour
     [Header("Gamepad")]
     public bool enableGamepad = true;
     [Range(0.1f, 0.9f)] public float stickDigitalThreshold = 0.5f;
-    public bool gamepadTogglesAim = true; // Southでトグル開始/終了
+    public bool gamepadTogglesAim = true; // 常時選択化では無効
 
     // エイム中のPadカーソル移動（右スティック）
     [Header("Aim Move (Pad)")]
@@ -65,7 +67,6 @@ public class PlayerController : MonoBehaviour
     bool _ltDown = false, _rtDown = false;
     const float _triggerEdge = 0.5f;
 #endif
-
 
     //効果音
     public AudioClip walkAudio;
@@ -86,6 +87,13 @@ public class PlayerController : MonoBehaviour
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
+
+        // 常時選択ON（初期中心はプレイヤー位置）
+        aiming = true;
+        aimCenter = pos;
+
+        // 枠線表示はOverlay（自動アタッチ）側が担当
+        UpdateGhostVisual();
     }
 
     void Update()
@@ -93,7 +101,6 @@ public class PlayerController : MonoBehaviour
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null && (turn.gameOver || turn.cleared)) return;
         if (GlobalEscMenu.IsMenuOpen) return;
-        // 追加: チュートリアル表示中は入力停止
         if (GameFlow.TutorialOverlayOpen) return;
 
         UpdatePadState();
@@ -111,6 +118,11 @@ public class PlayerController : MonoBehaviour
                 pos = board.WorldToGrid(moveTo);
                 transform.position = board.GridToWorldActor(pos);
                 board.TryPickupItemAt(pos);
+
+                // プレイヤー移動完了時：内枠中心を外枠（プレイヤー中心R=3）内へクランプ
+                aimCenter = ClampAimCenterToOuter(aimCenter, pos);
+                UpdateGhostVisual();
+
                 turn?.RegisterActionPoint();
                 if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
                 turn?.EndPlayerTurn();
@@ -128,14 +140,19 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 既存入力
-        if (Input.mouseScrollDelta.y != 0f) { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.Alpha1)) { areaSize = 3; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-        if (Input.GetKeyDown(KeyCode.Alpha2)) { areaSize = 5; if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
         if (Input.GetKeyDown(KeyCode.V)) board.ToggleAllGuardVision();
-        if (Input.GetMouseButtonDown(0)) { if (TryGetMouseGrid(out var g)) { aiming = true; aimCenter = g; ShowGhost(true); } }
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) { aiming = false; ShowGhost(false); }
-        if (Input.GetKeyDown(KeyCode.T)) { aiming = false; ShowGhost(false); }
+
+        // 左クリックで中心変更（クランプ適用）
+        if (Input.GetMouseButtonDown(0))
+        {
+            if (TryGetMouseGrid(out var g))
+            {
+                aimCenter = ClampAimCenterToOuter(g, pos);
+                UpdateGhostVisual();
+            }
+        }
+
+        // 解除入力は無効化（常時選択）
 
         HandleGamepadButtons();
 
@@ -145,14 +162,12 @@ public class PlayerController : MonoBehaviour
 
     void HandleMoveInput()
     {
-        // 追加: 回転プレビュー中は移動入力を無効化
         if (board != null && board.IsFreePreviewActive)
         {
             holdDir = Vector2Int.zero;
             return;
         }
 
-        // ========= Padのデジタル化（左スティック / D-Pad） =========
         Vector2Int padDir = Vector2Int.zero;
         GetPadDigitalDir(ref padDir);
         if (padDir != Vector2Int.zero)
@@ -163,7 +178,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // ========= キーボード =========
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
         else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
         else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
@@ -171,13 +185,11 @@ public class PlayerController : MonoBehaviour
 
         if (holdDir != Vector2Int.zero)
         {
-            // KB held
             bool upHeld = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
             bool downHeld = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
             bool leftHeld = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
             bool rightHeld = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
 
-            // Pad held
             bool upHeldPad = false, downHeldPad = false, leftHeldPad = false, rightHeldPad = false;
             if (enableGamepad)
             {
@@ -241,6 +253,11 @@ public class PlayerController : MonoBehaviour
             pos = np;
             transform.position = board.GridToWorldActor(pos);
             board.TryPickupItemAt(pos);
+
+            // 即時移動でも内枠中心をクランプ
+            aimCenter = ClampAimCenterToOuter(aimCenter, pos);
+            UpdateGhostVisual();
+
             turn?.RegisterActionPoint();
             if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
             turn?.EndPlayerTurn();
@@ -252,9 +269,8 @@ public class PlayerController : MonoBehaviour
 
     public void UI_RotateCW() { if (aiming) TryRotate(+1); }
     public void UI_RotateCCW() { if (aiming) TryRotate(-1); }
-    public void UI_ToggleAreaSize() { ToggleAreaSize(); if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); } }
-
-    void ToggleAreaSize() { areaSize = (areaSize == 3) ? 5 : 3; }
+    public void UI_ToggleAreaSize() { /* 無効化（常に3） */ }
+    void ToggleAreaSize() { /* 無効化（常に3） */ }
 
     bool TryGetMouseGrid(out Vector2Int grid)
     {
@@ -294,7 +310,7 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    // TryRotate 内の RotateArea 呼び出しを置き換え
+    // 回転実行（成功時も選択は維持）
     void TryRotate(int dirRot)
     {
         if (!IsCenterAllowed(AimCenter)) { UpdateGhostVisual(); return; }
@@ -312,91 +328,34 @@ public class PlayerController : MonoBehaviour
         {
             var t = UnityCompat.FindFirst<TurnManager>();
             t?.RegisterRotation();
-
-            aiming = false;
-            ShowGhost(false);
+            UpdateGhostVisual(); // 見た目更新（色だけ）
             turn.EndPlayerTurn();
-
             PlaySound(rotateAudio);
         });
 
         if (!started)
         {
-            // 回転失敗: AP消費せず継続
             UpdateGhostVisual();
         }
     }
 
-    // ====== ゴースト表示（エイム時のみNxN半透明を出す） ======
-    void ShowGhost(bool on)
-    {
-        if (!on)
-        {
-            if (ghostRoot != null) Destroy(ghostRoot);
-            return;
-        }
-        if (ghostRoot == null) ghostRoot = new GameObject("Ghost");
-        BuildGhostTiles();
-        UpdateGhostVisual();
-    }
-
-    void BuildGhostTiles()
-    {
-        // ルートを中心セルへ（高さはghostY）
-        if (ghostRoot == null) ghostRoot = new GameObject("Ghost");
-        ghostRoot.transform.position = board.GridToWorld(aimCenter) + new Vector3(0, board.ghostY, 0);
-        ghostRoot.transform.rotation = Quaternion.identity;
-
-        // いったん全削除
-        for (int i = ghostRoot.transform.childCount - 1; i >= 0; i--)
-            Destroy(ghostRoot.transform.GetChild(i).gameObject);
-
-        int k = (areaSize - 1) / 2;
-        for (int j = -k; j <= k; j++)
-        {
-            for (int i = -k; i <= k; i++)
-            {
-                var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                quad.name = $"Ghost_{i}_{j}";
-                quad.transform.SetParent(ghostRoot.transform, false);
-
-                // ローカル配置（中心セルからの相対 i,j）
-                quad.transform.localPosition = new Vector3(i, 0f, j);
-                quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                quad.transform.localScale = new Vector3(1f, 1f, 1f);
-
-                var mr = quad.GetComponent<MeshRenderer>();
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                mr.receiveShadows = false;
-                Destroy(quad.GetComponent<MeshCollider>());
-            }
-        }
-    }
+    // ====== Ghost系はNO-OPにしてOverlayへ委譲 ======
+    void ShowGhost(bool on) { /* NO-OP（枠線表示に統一） */ }
+    void BuildGhostTiles() { /* NO-OP */ }
 
     void UpdateGhostVisual()
     {
-        if (ghostRoot == null) return;
-        ghostRoot.transform.position = board.GridToWorld(AimCenter) + new Vector3(0, board.ghostY, 0);
-
+        if (board == null) return;
         var pv = board.GetPreview(AimCenter, areaSize, 0);
         bool centerOk = IsCenterAllowed(AimCenter);
         bool lockedInArea = AreaContainsLocked(AimCenter, areaSize);
-
         bool ok = pv.valid && centerOk && !lockedInArea;
-        var mat = ok ? board.ghostOkMat : board.ghostNgMat;
 
-        if (mat != null)
-        {
-            var rends = ghostRoot.GetComponentsInChildren<MeshRenderer>(true);
-            for (int idx = 0; idx < rends.Length; idx++)
-                rends[idx].material = mat;
-        }
+        var overlay = board.GetComponent<SelectionFramesOverlay>();
+        if (overlay != null) overlay.SetInnerOk(ok);
     }
-    public void ClearGhost()
-    {
-        aiming = false;
-        if (ghostRoot != null) { Destroy(ghostRoot); ghostRoot = null; }
-    }
+
+    public void ClearGhost() { /* NO-OP（選択は常時表示） */ }
 
     public void SaveDevModeSettings()
     {
@@ -411,54 +370,29 @@ public class PlayerController : MonoBehaviour
         areaSize = 3;
     }
 
+    // FreeRotateController からの外部呼び出しはOverlayへ中継
     public void ShowGhostExtern(bool on, Vector2Int center, int size, bool ok)
     {
         this.aimCenter = center;
-        this._areaSize = size;
-        ShowGhost(on);
-        if (on)
-        {
-            BuildGhostTiles();
-            ApplyGhostMaterial(ok);
-        }
+        this._areaSize = 3;
+        var overlay = board != null ? board.GetComponent<SelectionFramesOverlay>() : null;
+        if (overlay != null) overlay.SetInnerOk(ok);
     }
 
     public void UpdateGhostOkExtern(bool ok)
     {
-        ApplyGhostMaterial(ok);
+        var overlay = board != null ? board.GetComponent<SelectionFramesOverlay>() : null;
+        if (overlay != null) overlay.SetInnerOk(ok);
     }
 
     public void FlashNgGhostExtern(Vector2Int center, int size, float seconds)
     {
-        StartCoroutine(CoFlashNgGhost(center, size, seconds));
+        var overlay = board != null ? board.GetComponent<SelectionFramesOverlay>() : null;
+        if (overlay != null) overlay.FlashInnerNg(seconds);
     }
 
-    IEnumerator CoFlashNgGhost(Vector2Int center, int size, float seconds)
-    {
-        ShowGhostExtern(true, center, size, false);
-        yield return new WaitForSeconds(seconds);
-        ClearGhost();
-    }
-
-    void ApplyGhostMaterial(bool ok)
-    {
-        if (ghostRoot == null) return;
-        var mat = (ok ? board.ghostOkMat : board.ghostNgMat) ?? board.ghostOkMat;
-        var rends = ghostRoot.GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < rends.Length; i++)
-            if (rends[i] != null) rends[i].sharedMaterial = mat;
-    }
-
-    public void AttachGhostTo(Transform parent, bool worldPositionStays = true)
-    {
-        if (ghostRoot != null && parent != null)
-            ghostRoot.transform.SetParent(parent, worldPositionStays);
-    }
-    public void DetachGhost(bool worldPositionStays = true)
-    {
-        if (ghostRoot != null)
-            ghostRoot.transform.SetParent(null, worldPositionStays);
-    }
+    public void AttachGhostTo(Transform parent, bool worldPositionStays = true) { /* NO-OP */ }
+    public void DetachGhost(bool worldPositionStays = true) { /* NO-OP */ }
 
     void HandleGamepadButtons()
     {
@@ -467,33 +401,17 @@ public class PlayerController : MonoBehaviour
         var gp = Gamepad.current;
         if (gp == null) return;
 
-        // R2＝サイズ切替（プレビュー中も許可）
-        if (_rtDown)
-        {
-            ToggleAreaSize();
-            if (aiming) { BuildGhostTiles(); UpdateGhostVisual(); }
-        }
+        // R2＝サイズ切替（無効化）
 
-        // 自由回転プレビュー中はここで打ち切り（QE/LRなどは衝突回避のため無効化）
+        // 自由回転プレビュー中はここで打ち切り
         if (board != null && board.IsFreePreviewActive) return;
 
-        // 南ボタン＝選択トグル
-        if (gamepadTogglesAim && gp.buttonSouth.wasPressedThisFrame)
-        {
-            if (!aiming) { aiming = true; aimCenter = pos; ShowGhost(true); }
-            else { aiming = false; ShowGhost(false); }
-        }
-
-        // 東ボタン＝選択解除
-        if (gp.buttonEast.wasPressedThisFrame)
-        {
-            aiming = false; ShowGhost(false);
-        }
+        // 南/東ボタンの選択トグル・解除は無効
 
         // Lスティック押し込み＝視界トグル
         if (gp.leftStickButton.wasPressedThisFrame) board?.ToggleAllGuardVision();
 
-        // QE回転（devEnableFreeRotateに関係なく有効＝両立）
+        // QE回転（右/左ショルダー）
         if (aiming)
         {
             if (gp.rightShoulder.wasPressedThisFrame) TryRotate(+1);
@@ -502,23 +420,17 @@ public class PlayerController : MonoBehaviour
 #endif
     }
 
-    // Pad: 選択中の範囲移動（D-Padのみ）。FreePreview中は移動不可（IsFreePreviewActiveで抑止）
-    // Pad: 選択中の範囲移動（右スティック優先＋D-Pad）。FreePreview中は移動不可
-    // Pad: 選択中の入力
-    // - D-Pad＝キャラクター移動（選択は維持）。回転プレビュー中は無効。
-    // - 右スティック＝選択範囲移動（ホールドリピート）。回転プレビュー中は無効。
-    // 左スティックは自由回転（FreeRotateController側）に使用。
+    // Pad: 選択中の範囲移動（右スティック）…クランプ適用
     void HandleAimPadInput()
     {
 #if ENABLE_INPUT_SYSTEM
         if (!enableGamepad || !allowAimPadMove) return;
-        // 回転プレビュー中は一切の移動不可
         if (board != null && (board.IsAnimating || board.IsFreePreviewActive)) return;
 
         var gp = Gamepad.current;
         if (gp == null) return;
 
-        // 1) D-Pad でキャラクターを移動（最優先、選択は維持）
+        // 1) D-Pad でキャラクターを移動（最優先）
         Vector2 dv = gp.dpad.ReadValue();
         if (Mathf.Abs(dv.x) > 0.5f || Mathf.Abs(dv.y) > 0.5f)
         {
@@ -526,14 +438,12 @@ public class PlayerController : MonoBehaviour
                 ? (dv.x > 0f ? Vector2Int.right : Vector2Int.left)
                 : (dv.y > 0f ? Vector2Int.up : Vector2Int.down);
 
-            // 通常移動のホールド機構を流用
             if (holdDir == Vector2Int.zero || moveDir != holdDir)
             {
-                StartHold(moveDir); // 1歩動く＋holdNextTimeセット
+                StartHold(moveDir);
             }
             else
             {
-                // D-Pad長押しリピート
                 Vector2 dv2 = gp.dpad.ReadValue();
                 bool held =
                     (holdDir == Vector2Int.up && dv2.y > 0.5f) ||
@@ -551,11 +461,10 @@ public class PlayerController : MonoBehaviour
                     holdNextTime = Time.time + holdRepeatInterval;
                 }
             }
-            // D-Padを最優先で処理するため、このフレームはここで終了
             return;
         }
 
-        // 2) 右スティックで選択範囲（aimCenter）移動（デジタル化＋ホールド）
+        // 2) 右スティックで選択範囲（aimCenter）移動（クランプ適用）
         Vector2 rs = gp.rightStick.ReadValue();
         Vector2Int dir = Vector2Int.zero;
         if (Mathf.Abs(rs.x) >= stickDigitalThreshold || Mathf.Abs(rs.y) >= stickDigitalThreshold)
@@ -576,7 +485,6 @@ public class PlayerController : MonoBehaviour
 
         if (aimHoldDir != Vector2Int.zero)
         {
-            // 右スティック長押し判定
             Vector2 rsv = gp.rightStick.ReadValue();
             bool held =
                 (aimHoldDir == Vector2Int.up && rsv.y >= stickDigitalThreshold) ||
@@ -605,12 +513,14 @@ public class PlayerController : MonoBehaviour
         aimHoldNextTime = Time.time + aimInitialDelay;
     }
 
+    // 内枠中心の移動にもクランプを適用
     void MoveAimCenter(Vector2Int dir)
     {
         if (board == null) return;
-        var next = AimCenter + dir;
-        if (!board.InBounds(next)) return;
-        aimCenter = next;
+        var wanted = AimCenter + dir;
+        wanted = ClampAimCenterToOuter(wanted, pos);
+        if (!board.InBounds(wanted)) return;
+        aimCenter = wanted;
         UpdateGhostVisual();
     }
 
@@ -657,12 +567,10 @@ public class PlayerController : MonoBehaviour
         _prevRT = rt;
 #endif
     }
+
     private void Awake()
     {
-        // AudioSource を追加
         audioSource = gameObject.AddComponent<AudioSource>();
-
-        // Resources からロード
         walkAudio = Resources.Load<AudioClip>("Audio/walk");
         rotateAudio = Resources.Load<AudioClip>("Audio/rotate");
         goalAudio = Resources.Load<AudioClip>("Audio/goal");
@@ -672,5 +580,32 @@ public class PlayerController : MonoBehaviour
     {
         if (clip != null && audioSource != null)
             audioSource.PlayOneShot(clip);
+    }
+
+    // ====== 内枠クランプ（外枠=プレイヤー中心R=3、内枠=3×3,k=1） ======
+    Vector2Int ClampAimCenterToOuter(Vector2Int c, Vector2Int playerPos)
+    {
+        int k = (areaSize - 1) / 2; // =1
+        int rout = k + 2;           // =3
+        // 1) プレイヤー中心から±(rout - k) = ±2 にクランプ（中心Cの許容範囲）
+        int minXByOuter = playerPos.x - (rout - k);
+        int maxXByOuter = playerPos.x + (rout - k);
+        int minYByOuter = playerPos.y - (rout - k);
+        int maxYByOuter = playerPos.y + (rout - k);
+
+        int cx = Mathf.Clamp(c.x, minXByOuter, maxXByOuter);
+        int cy = Mathf.Clamp(c.y, minYByOuter, maxYByOuter);
+
+        // 2) 内枠3×3が盤外に出ないよう、盤面境界でもクランプ
+        if (board != null)
+        {
+            int minX = k;
+            int maxX = board.Width - 1 - k;
+            int minY = k;
+            int maxY = board.Height - 1 - k;
+            cx = Mathf.Clamp(cx, minX, maxX);
+            cy = Mathf.Clamp(cy, minY, maxY);
+        }
+        return new Vector2Int(cx, cy);
     }
 }
