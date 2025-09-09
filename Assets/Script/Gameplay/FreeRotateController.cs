@@ -28,22 +28,39 @@ public class FreeRotateController : MonoBehaviour
     public bool padInvertHorizontal = false;
     [Tooltip("開始/停止用の外側デッドゾーン半径 (0=無し, 推奨0.2~0.3)")]
     [Range(0f, 0.9f)] public float padDeadZone = 0.25f;
-    [Tooltip("1Dモードで角度ゼロへ潰さないための内側係数 (外側×係数)。小さいほど保持しやすい")]
+    [Tooltip("1Dモードで角度ゼロへ潰さないための内側係数 (外側×係数)")]
     [Range(0f, 1f)] public float pad1DInnerDeadZoneFactor = 0.4f;
     [Tooltip("±90°判定に必要な最小角度（これ未満で離したら 0 ステップ）")]
     [Range(5f, 89f)] public float padStepMinDegrees = 30f;
-    [Tooltip("離した瞬間スナップ成立で即確定")]
+
+    [Tooltip("スティック離しで確定を使う（OFFでAボタン明示確定方式）")]
+    public bool padUseReleaseToCommit = true;
+    [Tooltip("離した瞬間スナップ成立で即確定（Releaseモード時）")]
     public bool padCommitImmediateOnRelease = true;
     [Tooltip("即確定失敗時/Immediate OFF 時の遅延確定秒数")]
     [Range(0.02f, 0.5f)] public float padCommitIdleSeconds = 0.12f;
-    [Tooltip("スナップしていない離しはキャンセルする")]
+    [Tooltip("スナップしていない離しはキャンセルする（Releaseモード時）")]
     public bool padCancelIfNotSnappedOnRelease = true;
-    [Tooltip("離し時、スナップしてなくてもこの角度以内なら自動吸着して確定")]
+    [Tooltip("離し or A確定時 自動吸着を許可")]
     public bool padAutoSnapOnRelease = true;
     [Tooltip("自動吸着許容角度 (例: 50°なら ±90°へ 40~90°帯で吸着)")]
     [Range(10f, 89f)] public float padAutoSnapDeg = 50f;
-    [Tooltip("離し後この ms は最後にスナップしていたステップを保持（ノイズ救済）")]
+    [Tooltip("離し後この ms は最後のスナップを保持（ノイズ救済 / Releaseモード時）")]
     [Range(0f, 300f)] public int padGraceSnapMillis = 120;
+
+    [Header("Post Commit / Cancel")]
+    [Tooltip("ボタン(A/B)確定・キャンセル後、再度倒す前に必要な再センター割合 (外側デッドゾーン×係数以下で解除)。")]
+    [Range(0.2f, 1f)] public float padRecenterClearFactor = 0.6f;
+
+    [Header("Explicit Commit Mode (padUseReleaseToCommit=OFF)")]
+    [Tooltip("明示確定モードでスティックを離したらプレビュー角度を開始角(0°)へ戻す")]
+    public bool padExplicitReleaseReturn = true;
+    [Tooltip("0=即時復帰 / 1=遅め補間。通常0.25〜0.5推奨")]
+    [Range(0f, 1f)] public float padExplicitReturnLerp = 0.35f;
+    [Tooltip("明示確定モード: ニュートラルへ戻ったら自動キャンセル")]
+    public bool padExplicitAutoCancelOnNeutral = true; // ★ 追加
+    [Tooltip("ニュートラル継続秒数で自動キャンセル (0=即キャンセル)")]
+    [Range(0f, 0.5f)] public float padExplicitNeutralCancelDelay = 0.12f; // ★ 追加
 #endif
 
     bool _isSnapped = false;
@@ -53,11 +70,12 @@ public class FreeRotateController : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
     bool _padLeftWasActive = false;
     float _padLeftInactiveSince = 0f;
-    bool _usingPad1D = false; // ±90°制限時のみ true
+    bool _usingPad1D = false;
     float _lastInputAngleDeg = 0f;
-    bool _hadSnapThisFrame = false;
     int _lastSnappedSteps = 0;
     float _lastSnapTime = 0f;
+    bool _padNeedRecenter = false;
+    float _padNeutralSince = -1f; // ★ 追加: ニュートラル滞在開始時刻
 #endif
 
     void Update()
@@ -66,9 +84,7 @@ public class FreeRotateController : MonoBehaviour
         if (player == null) player = UnityCompat.FindFirst<PlayerController>();
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (board == null || turn == null) return;
-
         if (!turn.IsPlayerTurn()) { CancelIfNeeded(); return; }
-
         HandleFreeRotate();
     }
 
@@ -86,12 +102,13 @@ public class FreeRotateController : MonoBehaviour
         _padLeftInactiveSince = 0f;
         _usingPad1D = false;
         _lastSnappedSteps = 0;
+        _padNeutralSince = -1f; // ★ reset
 #endif
     }
 
     void HandleFreeRotate()
     {
-        // キャンセル
+        // キャンセル（マウス/キー）
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.T))
         {
             if (freeDragging) CancelIfNeeded();
@@ -103,9 +120,7 @@ public class FreeRotateController : MonoBehaviour
         {
             if (!TryGetMouseGrid(out var center)) return;
             freeSize = player != null ? player.areaSize : 3;
-            if (!IsCenterAllowed(center)) { FlashNg(center); return; }
-            if (!HasAnyStep(center)) { FlashNg(center); return; }
-
+            if (!IsCenterAllowed(center) || !HasAnyStep(center)) { FlashNg(center); return; }
             float startAngle;
             bool hasAngle = TryGetMouseWorld(center, out startAngle);
             BeginPreview(center, hasAngle ? startAngle : 0f);
@@ -117,27 +132,81 @@ public class FreeRotateController : MonoBehaviour
         var gp = Gamepad.current;
         if (gp != null)
         {
-            // B / X などで中断
-            if (freeDragging && (gp.buttonSouth.wasPressedThisFrame || gp.buttonEast.wasPressedThisFrame))
+            // B(East) = キャンセル
+            if (freeDragging && gp.buttonEast.wasPressedThisFrame)
             {
                 CancelIfNeeded();
+                _padNeedRecenter = true;
                 return;
             }
 
-            // Aiming 中のみ開始/角度更新を許可（離し後確定は Aiming 外でも行うため後段で処理）
+            // A(South) = 明示確定
+            if (freeDragging && gp.buttonSouth.wasPressedThisFrame)
+            {
+                if (TryPadCommitExplicit())
+                {
+                    _padNeedRecenter = true;
+                    return;
+                }
+            }
+
+            Vector2 lvFull = gp.leftStick.ReadValue();
+
+            // 再センター解除
+            if (_padNeedRecenter)
+            {
+                float baseThrC = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                float outerThrC = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrC);
+                float clearThr = outerThrC * padRecenterClearFactor;
+                if (lvFull.sqrMagnitude < (clearThr * clearThr))
+                    _padNeedRecenter = false;
+            }
+
+            // 明示確定モード: ニュートラル処理 & 自動キャンセル
+            if (!padUseReleaseToCommit && freeDragging && !_padNeedRecenter)
+            {
+                float baseThrX = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                float outerThrX = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrX);
+                bool neutral = lvFull.sqrMagnitude < outerThrX * outerThrX;
+
+                if (neutral)
+                {
+                    if (padExplicitReleaseReturn)
+                        ExplicitReturnPreview();
+
+                    if (padExplicitAutoCancelOnNeutral &&
+                        freeNearestSteps == 0 &&
+                        Mathf.Abs(freeDeltaDeg) < 1f) // ほぼ原点
+                    {
+                        if (_padNeutralSince < 0f) _padNeutralSince = Time.time;
+                        else if (Time.time - _padNeutralSince >= padExplicitNeutralCancelDelay)
+                        {
+                            // 自動キャンセル（再センター要求は不要）
+                            CancelIfNeeded();
+                            return;
+                        }
+                    }
+                }
+                else
+                {
+                    _padNeutralSince = -1f; // ニュートラル離脱
+                }
+            }
+
+            // 角度更新（Aiming 中）
             if (player != null && player.IsAiming)
             {
-                Vector2 lv = gp.leftStick.ReadValue();
-
+                Vector2 lv = lvFull;
                 float baseThr = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float outerThr = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr);        // 開始/停止
-                float inner1D = outerThr * Mathf.Clamp01(pad1DInnerDeadZoneFactor);     // 角度保持用(1D)
-
+                float outerThr = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr);
+                float inner1D = outerThr * Mathf.Clamp01(pad1DInnerDeadZoneFactor);
                 float magSqr = lv.sqrMagnitude;
-                float outerThrSqr = outerThr * outerThr;
 
-                if (magSqr >= outerThrSqr)
+                if (magSqr >= outerThr * outerThr)
                 {
+                    _padNeutralSince = -1f; // ★ 回転操作再開でリセット
+                    if (_padNeedRecenter && !freeDragging) return; // 再センター待ち中は開始禁止
+
                     if (!freeDragging)
                     {
                         var center = player.AimCenter;
@@ -146,7 +215,6 @@ public class FreeRotateController : MonoBehaviour
 
                         bool allow180 = board != null && board.devAllow180Rotation;
                         float startAngle = allow180 ? Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg : 0f;
-
                         BeginPreview(center, startAngle);
                         _padLeftWasActive = true;
                         _padLeftInactiveSince = 0f;
@@ -158,10 +226,7 @@ public class FreeRotateController : MonoBehaviour
                         {
                             float x = Mathf.Clamp(lv.x, -1f, 1f);
                             if (padInvertHorizontal) x = -x;
-
-                            // 内側デッドゾーンで 0 クリップ（小さいので角度保持しやすい）
                             if (Mathf.Abs(x) < inner1D) x = 0f;
-
                             float curAngle = x * 90f;
                             _lastInputAngleDeg = curAngle;
                             UpdateAngleFrom(curAngle);
@@ -179,22 +244,18 @@ public class FreeRotateController : MonoBehaviour
                 }
             }
 
-            // ここから「離し検出と確定」処理 (IsAiming でなくても動く) ★
-            if (freeDragging && _padLeftWasActive)
+            // Release モードの離し確定
+            if (padUseReleaseToCommit && !_padNeedRecenter && freeDragging && _padLeftWasActive)
             {
                 Vector2 lv2 = gp.leftStick.ReadValue();
-
                 float baseThr2 = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
                 float outerThr2 = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr2);
                 bool belowOuter = lv2.sqrMagnitude < outerThr2 * outerThr2;
 
                 if (belowOuter)
                 {
-                    // まだ開始タイマー未セット
-                    if (_padLeftInactiveSince <= 0f)
-                        _padLeftInactiveSince = Time.time;
+                    if (_padLeftInactiveSince <= 0f) _padLeftInactiveSince = Time.time;
 
-                    // スナップ保持グレース (最後にスナップしたステップを一時保持)
                     bool withinGrace =
                         (Time.time - _lastSnapTime) * 1000f <= padGraceSnapMillis &&
                         _lastSnappedSteps != 0;
@@ -205,28 +266,24 @@ public class FreeRotateController : MonoBehaviour
                     if (!_isSnapped && withinGrace)
                     {
                         candidateSteps = _lastSnappedSteps;
-                        candidateOk = true; // 直前にOKだったとみなす
+                        candidateOk = true;
                     }
                     else if (!_isSnapped && padAutoSnapOnRelease && freeNearestSteps == 0)
                     {
-                        // 自動吸着: 現在角度が +/−90 へ近いか判定
                         float ad = Mathf.Abs(freeDeltaDeg);
                         if (ad >= padStepMinDegrees && (90f - ad) <= padAutoSnapDeg)
                         {
                             candidateSteps = (freeDeltaDeg > 0f) ? +1 : -1;
-                            // 有効性再チェック
                             var v = board.GetStepValidity(freeCenter, freeSize);
                             candidateOk = IsStepAllowed(v, candidateSteps, board.devAllow180Rotation) &&
                                           !board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
                         }
                     }
 
-                    // 即確定
                     if (padCommitImmediateOnRelease)
                     {
                         if (candidateOk && candidateSteps != 0)
                         {
-                            // 強制的に nearest と状態を合わせる
                             freeNearestSteps = candidateSteps;
                             freeStepOK = true;
                             EndPreviewAndCommit();
@@ -239,7 +296,6 @@ public class FreeRotateController : MonoBehaviour
                         }
                     }
 
-                    // 遅延確定 (Immediate OFF か / 即確定条件未達)
                     if (Time.time - _padLeftInactiveSince >= padCommitIdleSeconds)
                     {
                         if (candidateOk && candidateSteps != 0)
@@ -253,14 +309,13 @@ public class FreeRotateController : MonoBehaviour
                             if (padCancelIfNotSnappedOnRelease)
                                 CancelIfNeeded();
                             else
-                                EndPreviewAndCommit(); // スナップなし確定を許すならここを変更
+                                EndPreviewAndCommit();
                         }
                         return;
                     }
                 }
                 else
                 {
-                    // 再び動かしたので待機解除
                     _padLeftInactiveSince = 0f;
                 }
             }
@@ -283,6 +338,53 @@ public class FreeRotateController : MonoBehaviour
         }
     }
 
+#if ENABLE_INPUT_SYSTEM
+    bool TryPadCommitExplicit()
+    {
+        if (!freeDragging) return false;
+        if (_isSnapped && freeNearestSteps != 0 && freeStepOK)
+        {
+            EndPreviewAndCommit();
+            return true;
+        }
+
+        int candidateSteps = freeNearestSteps;
+        bool candidateOk = freeStepOK;
+
+        if ((!_isSnapped || freeNearestSteps == 0) && padAutoSnapOnRelease)
+        {
+            float ad = Mathf.Abs(freeDeltaDeg);
+            if (ad >= padStepMinDegrees)
+            {
+                if (board != null && !board.devAllow180Rotation)
+                {
+                    if ((90f - ad) <= padAutoSnapDeg)
+                        candidateSteps = (freeDeltaDeg > 0f) ? +1 : -1;
+                }
+                else
+                {
+                    int rounded = Mathf.RoundToInt(freeDeltaDeg / 90f);
+                    candidateSteps = Mathf.Clamp(rounded, -2, 2);
+                }
+                var v = board.GetStepValidity(freeCenter, freeSize);
+                candidateOk = IsStepAllowed(v, candidateSteps, board.devAllow180Rotation) &&
+                              !board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
+            }
+        }
+
+        if (candidateOk && candidateSteps != 0)
+        {
+            freeNearestSteps = candidateSteps;
+            freeStepOK = true;
+            EndPreviewAndCommit();
+            return true;
+        }
+
+        player?.FlashNgGhostExtern(freeCenter, freeSize, board != null ? board.devNgGhostSeconds : 0.4f);
+        return true;
+    }
+#endif
+
     void BeginPreview(Vector2Int center, float startAngle)
     {
         freeStartAngleDeg = startAngle;
@@ -292,13 +394,13 @@ public class FreeRotateController : MonoBehaviour
         freeNearestSteps = 0;
         freeStepOK = false;
         freeDragging = true;
-
         _isSnapped = false;
         _latchedSteps = 0;
         _previewDegSmoothed = 0f;
 #if ENABLE_INPUT_SYSTEM
         _lastSnappedSteps = 0;
         _lastSnapTime = 0f;
+        _padNeutralSince = -1f; // ★ reset
 #endif
         player?.ShowGhostExtern(true, center, freeSize, false);
         var pivot = board.GetFreePreviewPivot();
@@ -308,7 +410,6 @@ public class FreeRotateController : MonoBehaviour
     void UpdateAngleFrom(float curAngle)
     {
         freeDeltaDeg = Mathf.DeltaAngle(freeStartAngleDeg, curAngle);
-
 #if ENABLE_INPUT_SYSTEM
         if (_usingPad1D && !(board != null && board.devAllow180Rotation))
         {
@@ -316,20 +417,16 @@ public class FreeRotateController : MonoBehaviour
             else if (freeDeltaDeg < -90f) freeDeltaDeg = -90f;
         }
 #endif
-
         int minStep = (board != null && board.devAllow180Rotation) ? -2 : -1;
         int maxStep = (board != null && board.devAllow180Rotation) ?  2 :  1;
-
         int candSteps;
         if (board != null && !board.devAllow180Rotation)
         {
-            // ±90°のみ：閾値式
             float ad = Mathf.Abs(freeDeltaDeg);
             candSteps = (ad >= padStepMinDegrees) ? (freeDeltaDeg > 0f ? +1 : -1) : 0;
         }
         else
         {
-            // 180許可：従来 90°刻み丸め（2ステップまで）
             candSteps = Mathf.Clamp(Mathf.RoundToInt(freeDeltaDeg / 90f), minStep, maxStep);
         }
 
@@ -354,19 +451,16 @@ public class FreeRotateController : MonoBehaviour
         float previewWantedDeg = _isSnapped ? (_latchedSteps * 90f) : freeDeltaDeg;
         float alpha = Mathf.Lerp(0.18f, 0.45f, board != null ? Mathf.Clamp01(board.devStickiness) : 0.5f);
         _previewDegSmoothed = Mathf.LerpAngle(_previewDegSmoothed, previewWantedDeg, alpha);
-
         board.UpdateFreePreviewAngle(-_previewDegSmoothed);
 
-        var v = board.GetStepValidity(freeCenter, freeSize);
+        var v2 = board.GetStepValidity(freeCenter, freeSize);
         bool lockedExceptCenter = board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
         int checkSteps = _isSnapped ? _latchedSteps : candSteps;
-        bool stepAllowed = IsStepAllowed(v, checkSteps, board.devAllow180Rotation);
+        bool stepAllowed = IsStepAllowed(v2, checkSteps, board.devAllow180Rotation);
 
         freeNearestSteps = checkSteps;
         freeStepOK = (_isSnapped || (checkSteps != 0)) && stepAllowed && !lockedExceptCenter;
-
 #if ENABLE_INPUT_SYSTEM
-        _hadSnapThisFrame = _isSnapped;
         if (_isSnapped && checkSteps != 0)
         {
             _lastSnappedSteps = checkSteps;
@@ -374,6 +468,32 @@ public class FreeRotateController : MonoBehaviour
         }
 #endif
         player?.UpdateGhostOkExtern(_isSnapped);
+    }
+
+    void ExplicitReturnPreview()
+    {
+        // すでに原点付近なら何もしない
+        float target = 0f;
+        if (padExplicitReturnLerp <= 0f)
+        {
+            _previewDegSmoothed = 0f;
+        }
+        else
+        {
+            _previewDegSmoothed = Mathf.LerpAngle(_previewDegSmoothed, target, padExplicitReturnLerp);
+            // 十分近づいたらスナップ
+            if (Mathf.Abs(Mathf.DeltaAngle(_previewDegSmoothed, 0f)) < 0.5f)
+                _previewDegSmoothed = 0f;
+        }
+
+        freeDeltaDeg = 0f;
+        freeNearestSteps = 0;
+        freeStepOK = false;
+        _isSnapped = false;
+        _latchedSteps = 0;
+
+        board.UpdateFreePreviewAngle(-_previewDegSmoothed);
+        player?.UpdateGhostOkExtern(false);
     }
 
     void EndPreviewAndCommit()
@@ -398,6 +518,7 @@ public class FreeRotateController : MonoBehaviour
         _padLeftInactiveSince = 0f;
         _usingPad1D = false;
         _lastSnappedSteps = 0;
+        _padNeutralSince = -1f;
 #endif
     }
 
@@ -415,7 +536,6 @@ public class FreeRotateController : MonoBehaviour
     {
         int dirPerStep = (steps > 0) ? -1 : +1;
         int count = Mathf.Abs(steps);
-
         player?.ClearGhost();
 
         int applied = 0;
@@ -423,14 +543,11 @@ public class FreeRotateController : MonoBehaviour
         {
             if (!board.RotateAreaInstantIfPossible(center, size, dirPerStep))
                 break;
-
             if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
             turn?.RegisterRotation();
             applied++;
         }
-
-        if (applied > 0)
-            turn?.EndPlayerTurn();
+        if (applied > 0) turn?.EndPlayerTurn();
     }
 
     bool TryGetMouseGrid(out Vector2Int grid)
@@ -438,7 +555,6 @@ public class FreeRotateController : MonoBehaviour
         grid = default;
         var cam = Camera.main;
         if (cam == null) return false;
-
         Ray r = cam.ScreenPointToRay(Input.mousePosition);
         if (new Plane(Vector3.up, Vector3.zero).Raycast(r, out float enter))
         {
@@ -454,7 +570,6 @@ public class FreeRotateController : MonoBehaviour
         angleDeg = 0f;
         var cam = Camera.main;
         if (cam == null) return false;
-
         Ray r = cam.ScreenPointToRay(Input.mousePosition);
         if (new Plane(Vector3.up, Vector3.zero).Raycast(r, out float enter))
         {
@@ -475,6 +590,7 @@ public class FreeRotateController : MonoBehaviour
         if (board == null) return false;
         return board.IsCenterWithinLimit(center) && !board.AreaContainsLockedExceptCenter(center, freeSize);
     }
+
     bool HasAnyStep(Vector2Int center)
     {
         var steps = board.GetStepValidity(center, freeSize);

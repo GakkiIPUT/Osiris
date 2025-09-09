@@ -5,38 +5,33 @@ public class GameUI : MonoBehaviour
 {
     public Button btnRotateL, btnRotateR, btnRangeToggle, btnReset;
 
-    // 追加: チュートリアルリセット用（任意でアサイン）
     [Header("Tutorial Reset (Optional Buttons)")]
     public Button btnResetTutorialCurrent;
     public Button btnResetTutorialAll;
 
     StageManager stage; PlayerController player; TurnManager turn;
-
-    // devMode追加
     public bool devMode = false;
 
-    // ===== 初期設定（インスペクター） =====
     [Header("Editor 用 初期設定")]
     [SerializeField] bool editorDevMode = false;
-    [Tooltip("Editor実行時の無敵初期値")]
     [SerializeField] bool editorInvincible = false;
     [SerializeField, Range(3, 9)] int editorAreaSize = 3;
 
     [Header("Editor 用 Board初期設定")]
     [SerializeField] bool editorRotatePlayerWithArea = true;
     [SerializeField, Range(1, 10)] int editorRotationCenterMaxDistance = 3;
-    [SerializeField] bool editorFreeRotate = true;           // 自由回転は許可
+    [SerializeField] bool editorFreeRotate = true;
     [SerializeField] bool editorAllow180Rotation = false;
 
     [Header("Development Build 用 初期設定")]
-    [SerializeField] bool devBuildDevMode = false;            // 既定 Dev モード
+    [SerializeField] bool devBuildDevMode = false;
     [SerializeField] bool devBuildInvincible = false;
     [SerializeField, Range(3, 9)] int devBuildAreaSize = 3;
 
     [Header("Development Build 用 Board初期設定")]
     [SerializeField] bool devBuildRotatePlayerWithArea = true;
     [SerializeField, Range(1, 10)] int devBuildRotationCenterMaxDistance = 3;
-    [SerializeField] bool devBuildFreeRotate = true;         // 自由回転は許可
+    [SerializeField] bool devBuildFreeRotate = true;
     [SerializeField] bool devBuildAllow180Rotation = false;
 
     [Header("適用タイミング")]
@@ -51,8 +46,6 @@ public class GameUI : MonoBehaviour
         if (btnRotateR) btnRotateR.onClick.AddListener(ActionRotateR);
         if (btnRangeToggle) btnRangeToggle.onClick.AddListener(ActionToggleRange);
         if (btnReset) btnReset.onClick.AddListener(ActionReset);
-
-        // 追加: チュートリアル既読リセットボタン
         if (btnResetTutorialCurrent) btnResetTutorialCurrent.onClick.AddListener(ResetTutorialForCurrentStage);
         if (btnResetTutorialAll) btnResetTutorialAll.onClick.AddListener(ResetTutorialForAllStages);
     }
@@ -226,7 +219,7 @@ public class GameUI : MonoBehaviour
     {
         if (!devMode) return; // devModeでUI表示制御
 
-        GUILayout.BeginArea(new Rect(10, 10, 330, 560), "開発モード", GUI.skin.window);
+        GUILayout.BeginArea(new Rect(10, 10, 360, 600), "開発モード", GUI.skin.window);
 
         // 回転に関する設定
         BoardManager board = Object.FindFirstObjectByType<BoardManager>();
@@ -249,11 +242,20 @@ public class GameUI : MonoBehaviour
             // 自由回転ON/OFF
             bool free = GUILayout.Toggle(board.devEnableFreeRotate, "自由回転（デバッグ）を有効にする");
             if (free != board.devEnableFreeRotate) { board.devEnableFreeRotate = free; changed = true; }
-            GUILayout.Label("※ 自由回転ONの間はQ/E回転は無効、Tはクリックスナップ");
+            GUILayout.Label("※ 自由回転ON中はQ/E回転無効");
 
             // 180度回転許可
-            bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180度回転許可（2AP消費）");
+            bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180度回転許可（2AP）");
             if (allow180 != board.devAllow180Rotation) { board.devAllow180Rotation = allow180; changed = true; }
+
+            // ★ 追加: スティック離し確定モード
+            var frc = Object.FindFirstObjectByType<FreeRotateController>();
+            if (frc != null)
+            {
+                bool rel = GUILayout.Toggle(frc.padUseReleaseToCommit, "スティック離しで確定 (Pad)");
+                if (rel != frc.padUseReleaseToCommit) frc.padUseReleaseToCommit = rel;
+                GUILayout.Label(rel ? "Aボタン=即確定(任意) / 離しでも確定" : "Aボタン=確定 / 離しでは確定しない");
+            }
 
             if (changed) board.SaveDevModeSettings();
         }
@@ -268,7 +270,8 @@ public class GameUI : MonoBehaviour
             if (inv != player.invincible) { player.invincible = inv; player.SaveDevModeSettings(); }
 
             int newAreaSize = Mathf.RoundToInt(GUILayout.HorizontalSlider(player.areaSize, 3, 9));
-            if (newAreaSize != player.areaSize) {
+            if (newAreaSize != player.areaSize)
+            {
                 player.areaSize = newAreaSize;
                 player.SaveDevModeSettings();
             }
@@ -287,7 +290,7 @@ public class GameUI : MonoBehaviour
         GUILayout.Label("チュートリアル", EditorLabel());
         if (GUILayout.Button("既読リセット（現在ステージ）")) { ResetTutorialForCurrentStage(); }
         if (GUILayout.Button("既読リセット（全ステージ）")) { ResetTutorialForAllStages(); }
-        GUILayout.Label("注: 次回ロード時にチュートリアルが再表示されます。");
+        GUILayout.Label("次回ロードでチュートリアル再表示");
 
         GUILayout.EndArea();
     }
