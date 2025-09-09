@@ -2382,4 +2382,70 @@ public class BoardManager : MonoBehaviour
         return new Vector2(0.07f, 0.07f);
     }
 
+
+    // ===== Core / Board 座標ユーティリティ（LevelPainter 用） =====
+
+    // Core の左上オフセット公開（必要なら LevelPainter で参照）
+    public int CoreOffsetX => coreOffsetX;
+    public int CoreOffsetY => coreOffsetY;
+    public int CoreWidth => coreWidth;
+    public int CoreHeight => coreHeight;
+
+    // Board座標 → Core座標（成功時 true）
+    public bool TryBoardToCore(Vector2Int boardPos, out Vector2Int corePos)
+    {
+        if (!autoGenerateOuterRings)
+        {
+            // そのまま
+            if (boardPos.x < 0 || boardPos.y < 0 ||
+                boardPos.y >= level.Length || boardPos.x >= (level.Length > 0 ? level[0].Length : 0))
+            {
+                corePos = default;
+                return false;
+            }
+            corePos = boardPos;
+            return true;
+        }
+
+        if (!IsInsideCore(boardPos))
+        {
+            corePos = default;
+            return false;
+        }
+        corePos = new Vector2Int(boardPos.x - coreOffsetX, boardPos.y - coreOffsetY);
+        return corePos.x >= 0 && corePos.y >= 0 &&
+               corePos.x < coreWidth && corePos.y < coreHeight;
+    }
+
+    // Core座標 → Board座標
+    public Vector2Int CoreToBoard(Vector2Int corePos)
+    {
+        if (!autoGenerateOuterRings) return corePos;
+        return new Vector2Int(corePos.x + coreOffsetX, corePos.y + coreOffsetY);
+    }
+
+    // Core文字を差し替えて即反映（再Build任意）
+    public bool SetCoreCellChar(Vector2Int corePos, char ch, bool rebuild = true)
+    {
+        if (corePos.x < 0 || corePos.y < 0 ||
+            corePos.y >= level.Length || corePos.x >= level[corePos.y].Length)
+            return false;
+
+        var row = level[corePos.y];
+        if (corePos.x >= row.Length) return false;
+
+        if (row[corePos.x] == ch) // 変化なし
+        {
+            if (rebuild) { ParseCellsFromLevel(); UpdateAllWallAppearances(); }
+            return true;
+        }
+
+        // 文字列書換
+        var chars = row.ToCharArray();
+        chars[corePos.x] = ch;
+        level[corePos.y] = new string(chars);
+
+        if (rebuild) Build(); else ParseCellsFromLevel();
+        return true;
+    }
 }

@@ -168,8 +168,8 @@ public class LevelPainter : EditorWindow
     {
         if (rows == null || rows.Length == 0) return;
 
-        // ショートカット
         var e = Event.current;
+        // ショートカット（既存そのまま）
         if (e.type == EventType.KeyDown)
         {
             if (e.keyCode == KeyCode.Alpha1) currentSymbol = '.';
@@ -178,19 +178,36 @@ public class LevelPainter : EditorWindow
             else if (e.keyCode == KeyCode.Alpha4) currentSymbol = 'E';
             else if (e.keyCode == KeyCode.Alpha6) currentSymbol = 'x';
             else if (e.keyCode == KeyCode.Alpha5) currentSymbol = 'P';
-            else if (e.keyCode == KeyCode.Alpha7) currentSymbol = 'd'; // ← 追加: 泥棒
+            else if (e.keyCode == KeyCode.Alpha7) currentSymbol = 'd';
             else if (!char.IsControl(e.character) && e.character != '\0') currentSymbol = e.character;
             Repaint();
         }
 
-        // マウス座標 → グリッド
-        if (!TryGetMouseGrid(out var g)) return;
+        if (!TryGetMouseGrid(out var boardPos)) return;
 
-        // ホバー
+        // Board → Core 変換
+        Vector2Int corePos;
+        if (board && board.autoGenerateOuterRings)
+        {
+            if (!board.TryBoardToCore(boardPos, out corePos))
+            {
+                // Core 外: ハイライトしない / クリック無視
+                return;
+            }
+        }
+        else
+        {
+            corePos = boardPos;
+        }
+
+        // ハイライト位置（Board 座標で表示）
+        var hlBoardPos = board && board.autoGenerateOuterRings
+            ? board.CoreToBoard(corePos)
+            : corePos;
         Handles.color = hoverColor;
-        DrawCellWire(CellOrigin(g), 1f);
+        DrawCellWire(CellOrigin(hlBoardPos), 1f);
 
-        // ペイント
+        // 入力
         bool left = e.type == EventType.MouseDown && e.button == 0;
         bool leftDrag = paintWhileDrag && e.type == EventType.MouseDrag && e.button == 0;
         bool right = e.type == EventType.MouseDown && e.button == 1;
@@ -199,11 +216,10 @@ public class LevelPainter : EditorWindow
         {
             e.Use();
             char sym = right ? '.' : currentSymbol;
-            Paint(g, sym);
+            Paint(corePos, sym);           // ← rows は Core 座標で編集
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
         }
     }
-
     // --------- 主要処理 ---------
     void LoadFromText()
     {
@@ -316,23 +332,33 @@ public class LevelPainter : EditorWindow
 
     // 2Dグリッド計算（BoardManager の座標系に合わせてXZ平面に1タイル=1m）
     Vector3 CellOrigin(Vector2Int g) => new Vector3(g.x, 0f, g.y);
-    bool TryGetMouseGrid(out Vector2Int grid)
+    // 2Dグリッド計算（Board 全体座標系で返す）
+    bool TryGetMouseGrid(out Vector2Int boardGrid)
     {
-        grid = default;
+        boardGrid = default;
         var e = Event.current;
         Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
         var plane = new Plane(Vector3.up, Vector3.zero);
         if (!plane.Raycast(ray, out float enter)) return false;
         Vector3 hit = ray.GetPoint(enter);
 
-        // ボード境界でクランプ（rows基準）
         int gx = Mathf.FloorToInt(hit.x + 0.5f);
         int gy = Mathf.FloorToInt(hit.z + 0.5f);
-        if (gx < 0 || gy < 0 || gy >= Height || gx >= Width) return false;
-        grid = new Vector2Int(gx, gy);
+
+        if (board && board.autoGenerateOuterRings)
+        {
+            // 拡張後サイズで判定
+            if (gx < 0 || gy < 0 || gx >= board.Width || gy >= board.Height) return false;
+        }
+        else
+        {
+            // 従来（rows 基準）
+            if (gx < 0 || gy < 0 || gy >= Height || gx >= Width) return false;
+        }
+
+        boardGrid = new Vector2Int(gx, gy);
         return true;
     }
-
     // UI
     void ToggleBrush(char symbol, string label)
     {
