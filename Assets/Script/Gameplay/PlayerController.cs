@@ -119,7 +119,7 @@ public class PlayerController : MonoBehaviour
                 transform.position = board.GridToWorldActor(pos);
                 board.TryPickupItemAt(pos);
 
-                // プレイヤー移動完了時：内枠中心を外枠（プレイヤー中心R=3）内へクランプ
+                // プレイヤー移動完了時：内枠中心クランプ
                 aimCenter = ClampAimCenterToOuter(aimCenter, pos);
                 UpdateGhostVisual();
 
@@ -152,12 +152,19 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 解除入力は無効化（常時選択）
-
         HandleGamepadButtons();
 
-        if (aiming) { HandleAimPadInput(); UpdateGhostVisual(); }
-        else { HandleMoveInput(); }
+        // aiming 中でも WASD は常に受け付ける
+        if (aiming)
+        {
+            HandleKeyboardMoveInput();   // ← 追加（WASD専用）
+            HandleAimPadInput();         // 右スティック/D-Padなど
+            UpdateGhostVisual();
+        }
+        else
+        {
+            HandleMoveInput();           // 従来のキーボード＋Pad（非aim時）
+        }
     }
 
     void HandleMoveInput()
@@ -535,7 +542,50 @@ public class PlayerController : MonoBehaviour
         else
             dir = (v.y > 0f) ? Vector2Int.up : Vector2Int.down;
     }
+    void HandleKeyboardMoveInput()
+    {
+        // 回転プレビュー中は移動不可
+        if (board != null && board.IsFreePreviewActive)
+        {
+            holdDir = Vector2Int.zero;
+            return;
+        }
 
+        // キー押下で開始
+        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) StartHold(Vector2Int.up);
+        else if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) StartHold(Vector2Int.down);
+        else if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) StartHold(Vector2Int.left);
+        else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) StartHold(Vector2Int.right);
+
+        if (holdDir != Vector2Int.zero)
+        {
+            // 維持判定（キーボードのみ）
+            bool upHeld = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            bool downHeld = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+            bool leftHeld = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+            bool rightHeld = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+
+            bool stillHeld =
+                (holdDir == Vector2Int.up && upHeld) ||
+                (holdDir == Vector2Int.down && downHeld) ||
+                (holdDir == Vector2Int.left && leftHeld) ||
+                (holdDir == Vector2Int.right && rightHeld);
+
+            if (!stillHeld) { holdDir = Vector2Int.zero; return; }
+
+            if (!allowHoldMove) return;
+            if (board != null && board.IsAnimating) return;
+            if (board != null && board.smoothPlayerMove && isMoving) return;
+
+            if (Time.time >= holdNextTime)
+            {
+                if (TryMoveInDir(holdDir))
+                    holdNextTime = Time.time + holdRepeatInterval;
+                else
+                    holdNextTime = Time.time + holdRepeatInterval;
+            }
+        }
+    }
     Vector2 GetPadMoveRaw()
     {
 #if ENABLE_INPUT_SYSTEM
