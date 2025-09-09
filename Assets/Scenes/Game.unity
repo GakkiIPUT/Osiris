@@ -3558,26 +3558,11 @@ MonoBehaviour:
   previewAnchor: {r: 0, g: 0, b: 0, a: 1}
   previewPit: {r: 0.15, g: 0.15, b: 0.6, a: 1}
   level:
-  - E........@@@@@@@@@@@
-  - ..Pi.#.............@
-  - ..###..............@
-  - ...................@
-  - ....T.....T.....T..@
-  - .....#.....#.......@
-  - ...........#....#..@
-  - .................#.@
-  - ...................@
-  - ...................@
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@..................@'
-  - '@@@@@@@@@@@@@@@@@@@@'
+  - '@@@@@@@'
+  - '@.#..E@'
+  - '@.#.##@'
+  - '@P#O..@'
+  - '@@@@@@@'
   previewY: 0.0001
   visionY: 0.0002
   tilesRoot: {fileID: 114234969}
@@ -3591,10 +3576,12 @@ MonoBehaviour:
   devCommitAngleDeg: 15
   devStickiness: 0.5
   devNgGhostSeconds: 0.5
+  outerRingFloorMat: {fileID: 2100000, guid: 34401cddade37014491906c0863b67f1, type: 2}
+  previewOuterFloor: {r: 0.7, g: 0.75, b: 0.85, a: 1}
   autoGenerateOuterRings: 1
   anchorThickness: 1
   outerWallThickness: 5
-  wallNormalMat: {fileID: 2100000, guid: 777f292e454e4654089a25fd85653637, type: 2}
+  wallNormalMat: {fileID: 0}
   wallOuterMat: {fileID: 2100000, guid: 34401cddade37014491906c0863b67f1, type: 2}
   devUseSceneLevelInEditor: 1
   devTargetTextAsset: {fileID: 4900000, guid: 1f190b1e41f8ce04fb9b43e9033454ce, type: 3}
