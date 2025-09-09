@@ -3605,6 +3605,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   mouseDeadZoneRadius: 0.18
+  padInvertHorizontal: 1
+  padDeadZone: 0.25
+  pad1DInnerDeadZoneFactor: 0.4
+  padStepMinDegrees: 30
+  padCommitImmediateOnRelease: 1
+  padCommitIdleSeconds: 0.055
+  padCancelIfNotSnappedOnRelease: 1
+  padAutoSnapOnRelease: 1
+  padAutoSnapDeg: 20
+  padGraceSnapMillis: 25
 --- !u!114 &926001102
 MonoBehaviour:
   m_ObjectHideFlags: 0

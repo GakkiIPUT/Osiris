@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -13,29 +13,51 @@ public class FreeRotateController : MonoBehaviour
     bool freeDragging = false;
     Vector2Int freeCenter;
     int freeSize = 3;
-    int freeNearestSteps = 0; // -2..2i0‚Í–¢Šm’èj
+    int freeNearestSteps = 0; // -2..2ï¼ˆ0ã¯æœªç¢ºå®šï¼‰
     bool freeStepOK = false;
 
     float freeStartAngleDeg = 0f;
-    float freeDeltaDeg = 0f; // Œ»İ‚Ü‚Å‚ÌŠp“xiCCW‚ª+j
+    float freeDeltaDeg = 0f; // ç¾åœ¨ã¾ã§ã®è§’åº¦å·®ï¼ˆCCWãŒ+ï¼‰
 
-    // ˆÀ’è‰»iƒ}ƒEƒXEƒXƒeƒBƒbƒN‹¤’Êj
     [Header("Free Rotate Stabilizer")]
-    [Tooltip("‰ñ“]’†S•t‹ß‚Ì–³‹‚·‚é”¼Œai³‹K‰»=1.0jB‚±‚Ì”¼Œa–¢–‚Å‚ÍŠp“xXV‚µ‚È‚¢")]
     [Range(0.0f, 0.5f)] public float mouseDeadZoneRadius = 0.18f;
-    // ƒXƒiƒbƒv‚Í board.devSnapAngleDegiINj‚Æ board.devCommitAngleDegiOUTj‚ÌƒqƒXƒeƒŠƒVƒX‚ğg—p
-    // •½ŠŠ“x‚Í board.devStickiness ‚ğd‚İ‚Æ‚µ‚Äg—pi0=ã,1=‹­j
-
-    // “à•”ó‘ÔiƒXƒiƒbƒv‚Ìƒ‰ƒbƒ`j
-    bool _isSnapped = false;
-    int _latchedSteps = 0;             // -2..2
-    float _previewDegSmoothed = 0f;    // •\¦—pŠp“xi•½ŠŠ‰»j
 
 #if ENABLE_INPUT_SYSTEM
-    // ƒXƒeƒBƒbƒN‰ñ“]‚ÌƒRƒ~ƒbƒg‘Ò‚¿i—£‚µ‚Ä­‚µÃ~‚µ‚½‚çƒRƒ~ƒbƒgj
+    [Header("Free Rotate / Pad Tuning")]
+    [Tooltip("ãƒ•ãƒªãƒ¼å›è»¢æ™‚ å·¦ã‚¹ãƒ†ã‚£ãƒƒã‚¯å·¦å³ã‚’åè»¢")]
+    public bool padInvertHorizontal = false;
+    [Tooltip("é–‹å§‹/åœæ­¢ç”¨ã®å¤–å´ãƒ‡ãƒƒãƒ‰ã‚¾ãƒ¼ãƒ³åŠå¾„ (0=ç„¡ã—, æ¨å¥¨0.2~0.3)")]
+    [Range(0f, 0.9f)] public float padDeadZone = 0.25f;
+    [Tooltip("1Dãƒ¢ãƒ¼ãƒ‰ã§è§’åº¦ã‚¼ãƒ­ã¸æ½°ã•ãªã„ãŸã‚ã®å†…å´ä¿‚æ•° (å¤–å´Ã—ä¿‚æ•°)ã€‚å°ã•ã„ã»ã©ä¿æŒã—ã‚„ã™ã„")]
+    [Range(0f, 1f)] public float pad1DInnerDeadZoneFactor = 0.4f;
+    [Tooltip("Â±90Â°åˆ¤å®šã«å¿…è¦ãªæœ€å°è§’åº¦ï¼ˆã“ã‚Œæœªæº€ã§é›¢ã—ãŸã‚‰ 0 ã‚¹ãƒ†ãƒƒãƒ—ï¼‰")]
+    [Range(5f, 89f)] public float padStepMinDegrees = 30f;
+    [Tooltip("é›¢ã—ãŸç¬é–“ã‚¹ãƒŠãƒƒãƒ—æˆç«‹ã§å³ç¢ºå®š")]
+    public bool padCommitImmediateOnRelease = true;
+    [Tooltip("å³ç¢ºå®šå¤±æ•—æ™‚/Immediate OFF æ™‚ã®é…å»¶ç¢ºå®šç§’æ•°")]
+    [Range(0.02f, 0.5f)] public float padCommitIdleSeconds = 0.12f;
+    [Tooltip("ã‚¹ãƒŠãƒƒãƒ—ã—ã¦ã„ãªã„é›¢ã—ã¯ã‚­ãƒ£ãƒ³ã‚»ãƒ«ã™ã‚‹")]
+    public bool padCancelIfNotSnappedOnRelease = true;
+    [Tooltip("é›¢ã—æ™‚ã€ã‚¹ãƒŠãƒƒãƒ—ã—ã¦ãªãã¦ã‚‚ã“ã®è§’åº¦ä»¥å†…ãªã‚‰è‡ªå‹•å¸ç€ã—ã¦ç¢ºå®š")]
+    public bool padAutoSnapOnRelease = true;
+    [Tooltip("è‡ªå‹•å¸ç€è¨±å®¹è§’åº¦ (ä¾‹: 50Â°ãªã‚‰ Â±90Â°ã¸ 40~90Â°å¸¯ã§å¸ç€)")]
+    [Range(10f, 89f)] public float padAutoSnapDeg = 50f;
+    [Tooltip("é›¢ã—å¾Œã“ã® ms ã¯æœ€å¾Œã«ã‚¹ãƒŠãƒƒãƒ—ã—ã¦ã„ãŸã‚¹ãƒ†ãƒƒãƒ—ã‚’ä¿æŒï¼ˆãƒã‚¤ã‚ºæ•‘æ¸ˆï¼‰")]
+    [Range(0f, 300f)] public int padGraceSnapMillis = 120;
+#endif
+
+    bool _isSnapped = false;
+    int _latchedSteps = 0;
+    float _previewDegSmoothed = 0f;
+
+#if ENABLE_INPUT_SYSTEM
     bool _padLeftWasActive = false;
     float _padLeftInactiveSince = 0f;
-    const float _padCommitIdleSec = 0.12f;
+    bool _usingPad1D = false; // Â±90Â°åˆ¶é™æ™‚ã®ã¿ true
+    float _lastInputAngleDeg = 0f;
+    bool _hadSnapThisFrame = false;
+    int _lastSnappedSteps = 0;
+    float _lastSnapTime = 0f;
 #endif
 
     void Update()
@@ -62,19 +84,21 @@ public class FreeRotateController : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         _padLeftWasActive = false;
         _padLeftInactiveSince = 0f;
+        _usingPad1D = false;
+        _lastSnappedSteps = 0;
 #endif
     }
 
     void HandleFreeRotate()
     {
-        // ƒL[ƒ}ƒEƒXE‰EƒNƒŠƒbƒN/Esc/T ‚ÅƒLƒƒƒ“ƒZƒ‹
+        // ã‚­ãƒ£ãƒ³ã‚»ãƒ«
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.T))
         {
             if (freeDragging) CancelIfNeeded();
             return;
         }
 
-        // ƒ}ƒEƒXŠJniƒNƒŠƒbƒNˆÊ’u‚ğ’†S‚ÉƒvƒŒƒrƒ…[ŠJnj
+        // ãƒã‚¦ã‚¹é–‹å§‹
         if (Input.GetMouseButtonDown(0))
         {
             if (!TryGetMouseGrid(out var center)) return;
@@ -82,71 +106,168 @@ public class FreeRotateController : MonoBehaviour
             if (!IsCenterAllowed(center)) { FlashNg(center); return; }
             if (!HasAnyStep(center)) { FlashNg(center); return; }
 
-            // Šp“x‚ªæ‚ê‚È‚­‚Ä‚àƒvƒŒƒrƒ…[‚ÍŠJn‚µ‚ÄƒS[ƒXƒg‚ğo‚·iPad‚Æ“¯—l‚ÌŒ©‚½–Új
             float startAngle;
             bool hasAngle = TryGetMouseWorld(center, out startAngle);
             BeginPreview(center, hasAngle ? startAngle : 0f);
-            if (!hasAngle)
-            {
-                // ‰ŠúŠp‚ğ0‚Æ‚µ‚ÄƒvƒŒƒrƒ…[‚ğÃ~•\¦Bƒhƒ‰ƒbƒO‚Åƒfƒbƒhƒ][ƒ“‚ğ’´‚¦‚½‚çŠp“xXVB
-                board.UpdateFreePreviewAngle(0f);
-            }
+            if (!hasAngle) board.UpdateFreePreviewAngle(0f);
             return;
         }
 
 #if ENABLE_INPUT_SYSTEM
-        // Pad“ü—ÍiQlFŠù‘¶d—l‚Ì‚Ü‚Üj
         var gp = Gamepad.current;
         if (gp != null)
         {
+            // B / X ãªã©ã§ä¸­æ–­
             if (freeDragging && (gp.buttonSouth.wasPressedThisFrame || gp.buttonEast.wasPressedThisFrame))
             {
                 CancelIfNeeded();
                 return;
             }
+
+            // Aiming ä¸­ã®ã¿é–‹å§‹/è§’åº¦æ›´æ–°ã‚’è¨±å¯ï¼ˆé›¢ã—å¾Œç¢ºå®šã¯ Aiming å¤–ã§ã‚‚è¡Œã†ãŸã‚å¾Œæ®µã§å‡¦ç†ï¼‰
             if (player != null && player.IsAiming)
             {
                 Vector2 lv = gp.leftStick.ReadValue();
-                float thr = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float mag = lv.sqrMagnitude;
 
-                if (mag >= thr * thr)
+                float baseThr = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                float outerThr = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr);        // é–‹å§‹/åœæ­¢
+                float inner1D = outerThr * Mathf.Clamp01(pad1DInnerDeadZoneFactor);     // è§’åº¦ä¿æŒç”¨(1D)
+
+                float magSqr = lv.sqrMagnitude;
+                float outerThrSqr = outerThr * outerThr;
+
+                if (magSqr >= outerThrSqr)
                 {
                     if (!freeDragging)
                     {
                         var center = player.AimCenter;
                         freeSize = player.areaSize;
                         if (!IsCenterAllowed(center) || !HasAnyStep(center)) { FlashNg(center); return; }
-                        float startAngle = Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg;
+
+                        bool allow180 = board != null && board.devAllow180Rotation;
+                        float startAngle = allow180 ? Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg : 0f;
+
                         BeginPreview(center, startAngle);
                         _padLeftWasActive = true;
                         _padLeftInactiveSince = 0f;
+                        _usingPad1D = !allow180;
                     }
                     else
                     {
-                        float curAngle = Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg;
-                        UpdateAngleFrom(curAngle);
+                        if (_usingPad1D)
+                        {
+                            float x = Mathf.Clamp(lv.x, -1f, 1f);
+                            if (padInvertHorizontal) x = -x;
+
+                            // å†…å´ãƒ‡ãƒƒãƒ‰ã‚¾ãƒ¼ãƒ³ã§ 0 ã‚¯ãƒªãƒƒãƒ—ï¼ˆå°ã•ã„ã®ã§è§’åº¦ä¿æŒã—ã‚„ã™ã„ï¼‰
+                            if (Mathf.Abs(x) < inner1D) x = 0f;
+
+                            float curAngle = x * 90f;
+                            _lastInputAngleDeg = curAngle;
+                            UpdateAngleFrom(curAngle);
+                        }
+                        else
+                        {
+                            float curAngle = Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg;
+                            if (padInvertHorizontal) curAngle = -curAngle;
+                            _lastInputAngleDeg = curAngle;
+                            UpdateAngleFrom(curAngle);
+                        }
                         _padLeftWasActive = true;
                         _padLeftInactiveSince = 0f;
                     }
                 }
-                else if (freeDragging)
+            }
+
+            // ã“ã“ã‹ã‚‰ã€Œé›¢ã—æ¤œå‡ºã¨ç¢ºå®šã€å‡¦ç† (IsAiming ã§ãªãã¦ã‚‚å‹•ã) â˜…
+            if (freeDragging && _padLeftWasActive)
+            {
+                Vector2 lv2 = gp.leftStick.ReadValue();
+
+                float baseThr2 = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                float outerThr2 = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr2);
+                bool belowOuter = lv2.sqrMagnitude < outerThr2 * outerThr2;
+
+                if (belowOuter)
                 {
-                    if (_padLeftWasActive)
+                    // ã¾ã é–‹å§‹ã‚¿ã‚¤ãƒãƒ¼æœªã‚»ãƒƒãƒˆ
+                    if (_padLeftInactiveSince <= 0f)
+                        _padLeftInactiveSince = Time.time;
+
+                    // ã‚¹ãƒŠãƒƒãƒ—ä¿æŒã‚°ãƒ¬ãƒ¼ã‚¹ (æœ€å¾Œã«ã‚¹ãƒŠãƒƒãƒ—ã—ãŸã‚¹ãƒ†ãƒƒãƒ—ã‚’ä¸€æ™‚ä¿æŒ)
+                    bool withinGrace =
+                        (Time.time - _lastSnapTime) * 1000f <= padGraceSnapMillis &&
+                        _lastSnappedSteps != 0;
+
+                    int candidateSteps = freeNearestSteps;
+                    bool candidateOk = freeStepOK;
+
+                    if (!_isSnapped && withinGrace)
                     {
-                        if (_padLeftInactiveSince <= 0f) _padLeftInactiveSince = Time.time;
-                        else if (Time.time - _padLeftInactiveSince >= _padCommitIdleSec)
+                        candidateSteps = _lastSnappedSteps;
+                        candidateOk = true; // ç›´å‰ã«OKã ã£ãŸã¨ã¿ãªã™
+                    }
+                    else if (!_isSnapped && padAutoSnapOnRelease && freeNearestSteps == 0)
+                    {
+                        // è‡ªå‹•å¸ç€: ç¾åœ¨è§’åº¦ãŒ +/âˆ’90 ã¸è¿‘ã„ã‹åˆ¤å®š
+                        float ad = Mathf.Abs(freeDeltaDeg);
+                        if (ad >= padStepMinDegrees && (90f - ad) <= padAutoSnapDeg)
                         {
+                            candidateSteps = (freeDeltaDeg > 0f) ? +1 : -1;
+                            // æœ‰åŠ¹æ€§å†ãƒã‚§ãƒƒã‚¯
+                            var v = board.GetStepValidity(freeCenter, freeSize);
+                            candidateOk = IsStepAllowed(v, candidateSteps, board.devAllow180Rotation) &&
+                                          !board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
+                        }
+                    }
+
+                    // å³ç¢ºå®š
+                    if (padCommitImmediateOnRelease)
+                    {
+                        if (candidateOk && candidateSteps != 0)
+                        {
+                            // å¼·åˆ¶çš„ã« nearest ã¨çŠ¶æ…‹ã‚’åˆã‚ã›ã‚‹
+                            freeNearestSteps = candidateSteps;
+                            freeStepOK = true;
                             EndPreviewAndCommit();
                             return;
                         }
+                        else if (!candidateOk && padCancelIfNotSnappedOnRelease)
+                        {
+                            CancelIfNeeded();
+                            return;
+                        }
                     }
+
+                    // é…å»¶ç¢ºå®š (Immediate OFF ã‹ / å³ç¢ºå®šæ¡ä»¶æœªé”)
+                    if (Time.time - _padLeftInactiveSince >= padCommitIdleSeconds)
+                    {
+                        if (candidateOk && candidateSteps != 0)
+                        {
+                            freeNearestSteps = candidateSteps;
+                            freeStepOK = true;
+                            EndPreviewAndCommit();
+                        }
+                        else
+                        {
+                            if (padCancelIfNotSnappedOnRelease)
+                                CancelIfNeeded();
+                            else
+                                EndPreviewAndCommit(); // ã‚¹ãƒŠãƒƒãƒ—ãªã—ç¢ºå®šã‚’è¨±ã™ãªã‚‰ã“ã“ã‚’å¤‰æ›´
+                        }
+                        return;
+                    }
+                }
+                else
+                {
+                    // å†ã³å‹•ã‹ã—ãŸã®ã§å¾…æ©Ÿè§£é™¤
+                    _padLeftInactiveSince = 0f;
                 }
             }
         }
 #endif
 
-        // ƒ}ƒEƒXEƒhƒ‰ƒbƒO’†‚ÌŠp“xXViƒfƒbƒhƒ][ƒ““à‚ÍŠp“x–¢XV‚Å‚àOKj
+        // ãƒã‚¦ã‚¹ãƒ‰ãƒ©ãƒƒã‚°
         if (freeDragging && Input.GetMouseButton(0))
         {
             if (!TryGetMouseWorld(freeCenter, out var curAngle)) return;
@@ -154,7 +275,7 @@ public class FreeRotateController : MonoBehaviour
             return;
         }
 
-        // ƒ}ƒEƒXEƒ{ƒ^ƒ“ƒAƒbƒv‚ÅŠm’è/æÁ
+        // ãƒã‚¦ã‚¹ã‚¢ãƒƒãƒ—
         if (freeDragging && Input.GetMouseButtonUp(0))
         {
             EndPreviewAndCommit();
@@ -172,12 +293,13 @@ public class FreeRotateController : MonoBehaviour
         freeStepOK = false;
         freeDragging = true;
 
-        // ƒXƒiƒbƒvó‘ÔƒŠƒZƒbƒg
         _isSnapped = false;
         _latchedSteps = 0;
         _previewDegSmoothed = 0f;
-
-        // Pad‚Æ“¯—l‚ÉŠJn’¼Œã‚©‚çƒS[ƒXƒg‚ğ•\¦‚µA‰ñ“]ƒsƒ{ƒbƒg‚É’Ç]‚³‚¹‚é
+#if ENABLE_INPUT_SYSTEM
+        _lastSnappedSteps = 0;
+        _lastSnapTime = 0f;
+#endif
         player?.ShowGhostExtern(true, center, freeSize, false);
         var pivot = board.GetFreePreviewPivot();
         if (pivot != null) player?.AttachGhostTo(pivot, true);
@@ -185,24 +307,37 @@ public class FreeRotateController : MonoBehaviour
 
     void UpdateAngleFrom(float curAngle)
     {
-        // ·•ªŠpi-180..180j
         freeDeltaDeg = Mathf.DeltaAngle(freeStartAngleDeg, curAngle);
 
-        // ‹–—eƒXƒeƒbƒv”ÍˆÍ
+#if ENABLE_INPUT_SYSTEM
+        if (_usingPad1D && !(board != null && board.devAllow180Rotation))
+        {
+            if (freeDeltaDeg > 90f) freeDeltaDeg = 90f;
+            else if (freeDeltaDeg < -90f) freeDeltaDeg = -90f;
+        }
+#endif
+
         int minStep = (board != null && board.devAllow180Rotation) ? -2 : -1;
         int maxStep = (board != null && board.devAllow180Rotation) ?  2 :  1;
 
-        // ÅŠñ‚èƒXƒeƒbƒv
-        int candSteps = Mathf.Clamp(Mathf.RoundToInt(freeDeltaDeg / 90f), minStep, maxStep);
+        int candSteps;
+        if (board != null && !board.devAllow180Rotation)
+        {
+            // Â±90Â°ã®ã¿ï¼šé–¾å€¤å¼
+            float ad = Mathf.Abs(freeDeltaDeg);
+            candSteps = (ad >= padStepMinDegrees) ? (freeDeltaDeg > 0f ? +1 : -1) : 0;
+        }
+        else
+        {
+            // 180è¨±å¯ï¼šå¾“æ¥ 90Â°åˆ»ã¿ä¸¸ã‚ï¼ˆ2ã‚¹ãƒ†ãƒƒãƒ—ã¾ã§ï¼‰
+            candSteps = Mathf.Clamp(Mathf.RoundToInt(freeDeltaDeg / 90f), minStep, maxStep);
+        }
 
-        // ƒXƒiƒbƒv‚ÌƒqƒXƒeƒŠƒVƒXiIN/OUTj
         float snapInDeg = Mathf.Max(1f, board != null ? board.devSnapAngleDeg : 15f);
         float snapOutDeg = snapInDeg + Mathf.Max(0f, board != null ? board.devCommitAngleDeg : 10f);
 
-        // ƒXƒiƒbƒvˆÛ/‰ğœ”»’è
         if (_isSnapped)
         {
-            // ‚¢‚Ü‚Ìƒ‰ƒbƒ`–Ú•W‚©‚ç‚Ç‚ê‚¾‚¯ƒYƒŒ‚½‚©
             float err = Mathf.DeltaAngle(freeDeltaDeg, _latchedSteps * 90f);
             if (Mathf.Abs(err) > snapOutDeg) _isSnapped = false;
         }
@@ -216,24 +351,28 @@ public class FreeRotateController : MonoBehaviour
             }
         }
 
-        // •\¦Šp“xiƒXƒiƒbƒv‚ÍŒµ–§A”ñƒXƒiƒbƒv‚ÍƒtƒŠ[j‚ğ•½ŠŠ‰»
         float previewWantedDeg = _isSnapped ? (_latchedSteps * 90f) : freeDeltaDeg;
         float alpha = Mathf.Lerp(0.18f, 0.45f, board != null ? Mathf.Clamp01(board.devStickiness) : 0.5f);
         _previewDegSmoothed = Mathf.LerpAngle(_previewDegSmoothed, previewWantedDeg, alpha);
 
-        // +Y‚Í‰EèŒn‚È‚Ì‚ÅCW‚ª•‰‰ñ“]
         board.UpdateFreePreviewAngle(-_previewDegSmoothed);
 
-        // ƒXƒeƒbƒv‰Â”Û‚ÆNGğŒ
         var v = board.GetStepValidity(freeCenter, freeSize);
         bool lockedExceptCenter = board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
         int checkSteps = _isSnapped ? _latchedSteps : candSteps;
         bool stepAllowed = IsStepAllowed(v, checkSteps, board.devAllow180Rotation);
 
         freeNearestSteps = checkSteps;
-        freeStepOK = _isSnapped && stepAllowed && !lockedExceptCenter;
+        freeStepOK = (_isSnapped || (checkSteps != 0)) && stepAllowed && !lockedExceptCenter;
 
-        // ƒS[ƒXƒgF‚ÍuƒXƒiƒbƒv‚Å‚«‚Ä‚¢‚é‚©v‚Å•\Œ»iPad‚Æ“¯—lj
+#if ENABLE_INPUT_SYSTEM
+        _hadSnapThisFrame = _isSnapped;
+        if (_isSnapped && checkSteps != 0)
+        {
+            _lastSnappedSteps = checkSteps;
+            _lastSnapTime = Time.time;
+        }
+#endif
         player?.UpdateGhostOkExtern(_isSnapped);
     }
 
@@ -257,10 +396,11 @@ public class FreeRotateController : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         _padLeftWasActive = false;
         _padLeftInactiveSince = 0f;
+        _usingPad1D = false;
+        _lastSnappedSteps = 0;
 #endif
     }
 
-    // steps>0 = CCWidir=-1 ‰ñ“]j, steps<0 = CWidir=+1 ‰ñ“]j
     bool IsStepAllowed(BoardManager.StepValidity v, int steps, bool allow180)
     {
         if (steps == +1) return v.ccw90;
@@ -290,11 +430,9 @@ public class FreeRotateController : MonoBehaviour
         }
 
         if (applied > 0)
-        {
             turn?.EndPlayerTurn();
-        }
-        // 0‚Í“K—p‚È‚µiNGƒtƒ‰ƒbƒVƒ…‚Í’¼‘O‚ÉÀ{j
     }
+
     bool TryGetMouseGrid(out Vector2Int grid)
     {
         grid = default;
@@ -311,7 +449,6 @@ public class FreeRotateController : MonoBehaviour
         return false;
     }
 
-    // ƒfƒbƒhƒ][ƒ““à‚Å‚Í angleDeg ‚ğ•Ô‚³‚¸ false ‚É‚·‚é
     bool TryGetMouseWorld(Vector2Int center, out float angleDeg)
     {
         angleDeg = 0f;
@@ -324,9 +461,9 @@ public class FreeRotateController : MonoBehaviour
             Vector3 hit = r.GetPoint(enter);
             Vector3 wc = board.GridToWorld(center);
             Vector2 v = new Vector2(hit.x - wc.x, hit.z - wc.z);
-            float deadSqr = mouseDeadZoneRadius * mouseDeadZoneRadius; // ³‹K‰»”¼Œa
-            if (v.sqrMagnitude < deadSqr) return false;                // ƒfƒbƒhƒ][ƒ““à‚Í–³ŒøiŠp“x–¢Šm’èj
-            angleDeg = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg; // +XŠî€CCW
+            float deadSqr = mouseDeadZoneRadius * mouseDeadZoneRadius;
+            if (v.sqrMagnitude < deadSqr) return false;
+            angleDeg = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg;
             return true;
         }
         return false;
