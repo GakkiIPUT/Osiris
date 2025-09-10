@@ -6,36 +6,36 @@ using UnityEngine;
 public class TurnManager : MonoBehaviour
 {
     [Header("Board Reference")]
-    public BoardManager board; // BoardManager.Build() ‘¤‚Å‘ã“ü‚³‚ê‚é‘z’è
+    public BoardManager board; // BoardManager.Build() å´ã§ä»£å…¥ã•ã‚Œã‚‹æƒ³å®š
 
-    // ======= ƒ^[ƒ“/ó‘Ô =======
+    // ======= ã‚¿ãƒ¼ãƒ³/çŠ¶æ…‹ =======
     public bool gameOver { get; private set; }
     public bool cleared { get; private set; }
 
     private bool playerTurn = true;
     private bool runningGuards = false;
 
-    // ‹Œƒtƒ‰ƒOiŒİŠ·j
+    // æ—§ãƒ•ãƒ©ã‚°ï¼ˆäº’æ›ï¼‰
     public bool itemCollected = false;
     public bool goalReached = false;
 
-    // •ó” iƒRƒŒƒNƒVƒ‡ƒ“j
+    // å®ç®±ï¼ˆã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³ï¼‰
     public bool treasurePicked { get; private set; } = false;
 
-    // ======= ƒŠƒAƒ‹ƒ^ƒCƒ€‹ì“® =======
+    // ======= ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ é§†å‹• =======
     [Header("Realtime Guards")]
-    [Tooltip("ON‚ÅƒK[ƒh‚ªˆê’èŠÔŠu‚Åís“®BOFF‚Å]—ˆ‚Ìƒ^[ƒ“§iƒvƒŒƒCƒ„[s“®Œã‚É1‰ñ‚¾‚¯j")]
+    [Tooltip("ONã§ã‚¬ãƒ¼ãƒ‰ãŒä¸€å®šé–“éš”ã§å¸¸æ™‚è¡Œå‹•ã€‚OFFã§å¾“æ¥ã®ã‚¿ãƒ¼ãƒ³åˆ¶ï¼ˆãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼è¡Œå‹•å¾Œã«1å›ã ã‘ï¼‰")]
     public bool realtimeGuards = true;
-    [Tooltip("ƒK[ƒh‚ª1•ài‚ŞŠÔŠui•bj")]
+    [Tooltip("ã‚¬ãƒ¼ãƒ‰ãŒ1æ­©é€²ã‚€é–“éš”ï¼ˆç§’ï¼‰")]
     public float guardStepInterval = 0.35f;
     private float guardTimer = 0f;
 
-    // ======= ƒXƒRƒA—pƒJƒEƒ“ƒ^iƒTƒCƒY·‚È‚µj =======
+    // ======= ã‚¹ã‚³ã‚¢ç”¨ã‚«ã‚¦ãƒ³ã‚¿ï¼ˆã‚µã‚¤ã‚ºå·®ãªã—ï¼‰ =======
     [Header("Score Counters")]
-    public int rotCount { get; private set; }   // ¬Œ÷‚µ‚½‰ñ“]‰ñ”‚Ì‚İ‰ÁZ
-    public int retryCount { get; private set; } // ƒŠƒgƒ‰ƒCƒ{ƒ^ƒ“/ƒL[‘€ì‚Å‰ÁZ
+    public int rotCount { get; private set; }   // æˆåŠŸã—ãŸå›è»¢å›æ•°ã®ã¿åŠ ç®—
+    public int retryCount { get; private set; } // ãƒªãƒˆãƒ©ã‚¤ãƒœã‚¿ãƒ³/ã‚­ãƒ¼æ“ä½œã§åŠ ç®—
 
-    // ’Ç‰Á: •à”ƒJƒEƒ“ƒ^
+    // è¿½åŠ : æ­©æ•°ã‚«ã‚¦ãƒ³ã‚¿
     public int walkCount { get; private set; }
     [Header("Debug")]
     public bool debugLogGuardStepping = false;
@@ -61,54 +61,54 @@ public class TurnManager : MonoBehaviour
     {
         rotCount++;
         totalRotate++;
-        totalAP++; // AP•û®‚Å‚Í‰ñ“]‚à1AP
-        Debug.Log($"‰ñ“]¬Œ÷: rotCount={rotCount}, totalRotate={totalRotate}, totalAP={totalAP}");
+        totalAP++; // APæ–¹å¼ã§ã¯å›è»¢ã‚‚1AP
+        Debug.Log($"å›è»¢æˆåŠŸ: rotCount={rotCount}, totalRotate={totalRotate}, totalAP={totalAP}");
     }
 
     public void RegisterRetry()
     {
         retryCount++;
-        Debug.Log($"ƒŠƒgƒ‰ƒC: retryCount={retryCount}");
+        Debug.Log($"ãƒªãƒˆãƒ©ã‚¤: retryCount={retryCount}");
     }
 
-    // •às¬Œ÷iPlayerController“™‚©‚çŒÄ‚Î‚ê‚é‘z’èj
+    // æ­©è¡ŒæˆåŠŸæ™‚ï¼ˆPlayerControllerç­‰ã‹ã‚‰å‘¼ã°ã‚Œã‚‹æƒ³å®šï¼‰
     public void RegisterActionPoint()
     {
-        walkCount++; // •à”‚Í•às¬Œ÷‚Ì‚İ
-        totalAP++;   // AP=•às1A‰ñ“]1
-        Debug.Log($"AP‰ÁZ(•às): walkCount={walkCount}, totalAP={totalAP}");
+        walkCount++; // æ­©æ•°ã¯æ­©è¡ŒæˆåŠŸã®ã¿
+        totalAP++;   // AP=æ­©è¡Œ1ã€å›è»¢1
+        Debug.Log($"APåŠ ç®—(æ­©è¡Œ): walkCount={walkCount}, totalAP={totalAP}");
     }
 
-    // ======= •K{ƒAƒCƒeƒ€i‘S‰ñû‚ÅƒS[ƒ‹‰Âj=======
+    // ======= å¿…é ˆã‚¢ã‚¤ãƒ†ãƒ ï¼ˆå…¨å›åã§ã‚´ãƒ¼ãƒ«å¯ï¼‰=======
     [Serializable]
     public struct RequiredItem
     {
-        public char sym;        // ‹L†ii/j/k/l...«—ˆ‘‚¦‚Ä‚àOKj
-        public bool collected;  // æ“¾Ï‚İ
+        public char sym;        // è¨˜å·ï¼ˆi/j/k/l...å°†æ¥å¢—ãˆã¦ã‚‚OKï¼‰
+        public bool collected;  // å–å¾—æ¸ˆã¿
     }
 
-    // •K{ƒAƒCƒeƒ€‚Ìƒtƒ‰ƒbƒg”z—ñid•¡‚ ‚èj
+    // å¿…é ˆã‚¢ã‚¤ãƒ†ãƒ ã®ãƒ•ãƒ©ãƒƒãƒˆé…åˆ—ï¼ˆé‡è¤‡ã‚ã‚Šï¼‰
     private readonly List<RequiredItem> required = new List<RequiredItem>();
     public IReadOnlyList<RequiredItem> CurrentRequired => required;
 
-    // UI‚ÖXV‚ğ’Ê’m
+    // UIã¸æ›´æ–°ã‚’é€šçŸ¥
     public event Action<IReadOnlyList<RequiredItem>> onRequiredChanged;
 
-    // ƒNƒŠƒAŒ‹‰ÊiƒXƒRƒA/ƒ‰ƒ“ƒNj
+    // ã‚¯ãƒªã‚¢çµæœï¼ˆã‚¹ã‚³ã‚¢/ãƒ©ãƒ³ã‚¯ï¼‰
     public struct ScoreResult
     {
         public int score;
         public char rank;
-        public int rot;     // ‰ñ“]”
-        public int parRot;  // ‹Œd—l: parRot / APd—l‚Í parAP ‚ğ—¬—p
-        public int overRot; // ‹Œd—l: overRot / APd—l‚Í overAP ‚ğ—¬—p
+        public int rot;     // å›è»¢æ•°
+        public int parRot;  // æ—§ä»•æ§˜: parRot / APä»•æ§˜æ™‚ã¯ parAP ã‚’æµç”¨
+        public int overRot; // æ—§ä»•æ§˜: overRot / APä»•æ§˜æ™‚ã¯ overAP ã‚’æµç”¨
         public int retries;
-        public int steps;   // ’Ç‰Á: •à”i•às¬Œ÷”j
+        public int steps;   // è¿½åŠ : æ­©æ•°ï¼ˆæ­©è¡ŒæˆåŠŸæ•°ï¼‰
     }
-    // ƒNƒŠƒAƒCƒxƒ“ƒgiGameFlow ‚ªw“Ç‚µ‚ÄUI•\¦‚Ég‚¤j
+    // ã‚¯ãƒªã‚¢ã‚¤ãƒ™ãƒ³ãƒˆï¼ˆGameFlow ãŒè³¼èª­ã—ã¦UIè¡¨ç¤ºã«ä½¿ã†ï¼‰
     public event Action<ScoreResult> onStageCleared;
 
-    // GameOverƒCƒxƒ“ƒgi•K—v‚È‚çUI‘¤‚Åw“Çj
+    // GameOverã‚¤ãƒ™ãƒ³ãƒˆï¼ˆå¿…è¦ãªã‚‰UIå´ã§è³¼èª­ï¼‰
     public event Action onGameOver;
 
     private void Start()
@@ -119,7 +119,7 @@ public class TurnManager : MonoBehaviour
         cleared = false;
         guardTimer = 0f;
 
-        // ƒXƒ€[ƒYˆÚ“®’†‚Ì‘Ò‚¿ŠÔ‚Æˆê’v‚³‚¹‚ÄƒJƒNƒcƒLŒ¸
+        // ã‚¹ãƒ ãƒ¼ã‚ºç§»å‹•ä¸­ã®å¾…ã¡æ™‚é–“ã¨ä¸€è‡´ã•ã›ã¦ã‚«ã‚¯ãƒ„ã‚­æ¸›
         if (board != null && board.smoothGuardMove)
         {
             guardStepInterval = 1f / Mathf.Max(0.1f, board.guardMoveCellsPerSec);
@@ -134,7 +134,7 @@ public class TurnManager : MonoBehaviour
         {
             if (board == null) board = UnityCompat.FindFirst<BoardManager>();
 
-            // Board ‚Ì‘S‘ÌƒAƒjƒ’†‚Í’â~iON/OFF‚ğƒƒOj
+            // Board ã®å…¨ä½“ã‚¢ãƒ‹ãƒ¡ä¸­ã¯åœæ­¢ï¼ˆON/OFFã‚’ãƒ­ã‚°ï¼‰
             if (board != null && board.IsAnimating)
             {
                 if (!wasAnimating)
@@ -165,44 +165,44 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    // ======= GameOver‚ÌƒXƒRƒAˆø‚«Œp‚¬ƒ|ƒŠƒV[ =======
+    // ======= GameOveræ™‚ã®ã‚¹ã‚³ã‚¢å¼•ãç¶™ããƒãƒªã‚·ãƒ¼ =======
     public enum GameOverRetryBehavior
     {
-        ResetScoreOnGameOver,     // Œ»s: GO‚É‘SƒXƒRƒA‚ğƒŠƒZƒbƒgiƒŠƒgƒ‰ƒC‚Í‰ÁZ‚µ‚È‚¢j
-        KeepScoreAndAddRetry      // ‹Œd—l: GO‚ÉƒŠƒgƒ‰ƒC‰ÁZ‚µAƒXƒRƒA‚Íˆø‚«Œp‚®
+        ResetScoreOnGameOver,     // ç¾è¡Œ: GOæ™‚ã«å…¨ã‚¹ã‚³ã‚¢ã‚’ãƒªã‚»ãƒƒãƒˆï¼ˆãƒªãƒˆãƒ©ã‚¤ã¯åŠ ç®—ã—ãªã„ï¼‰
+        KeepScoreAndAddRetry      // æ—§ä»•æ§˜: GOæ™‚ã«ãƒªãƒˆãƒ©ã‚¤åŠ ç®—ã—ã€ã‚¹ã‚³ã‚¢ã¯å¼•ãç¶™ã
     }
 
     [Header("Game Over / Retry Policy")]
     public GameOverRetryBehavior gameOverRetryBehavior = GameOverRetryBehavior.ResetScoreOnGameOver;
 
-    // TurnManager.cs “àiƒNƒ‰ƒX’¼‰º‚Ì”CˆÓ‚ÌêŠj‚É’Ç‰Á
+    // TurnManager.cs å†…ï¼ˆã‚¯ãƒ©ã‚¹ç›´ä¸‹ã®ä»»æ„ã®å ´æ‰€ï¼‰ã«è¿½åŠ 
     public void ResetForRestart(bool keepRetryCount = true)
     {
-        // ƒQ[ƒ€ó‘Ô‚ğ¶‚«•Ô‚ç‚¹‚é
+        // ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã‚’ç”Ÿãè¿”ã‚‰ã›ã‚‹
         gameOver = false;
         cleared = false;
         playerTurn = true;
         runningGuards = false;
 
-        // æ“¾ƒtƒ‰ƒOŒnƒŠƒZƒbƒgiƒ‰ƒ“ÄŠJ‚Ì‚½‚ß–ˆ‰ñj
+        // å–å¾—ãƒ•ãƒ©ã‚°ç³»ãƒªã‚»ãƒƒãƒˆï¼ˆãƒ©ãƒ³å†é–‹ã®ãŸã‚æ¯å›ï¼‰
         treasurePicked = false;
         itemCollected = false;
         goalReached = false;
 
-        // ƒXƒRƒAŒn‚ÌƒŠƒZƒbƒg‚Íó‹µEƒ|ƒŠƒV[‚ÅŒˆ’è
-        bool comingFromGameOver = true; // ‚±‚ÌAPI‚Íå‚ÉÄŠJ—p‚È‚Ì‚Å gameOver I—¹’¼Œã‚É—ˆ‚é
-        // ‚½‚¾‚µAŠO•”‚©‚ç”CˆÓƒ^ƒCƒ~ƒ“ƒO‚Å‚àŒÄ‚×‚é‚½‚ßA’¼‘Oó‘Ô‚ğŒ©‚é
-        // cleared ‚Í•Êˆµ‚¢
+        // ã‚¹ã‚³ã‚¢ç³»ã®ãƒªã‚»ãƒƒãƒˆã¯çŠ¶æ³ãƒ»ãƒãƒªã‚·ãƒ¼ã§æ±ºå®š
+        bool comingFromGameOver = true; // ã“ã®APIã¯ä¸»ã«å†é–‹ç”¨ãªã®ã§ gameOver çµ‚äº†ç›´å¾Œã«æ¥ã‚‹
+        // ãŸã ã—ã€å¤–éƒ¨ã‹ã‚‰ä»»æ„ã‚¿ã‚¤ãƒŸãƒ³ã‚°ã§ã‚‚å‘¼ã¹ã‚‹ãŸã‚ã€ç›´å‰çŠ¶æ…‹ã‚’è¦‹ã‚‹
+        // cleared ã¯åˆ¥æ‰±ã„
         if (!this.gameOver && !this.cleared)
         {
-            // ƒQ[ƒ€ƒvƒŒƒC’†‚Ìè“®ƒŠƒZƒbƒgiESC‚ÌƒŠƒZƒbƒg“™j
+            // ã‚²ãƒ¼ãƒ ãƒ—ãƒ¬ã‚¤ä¸­ã®æ‰‹å‹•ãƒªã‚»ãƒƒãƒˆï¼ˆESCã®ãƒªã‚»ãƒƒãƒˆç­‰ï¼‰
             comingFromGameOver = false;
         }
 
         bool shouldResetScoreCounters =
-            // ƒNƒŠƒA‚â’ÊíƒŠƒgƒ‰ƒC‚ÍƒJƒEƒ“ƒ^‚ğƒŠƒZƒbƒg
+            // ã‚¯ãƒªã‚¢ã‚„é€šå¸¸ãƒªãƒˆãƒ©ã‚¤æ™‚ã¯ã‚«ã‚¦ãƒ³ã‚¿ã‚’ãƒªã‚»ãƒƒãƒˆ
             (!comingFromGameOver)
-            // GO¨ÄŠJ‚Å‚àuƒŠƒZƒbƒgvƒ|ƒŠƒV[‚È‚çƒŠƒZƒbƒg
+            // GOâ†’å†é–‹æ™‚ã§ã‚‚ã€Œãƒªã‚»ãƒƒãƒˆã€ãƒãƒªã‚·ãƒ¼ãªã‚‰ãƒªã‚»ãƒƒãƒˆ
             || (comingFromGameOver && gameOverRetryBehavior == GameOverRetryBehavior.ResetScoreOnGameOver);
 
         if (shouldResetScoreCounters)
@@ -214,7 +214,7 @@ public class TurnManager : MonoBehaviour
         }
         else
         {
-            // ‹Œd—lƒ‚[ƒh: GO¨ÄŠJ‚Å‚ÍƒXƒRƒAƒJƒEƒ“ƒ^‚ğ•Û
+            // æ—§ä»•æ§˜ãƒ¢ãƒ¼ãƒ‰: GOâ†’å†é–‹ã§ã¯ã‚¹ã‚³ã‚¢ã‚«ã‚¦ãƒ³ã‚¿ã‚’ä¿æŒ
             Debug.Log($"[Score] Keep counters on restart after GameOver (rot={rotCount}, walk={walkCount}, totalAP={totalAP}, retries={retryCount})");
         }
 
@@ -223,13 +223,13 @@ public class TurnManager : MonoBehaviour
         Debug.Log($"[Score] ResetForRestart: countersReset={shouldResetScoreCounters}, retries={retryCount}");
     }
 
-    // ======= ƒ^[ƒ“§§Œä =======
+    // ======= ã‚¿ãƒ¼ãƒ³åˆ¶åˆ¶å¾¡ =======
     public bool IsPlayerTurn()
     {
         if (gameOver || cleared) return false;
         if (board != null && board.IsAnimating) return false;
 
-        // ƒŠƒAƒ‹ƒ^ƒCƒ€‚Íí“ü—Í‰ÂiUI‘¤‚ÌuƒGƒCƒ€’†‚©‚ÂƒQ[ƒ€’†v‚¾‚¯‚Åƒ{ƒ^ƒ“Šˆ«‚ğ§Œäj
+        // ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ æ™‚ã¯å¸¸æ™‚å…¥åŠ›å¯ï¼ˆUIå´ã®ã€Œã‚¨ã‚¤ãƒ ä¸­ã‹ã¤ã‚²ãƒ¼ãƒ ä¸­ã€ã ã‘ã§ãƒœã‚¿ãƒ³æ´»æ€§ã‚’åˆ¶å¾¡ï¼‰
         if (realtimeGuards) return true;
 
         return playerTurn && !runningGuards;
@@ -238,7 +238,7 @@ public class TurnManager : MonoBehaviour
     public void EndPlayerTurn()
     {
         if (gameOver || cleared) return;
-        if (realtimeGuards) return; // ƒŠƒAƒ‹ƒ^ƒCƒ€‚Í‰½‚à‚µ‚È‚¢
+        if (realtimeGuards) return; // ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ æ™‚ã¯ä½•ã‚‚ã—ãªã„
         if (runningGuards) return;
         StartCoroutine(GuardsTurnCoro());
     }
@@ -247,7 +247,7 @@ public class TurnManager : MonoBehaviour
     {
         runningGuards = true;
         playerTurn = false;
-        yield return null; // ƒtƒŒ[ƒ€‚Ü‚½‚¬‚ÅˆÀ’è
+        yield return null; // ãƒ•ãƒ¬ãƒ¼ãƒ ã¾ãŸãã§å®‰å®š
 
         StepAllGuards();
 
@@ -275,7 +275,7 @@ public class TurnManager : MonoBehaviour
         //  Debug.Log($"[Turn] StepAllGuards done guards={stepped} t={Time.time:F3}");
     }
 
-    // ======= ƒAƒCƒeƒ€ŠÖ˜A =======
+    // ======= ã‚¢ã‚¤ãƒ†ãƒ é–¢é€£ =======
     public void ResetGoalState()
     {
         required.Clear();
@@ -283,7 +283,7 @@ public class TurnManager : MonoBehaviour
         treasurePicked = false;
     }
 
-    // BoardManager.Build() ‚©‚ç‰Šú‰»i•K{: Œ® i ‚Ì‚İ‚ª—ˆ‚é‘z’èj
+    // BoardManager.Build() ã‹ã‚‰åˆæœŸåŒ–ï¼ˆå¿…é ˆ: éµ i ã®ã¿ãŒæ¥ã‚‹æƒ³å®šï¼‰
     public void InitRequiredItems(IReadOnlyList<char> symbolsInReadingOrder)
     {
         required.Clear();
@@ -295,7 +295,7 @@ public class TurnManager : MonoBehaviour
         NotifyRequired();
     }
 
-    // ƒvƒŒƒCƒ„[‚ª•K{ƒAƒCƒeƒ€‹L† symi= 'i'j‚ğæ“¾‚µ‚½‚Æ‚«
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒå¿…é ˆã‚¢ã‚¤ãƒ†ãƒ è¨˜å· symï¼ˆ= 'i'ï¼‰ã‚’å–å¾—ã—ãŸã¨ã
     public void OnItemPicked(char sym)
     {
         for (int i = 0; i < required.Count; i++)
@@ -306,12 +306,12 @@ public class TurnManager : MonoBehaviour
                 ri.collected = true;
                 required[i] = ri;
                 NotifyRequired();
-                break; // “¯í‚Ì–¢æ“¾‚Ì‚¤‚¿ˆê‚Â‚¾‚¯ƒ}[ƒN
+                break; // åŒç¨®ã®æœªå–å¾—ã®ã†ã¡ä¸€ã¤ã ã‘ãƒãƒ¼ã‚¯
             }
         }
     }
 
-    // •ó” iƒRƒŒƒNƒVƒ‡ƒ“j‚ğæ“¾
+    // å®ç®±ï¼ˆã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³ï¼‰ã‚’å–å¾—
     public void OnTreasurePicked()
     {
         treasurePicked = true;
@@ -327,15 +327,15 @@ public class TurnManager : MonoBehaviour
         return true;
     }
 
-    // ======= ƒNƒŠƒA/ƒQ[ƒ€ƒI[ƒo[ =======
+    // ======= ã‚¯ãƒªã‚¢/ã‚²ãƒ¼ãƒ ã‚ªãƒ¼ãƒãƒ¼ =======
     public void TriggerClear() => TryClearAtExit();
 
-    // Exit ã‚ÅŒÄ‚ÔB•K{iŒ®j‘S‰ñû‚ÅƒNƒŠƒAŠm’è
+    // Exit ä¸Šã§å‘¼ã¶ã€‚å¿…é ˆï¼ˆéµï¼‰å…¨å›åã§ã‚¯ãƒªã‚¢ç¢ºå®š
     public void TryClearAtExit()
     {
         if (gameOver || cleared) return;
 
-        // ƒNƒŠƒA’¼‘O‚Ì‹ŠEƒ`ƒFƒbƒNi–³“G‚ÍƒXƒLƒbƒvj
+        // ã‚¯ãƒªã‚¢ç›´å‰ã®è¦–ç•Œãƒã‚§ãƒƒã‚¯ï¼ˆç„¡æ•µã¯ã‚¹ã‚­ãƒƒãƒ—ï¼‰
         bool IsPlayerSeenNow()
         {
             if (board == null || board.player == null || board.player.invincible) return false;
@@ -348,7 +348,7 @@ public class TurnManager : MonoBehaviour
             return false;
         }
 
-        // goalReached‚ªtrue‚È‚ç‘¦ƒNƒŠƒA
+        // goalReachedãŒtrueãªã‚‰å³ã‚¯ãƒªã‚¢
         if (goalReached)
         {
             if (IsPlayerSeenNow()) { TriggerGameOver(); return; }
@@ -376,10 +376,10 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        // •K{ƒAƒCƒeƒ€‚ª‘S‚Ä‘µ‚Á‚Ä‚¢‚È‚¢‚È‚çƒNƒŠƒA•s‰Â
+        // å¿…é ˆã‚¢ã‚¤ãƒ†ãƒ ãŒå…¨ã¦æƒã£ã¦ã„ãªã„ãªã‚‰ã‚¯ãƒªã‚¢ä¸å¯
         if (!AllRequiredCollected()) return;
 
-        // ‚±‚±‚ÅŒ©‚ç‚ê‚Ä‚¢‚½‚ç€–S‚ğ—Dæ
+        // ã“ã“ã§è¦‹ã‚‰ã‚Œã¦ã„ãŸã‚‰æ­»äº¡ã‚’å„ªå…ˆ
         if (IsPlayerSeenNow()) { TriggerGameOver(); return; }
 
         cleared = true;
@@ -406,12 +406,12 @@ public class TurnManager : MonoBehaviour
         onStageCleared?.Invoke(res2);
     }
 
-    // ”Æl‚ğ•ÛiGameOver‰‰o‚Åg—pj
+    // çŠ¯äººã‚’ä¿æŒï¼ˆGameOveræ¼”å‡ºã§ä½¿ç”¨ï¼‰
     public GuardController lastKiller { get; private set; }
 
     public void TriggerGameOver(GuardController killer)
     {
-        // ‚·‚Å‚ÉGO’†‚È‚çã‘‚«‚µ‚È‚¢
+        // ã™ã§ã«GOä¸­ãªã‚‰ä¸Šæ›¸ãã—ãªã„
         if (gameOver || cleared) return;
         lastKiller = killer;
         TriggerGameOver();
@@ -445,16 +445,16 @@ public class TurnManager : MonoBehaviour
         {
             board.SetAllGuardVision(true);
             board.RefreshAllGuardVision();
-            yield return null; // 1ƒtƒŒ[ƒ€‘Ò‚Á‚Ä•`‰æXV
+            yield return null; // 1ãƒ•ãƒ¬ãƒ¼ãƒ å¾…ã£ã¦æç”»æ›´æ–°
         }
 
         if (board != null)
         {
             if (lastKiller != null)
             {
-                lastKiller.SetKillerHighlight(true);     // ‹ŠEF•ÏX{ƒAƒEƒgƒ‰ƒCƒ“•\¦
-                lastKiller.ShowKillerMarkPersistent();    // wIxí•\¦
-                lastKiller.ShowKillerOutline(true);       // ”O‚Ì‚½‚ß–¾¦
+                lastKiller.SetKillerHighlight(true);     // è¦–ç•Œè‰²å¤‰æ›´ï¼‹ã‚¢ã‚¦ãƒˆãƒ©ã‚¤ãƒ³è¡¨ç¤º
+                lastKiller.ShowKillerMarkPersistent();    // ã€ï¼ã€å¸¸æ™‚è¡¨ç¤º
+                lastKiller.ShowKillerOutline(true);       // å¿µã®ãŸã‚æ˜ç¤º
             }
             var gs = board.guards;
             for (int i = 0; i < gs.Count; i++)
@@ -462,14 +462,14 @@ public class TurnManager : MonoBehaviour
                 var g = gs[i];
                 if (g == null) continue;
                 if (g == lastKiller) continue;
-                g.SetVisionColorAndRefresh(g.othersVisionColorOnGameOver); // ‚Ù‚©‚Í”–‚­
+                g.SetVisionColorAndRefresh(g.othersVisionColorOnGameOver); // ã»ã‹ã¯è–„ã
             }
         }
 
         onGameOver?.Invoke();
     }
 
-    // ======= ƒXƒRƒAŒvZi‰ñ“]·/ƒŠƒgƒ‰ƒC‚Ì‚İE100“_–“_‚ÌŒ¸“_®j=======
+    // ======= ã‚¹ã‚³ã‚¢è¨ˆç®—ï¼ˆå›è»¢å·®/ãƒªãƒˆãƒ©ã‚¤ã®ã¿ãƒ»100ç‚¹æº€ç‚¹ã®æ¸›ç‚¹å¼ï¼‰=======
     public ScoreResult ComputeScore(int parRot, int ROT_PEN = 3, int RETRY_PEN = 10)
     {
         int over = Mathf.Max(0, rotCount - parRot);
@@ -494,8 +494,8 @@ public class TurnManager : MonoBehaviour
 
     public enum ScoreMode
     {
-        Legacy,   // ‹Œd—li‰ñ“]EƒŠƒgƒ‰ƒCŒ¸“_A‰ñ“]ƒp[’l’´‰ß‚ÅŒ¸“_j
-        ActionPoint // Vd—liAP•û®j
+        Legacy,   // æ—§ä»•æ§˜ï¼ˆå›è»¢ãƒ»ãƒªãƒˆãƒ©ã‚¤æ¸›ç‚¹ã€å›è»¢ãƒ‘ãƒ¼å€¤è¶…éã§æ¸›ç‚¹ï¼‰
+        ActionPoint // æ–°ä»•æ§˜ï¼ˆAPæ–¹å¼ï¼‰
     }
 
     public ScoreMode scoreMode = ScoreMode.Legacy;
@@ -515,19 +515,19 @@ public class TurnManager : MonoBehaviour
             case ScoreMode.ActionPoint:
                 int penaltyAP = Mathf.Max(0, totalAP - parAP);
                 int scoreAP = Mathf.Max(0, baseScore - penaltyAP - retryCount * retryPenalty);
-                Debug.Log($"[Score/AP] base:{baseScore} - (AP’´‰ß:{penaltyAP}) - (ƒŠƒgƒ‰ƒC:{retryCount}~{retryPenalty}) = {scoreAP}");
+                Debug.Log($"[Score/AP] base:{baseScore} - (APè¶…é:{penaltyAP}) - (ãƒªãƒˆãƒ©ã‚¤:{retryCount}Ã—{retryPenalty}) = {scoreAP}");
                 return scoreAP;
 
             case ScoreMode.Legacy:
             default:
                 int penaltyRot = Mathf.Max(0, totalRotate - parRotate);
                 int scoreRot = Mathf.Max(0, baseScore - penaltyRot * rotatePenalty - retryCount * retryPenalty);
-                Debug.Log($"[Score/Legacy] base:{baseScore} - (‰ñ“]’´‰ß:{penaltyRot}~{rotatePenalty}) - (ƒŠƒgƒ‰ƒC:{retryCount}~{retryPenalty}) = {scoreRot}");
+                Debug.Log($"[Score/Legacy] base:{baseScore} - (å›è»¢è¶…é:{penaltyRot}Ã—{rotatePenalty}) - (ãƒªãƒˆãƒ©ã‚¤:{retryCount}Ã—{retryPenalty}) = {scoreRot}");
                 return scoreRot;
         }
     }
 
-    // ’Ç‰Á: AP•û®‚ÌƒXƒRƒAiˆÚ“®{‰ñ“]¬Œ÷‚Ì‚İƒJƒEƒ“ƒgA’´‰ßAP{ƒŠƒgƒ‰ƒC‚ÅŒ¸“_j
+    // è¿½åŠ : APæ–¹å¼ã®ã‚¹ã‚³ã‚¢ï¼ˆç§»å‹•ï¼‹å›è»¢æˆåŠŸã®ã¿ã‚«ã‚¦ãƒ³ãƒˆã€è¶…éAPï¼‹ãƒªãƒˆãƒ©ã‚¤ã§æ¸›ç‚¹ï¼‰
     public ScoreResult ComputeScoreAP()
     {
         int overAP = Mathf.Max(0, totalAP - parAP);
@@ -541,15 +541,15 @@ public class TurnManager : MonoBehaviour
         {
             score = s,
             rank = r,
-            rot = rotCount,               // ‰ñ“]”‚Í‚»‚Ì‚Ü‚Ü
-            parRot = Mathf.Max(0, parAP), // •\¦ŒİŠ·‚Ì‚½‚ß parAP ‚ğ—¬—p
-            overRot = overAP,             // •\¦ŒİŠ·‚Ì‚½‚ß overAP ‚ğ—¬—p
+            rot = rotCount,               // å›è»¢æ•°ã¯ãã®ã¾ã¾
+            parRot = Mathf.Max(0, parAP), // è¡¨ç¤ºäº’æ›ã®ãŸã‚ parAP ã‚’æµç”¨
+            overRot = overAP,             // è¡¨ç¤ºäº’æ›ã®ãŸã‚ overAP ã‚’æµç”¨
             retries = retryCount,
-            steps = walkCount             // •à”
+            steps = walkCount             // æ­©æ•°
         };
     }
 
-    // ’Ç‰Á: Œ»İ‚Ìƒ‚[ƒh‚É‰‚¶‚ÄƒXƒRƒA‚ğŒvZ‚·‚éƒ†[ƒeƒBƒŠƒeƒB
+    // è¿½åŠ : ç¾åœ¨ã®ãƒ¢ãƒ¼ãƒ‰ã«å¿œã˜ã¦ã‚¹ã‚³ã‚¢ã‚’è¨ˆç®—ã™ã‚‹ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£
     public ScoreResult ComputeScoreForCurrentMode(int parRotFromGF)
     {
         if (scoreMode == ScoreMode.ActionPoint)
@@ -565,10 +565,10 @@ public class TurnManager : MonoBehaviour
 
     private void Awake()
     {
-        // AudioSource ‚ğ’Ç‰Á
+        // AudioSource ã‚’è¿½åŠ 
         audioSource = gameObject.AddComponent<AudioSource>();
 
-        // Resources ‚©‚çƒ[ƒh
+        // Resources ã‹ã‚‰ãƒ­ãƒ¼ãƒ‰
         goalAudio = Resources.Load<AudioClip>("Audio/goal");
         gameoverAudio = Resources.Load<AudioClip>("Audio/gameover");
     }

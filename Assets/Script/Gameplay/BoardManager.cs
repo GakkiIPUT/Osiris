@@ -1,76 +1,75 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum CellType { Floor, Wall, Exit, Anchor, Pit } // © ’Ç‰Á: —‚Æ‚µŒŠ
+public enum CellType { Floor, Wall, Exit, Anchor, Pit } // â† è¿½åŠ : è½ã¨ã—ç©´
 public enum WallOrigin { Core, Outer }
 
-[ExecuteAlways] // ƒGƒfƒBƒ^‚Å‚àƒvƒŒƒrƒ…[—p‚É“®‚©‚·
-public class BoardManager : MonoBehaviour
+[ExecuteAlways] // ã‚¨ãƒ‡ã‚£ã‚¿ã§ã‚‚ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ç”¨ã«å‹•ã‹ã™
+public partial class BoardManager : MonoBehaviour
 {
     [Header("Prefabs (Tiles & Player)")]
     public GameObject pfFloor;
     public GameObject pfWall;
     public GameObject pfExit;
-    public GameObject pfAnchor;   // ‰ñ“]•s‰Âƒ}ƒXi@j
-    public GameObject pfPit;      // —‚Æ‚µŒŠixj
-    public GameObject pfPlayer;   // Player‚ÍAddComponent‚ÅPlayerController•t—^iPrefab‘¤‚É‚ ‚Á‚Ä‚àOKj
+    public GameObject pfAnchor;   // å›è»¢ä¸å¯ãƒã‚¹ï¼ˆ@ï¼‰
+    public GameObject pfPit;      // è½ã¨ã—ç©´ï¼ˆxï¼‰
+    public GameObject pfPlayer;   // Playerã¯AddComponentã§PlayerControllerä»˜ä¸ï¼ˆPrefabå´ã«ã‚ã£ã¦ã‚‚OKï¼‰
 
-    // TurnManager ‚ÌƒCƒxƒ“ƒgw“Ç—pid•¡–h~j
+    // TurnManager ã®ã‚¤ãƒ™ãƒ³ãƒˆè³¼èª­ç”¨ï¼ˆé‡è¤‡é˜²æ­¢ï¼‰
     private TurnManager _turn;
 
-    // ===== Guard í—Ş‚Ìƒ}ƒbƒsƒ“ƒOi‹L† ¨ Prefabj =====
+    // ===== Guard ç¨®é¡ã®ãƒãƒƒãƒ”ãƒ³ã‚°ï¼ˆè¨˜å· â†’ Prefabï¼‰ =====
     [System.Serializable]
     public struct GuardType
     {
-        [Tooltip("ASCIIƒ}ƒbƒvã‚Ì‹L†i—á: G, H, I ‚È‚Çj")]
-        public string symbol;                       // © 1•¶š‚ğ“ü‚ê‚é‘z’è
-        [Tooltip("‚±‚Ì‹L†‚Å”z’u‚·‚éƒK[ƒh‚ÌPrefabiGuardController‚ğ•t‚¯‚Ä‚¨‚­j")]
+        [Tooltip("ASCIIãƒãƒƒãƒ—ä¸Šã®è¨˜å·ï¼ˆä¾‹: G, H, I ãªã©ï¼‰")]
+        public string symbol;                       // â† 1æ–‡å­—ã‚’å…¥ã‚Œã‚‹æƒ³å®š
+        [Tooltip("ã“ã®è¨˜å·ã§é…ç½®ã™ã‚‹ã‚¬ãƒ¼ãƒ‰ã®Prefabï¼ˆGuardControllerã‚’ä»˜ã‘ã¦ãŠãï¼‰")]
         public GameObject prefab;
-        [Tooltip("Level Painter ‚Ìƒ{ƒ^ƒ“–¼‚âà–¾‚Ég‚¤ƒ‰ƒxƒ‹i”CˆÓj")]
+        [Tooltip("Level Painter ã®ãƒœã‚¿ãƒ³åã‚„èª¬æ˜ã«ä½¿ã†ãƒ©ãƒ™ãƒ«ï¼ˆä»»æ„ï¼‰")]
         public string label;
-        [Tooltip("Sceneƒrƒ…[‚ÌƒvƒŒƒrƒ…[F")]
+        [Tooltip("Sceneãƒ“ãƒ¥ãƒ¼ã®ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼è‰²")]
         public Color previewColor;
     }
 
     [System.Serializable]
     public struct ItemType
     {
-        [Tooltip("ASCIIƒ}ƒbƒvã‚Ì‹L†i—á: i, j, k ‚È‚Ç¬•¶š„§j")]
-        public string symbol;                       // © 1•¶š‚ğ“ü‚ê‚é‘z’è
-        public GameObject prefab;                   // ƒAƒCƒeƒ€‚ÌPrefabi¡‚ÍŒø‰Ê‚È‚µ‚ÅOKj
-        public string label;                        // UI•\¦—p
-        public Color previewColor;                  // SceneƒvƒŒƒrƒ…[F
+        [Tooltip("ASCIIãƒãƒƒãƒ—ä¸Šã®è¨˜å·ï¼ˆä¾‹: i, j, k ãªã©å°æ–‡å­—æ¨å¥¨ï¼‰")]
+        public string symbol;                       // â† 1æ–‡å­—ã‚’å…¥ã‚Œã‚‹æƒ³å®š
+        public GameObject prefab;                   // ã‚¢ã‚¤ãƒ†ãƒ ã®Prefabï¼ˆä»Šã¯åŠ¹æœãªã—ã§OKï¼‰
+        public string label;                        // UIè¡¨ç¤ºç”¨
+        public Color previewColor;                  // Sceneãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼è‰²
     }
 
-    [Header("Guard Types (symbol ¨ prefab)")]
+    [Header("Guard Types (symbol â†’ prefab)")]
     public List<GuardType> guardTypes = new List<GuardType>()
     {
         new GuardType{ symbol="G", prefab=null, label="Guard A", previewColor = new Color(1f,0.35f,0.35f,1f) },
     };
 
-    [Header("Item Types (symbol ¨ prefab)")]
+    [Header("Item Types (symbol â†’ prefab)")]
     public List<ItemType> itemTypes = new List<ItemType>()
     {
-        // i = Œ®i•K{ƒAƒCƒeƒ€j
+        // i = éµï¼ˆå¿…é ˆã‚¢ã‚¤ãƒ†ãƒ ï¼‰
         new ItemType{ symbol="i", prefab=null, label="Key", previewColor = new Color(0.25f,1f,0.9f,1f) },
-        // t = •ó” iƒRƒŒƒNƒVƒ‡ƒ“—pEƒNƒŠƒAğŒ‚ÉŠÜ‚ß‚È‚¢j
+        // t = å®ç®±ï¼ˆã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³ç”¨ãƒ»ã‚¯ãƒªã‚¢æ¡ä»¶ã«å«ã‚ãªã„ï¼‰
         new ItemType{ symbol="t", prefab=null, label="Treasure", previewColor = new Color(1.0f,0.7f,0.2f,1f) },
-        // d = “D–_i‹”F‚Å•ó” ‚É•Ï‰»^N“ü•s‰Âj
+        // d = æ³¥æ£’ï¼ˆè¦–èªã§å®ç®±ã«å¤‰åŒ–ï¼ä¾µå…¥ä¸å¯ï¼‰
         new ItemType{ symbol="d", prefab=null, label="Thief", previewColor = new (0.8f,0.4f,1.0f,1f) },
-        // e = Œ®“D–_i‹”F‚ÅŒ®‚É•Ï‰»^N“ü•s‰Âj© ’Ç‰Á
+        // e = éµæ³¥æ£’ï¼ˆè¦–èªã§éµã«å¤‰åŒ–ï¼ä¾µå…¥ä¸å¯ï¼‰â† è¿½åŠ 
         new ItemType{ symbol="e", prefab=null, label="Thief (Key)", previewColor = new (0.25f,0.8f,1.0f,1f) },
     };
 
-    public Transform itemsRoot; // ƒAƒCƒeƒ€‚Ìei–¢İ’è‚È‚çAwake‚Åì‚éj
+    public Transform itemsRoot; // ã‚¢ã‚¤ãƒ†ãƒ ã®è¦ªï¼ˆæœªè¨­å®šãªã‚‰Awakeã§ä½œã‚‹ï¼‰
     [Header("Realtime / Rotation Limits")]
-    public bool realtime = true;                   // © ƒŠƒAƒ‹ƒ^ƒCƒ€ƒ‚[ƒhON
-    [Tooltip("‰ñ“]’†S‚Æ‚µ‚Ä‘I‚×‚éÅ‘å‹——£iƒvƒŒƒCƒ„[‚©‚ç‚Ìƒ}ƒ“ƒnƒbƒ^ƒ“‹——£ or ƒ`ƒFƒrƒVƒFƒt‹——£j")]
-    public int rotationCenterMaxDistance = 2;      // 1`2 „§
-    [Tooltip("‰ñ“]”ÍˆÍ‚ÉƒAƒ“ƒJ[(@)‚ªŠÜ‚Ü‚ê‚éê‡‚Í‰ñ“]‚ğ‹Ö~")]
+    public bool realtime = true;                   // â† ãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ ãƒ¢ãƒ¼ãƒ‰ON
+    [Tooltip("å›è»¢ä¸­å¿ƒã¨ã—ã¦é¸ã¹ã‚‹æœ€å¤§è·é›¢ï¼ˆãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‹ã‚‰ã®ãƒãƒ³ãƒãƒƒã‚¿ãƒ³è·é›¢ or ãƒã‚§ãƒ“ã‚·ã‚§ãƒ•è·é›¢ï¼‰")]
+    public int rotationCenterMaxDistance = 2;      // 1ï½2 æ¨å¥¨
+    [Tooltip("å›è»¢ç¯„å›²ã«ã‚¢ãƒ³ã‚«ãƒ¼(@)ãŒå«ã¾ã‚Œã‚‹å ´åˆã¯å›è»¢ã‚’ç¦æ­¢")]
     public bool forbidAnchorInArea = true;
 
-    // ƒAƒ“ƒJ[‚Ì‹L˜^i@j
+    // ã‚¢ãƒ³ã‚«ãƒ¼ã®è¨˜éŒ²ï¼ˆ@ï¼‰
     public HashSet<Vector2Int> anchors = new HashSet<Vector2Int>();
     public bool IsAnchor(Vector2Int p) => anchors.Contains(p);
 
@@ -79,29 +78,29 @@ public class BoardManager : MonoBehaviour
     public Material ghostNgMat;
 
     [Header("Vision Viz (optional)")]
-    public Material guardVisionMat;   // –¢Š„“–‚È‚ç ghostOkMat ‚ğƒtƒH[ƒ‹ƒoƒbƒN
+    public Material guardVisionMat;   // æœªå‰²å½“ãªã‚‰ ghostOkMat ã‚’ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯
 
     [Header("Guard Defaults")]
-    public int defaultGuardViewRange = 5; // iGuardController‘¤‚Å useBoardDefaultViewRange=true ‚Ì‚Æ‚«“K—pj
+    public int defaultGuardViewRange = 5; // ï¼ˆGuardControllerå´ã§ useBoardDefaultViewRange=true ã®ã¨ãé©ç”¨ï¼‰
 
     [Header("Y Alignment")]
-    public float floorY = 0f;           // °‚Ì“V–Ê‚ğ‡‚í‚¹‚éY
-    public float exitTopOffset = 0.01f; // Exit‚Í°‚æ‚è­‚µã
-    public float ghostY = 0.000001f;        // ƒS[ƒXƒg•\¦Yi°‚æ‚è­‚µãj
+    public float floorY = 0f;           // åºŠã®å¤©é¢ã‚’åˆã‚ã›ã‚‹Y
+    public float exitTopOffset = 0.01f; // Exitã¯åºŠã‚ˆã‚Šå°‘ã—ä¸Š
+    public float ghostY = 0.000001f;        // ã‚´ãƒ¼ã‚¹ãƒˆè¡¨ç¤ºYï¼ˆåºŠã‚ˆã‚Šå°‘ã—ä¸Šï¼‰
 
     [Header("2D Assets Auto-Align")]
-    [Tooltip("Quad‚âSprite‚ğ©“®‚ÅX=90‹‰ñ“]‚µAã‚©‚çŒ©‚¦‚é‚æ‚¤‚É®—ñ‚µ‚Ü‚·")]
+    [Tooltip("Quadã‚„Spriteã‚’è‡ªå‹•ã§X=90Â°å›è»¢ã—ã€ä¸Šã‹ã‚‰è¦‹ãˆã‚‹ã‚ˆã†ã«æ•´åˆ—ã—ã¾ã™")]
     public bool autoAlign2D = true;
-    [Tooltip("ƒvƒŒƒCƒ„[/“GiSpriteEQuadj‚Ì‚‚³ƒIƒtƒZƒbƒgi°‚æ‚è­‚µ‚¾‚¯ãj")]
+    [Tooltip("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼/æ•µï¼ˆSpriteãƒ»Quadï¼‰ã®é«˜ã•ã‚ªãƒ•ã‚»ãƒƒãƒˆï¼ˆåºŠã‚ˆã‚Šå°‘ã—ã ã‘ä¸Šï¼‰")]
     public float actorYOffset = 0.01f;
 
     [Header("Actor Visual Scale (in cells)")]
-    [Tooltip("1.0=1ƒZƒ‹‘Š“–BX=•, Y=‚‚³iSprite/Quad ‚Ìƒ[ƒJƒ‹X/Yj")]
+    [Tooltip("1.0=1ã‚»ãƒ«ç›¸å½“ã€‚X=å¹…, Y=é«˜ã•ï¼ˆSprite/Quad ã®ãƒ­ãƒ¼ã‚«ãƒ«X/Yï¼‰")]
     public Vector2 playerVisualScale = new Vector2(1.0f, 1.0f);
     public Vector2 guardVisualScale = new Vector2(1.0f, 1.0f);
 
     [Header("Editor Preview (no GameObjects)")]
-    public bool editorPreview = true;                   // ƒGƒfƒBƒ^‚Å‚Í•`‰æ‚Ì‚İiHierarchy‚ğ‰˜‚³‚È‚¢j
+    public bool editorPreview = true;                   // ã‚¨ãƒ‡ã‚£ã‚¿ã§ã¯æç”»ã®ã¿ï¼ˆHierarchyã‚’æ±šã•ãªã„ï¼‰
     public Color previewFloor = new Color(0.85f, 0.85f, 0.85f, 1f);
     public Color previewWall = new Color(0.20f, 0.20f, 0.20f, 1f);
     public Color previewExit = new Color(1.00f, 0.85f, 0.20f, 1f);
@@ -130,11 +129,11 @@ public class BoardManager : MonoBehaviour
     };
 
     [Header("Overlay Heights")]
-    public float previewY = 0.0001f; // ‘I‘ğƒvƒŒƒrƒ…[—pi°‚Ù‚Úƒxƒ^j
-    public float visionY = 0.0002f;  // “G‹ŠE—pi­‚µ‚¾‚¯ãj
+    public float previewY = 0.0001f; // é¸æŠãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ç”¨ï¼ˆåºŠã»ã¼ãƒ™ã‚¿ï¼‰
+    public float visionY = 0.0002f;  // æ•µè¦–ç•Œç”¨ï¼ˆå°‘ã—ã ã‘ä¸Šï¼‰
     public Vector3 CellCenter(Vector2Int p, float y)
     {
-        // ¦ “–‰‚Ìd—l‚É‡‚í‚¹‚Ä+0.0fi’†S•â³‚ª•s—v‚È•\Œ»j
+        // â€» å½“åˆã®ä»•æ§˜ã«åˆã‚ã›ã¦+0.0fï¼ˆä¸­å¿ƒè£œæ­£ãŒä¸è¦ãªè¡¨ç¾ï¼‰
         return new Vector3(p.x + 0.0f, y, p.y + 0.0f);
     }
 
@@ -142,13 +141,13 @@ public class BoardManager : MonoBehaviour
     public int Height => autoGenerateOuterRings ? expandedHeight : level.Length;
 
     public CellType[,] cells;
-    private GameObject[,] tileGOs;  // 1ƒ}ƒX=1ƒIƒuƒWƒFƒNƒgiFloor/Wall/Exit/Anchorj
+    private GameObject[,] tileGOs;  // 1ãƒã‚¹=1ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆï¼ˆFloor/Wall/Exit/Anchorï¼‰
 
-    private int coreOffsetX, coreOffsetY;          // Core ‚Ì¶ãƒIƒtƒZƒbƒgiŠg’£ŒãÀ•WŒn“àj
-    private int coreWidth, coreHeight;             // Œ³ level ‚Ì•‚‚³
-    private int expandedWidth, expandedHeight;     // Šg’£Œã‚Ì‘S‘ÌƒTƒCƒY
-    private string[] levelOriginalCore;            // Œ³ level ‚ÌƒRƒs[iŠOü ON ‚Ì‚İg—pj
-    private WallOrigin[,] wallOrigin;              // •ÇƒZƒ‹‚Ì‹NŒ¹iWall ˆÈŠO‚Í–¢g—pj
+    private int coreOffsetX, coreOffsetY;          // Core ã®å·¦ä¸Šã‚ªãƒ•ã‚»ãƒƒãƒˆï¼ˆæ‹¡å¼µå¾Œåº§æ¨™ç³»å†…ï¼‰
+    private int coreWidth, coreHeight;             // å…ƒ level ã®å¹…é«˜ã•
+    private int expandedWidth, expandedHeight;     // æ‹¡å¼µå¾Œã®å…¨ä½“ã‚µã‚¤ã‚º
+    private string[] levelOriginalCore;            // å…ƒ level ã®ã‚³ãƒ”ãƒ¼ï¼ˆå¤–å‘¨ ON æ™‚ã®ã¿ä½¿ç”¨ï¼‰
+    private WallOrigin[,] wallOrigin;              // å£ã‚»ãƒ«ã®èµ·æºï¼ˆWall ä»¥å¤–ã¯æœªä½¿ç”¨ï¼‰
 
     private bool IsInsideCore(Vector2Int p)
     {
@@ -156,14 +155,14 @@ public class BoardManager : MonoBehaviour
         return p.x >= coreOffsetX && p.x < coreOffsetX + coreWidth &&
                p.y >= coreOffsetY && p.y < coreOffsetY + coreHeight;
     }
-    // ƒ‹[ƒg
+    // ãƒ«ãƒ¼ãƒˆ
     public Transform tilesRoot;
     public Transform actorsRoot;
 
     [HideInInspector] public PlayerController player;
     [HideInInspector] public List<GuardController> guards = new();
 
-    // š ƒ}ƒbƒvã‚ÌƒAƒCƒeƒ€FˆÊ’u ¨ (‹L†, À‘Ì)
+    // â˜… ãƒãƒƒãƒ—ä¸Šã®ã‚¢ã‚¤ãƒ†ãƒ ï¼šä½ç½® â†’ (è¨˜å·, å®Ÿä½“)
     public Dictionary<Vector2Int, (char sym, GameObject go)> itemAt = new();
 
     private bool _isAnimating;
@@ -174,75 +173,61 @@ public class BoardManager : MonoBehaviour
         {
             if (_isAnimating == value) return;
             _isAnimating = value;
-            Debug.Log($"[Board] IsAnimating {(value ? "ON" : "OFF")} t={Time.time:F3}")
-;
+            Debug.Log($"[Board] IsAnimating {(value ? "ON" : "OFF")} t={Time.time:F3}");
         }
     }
 
 
     [Header("DEV / Rotation")]
-    public bool rotatePlayerWithArea = true; // ŠJ”­Òƒ‚[ƒh‚ÅØ‚è‘Ö‚¦
+    public bool rotatePlayerWithArea = true; // é–‹ç™ºè€…ãƒ¢ãƒ¼ãƒ‰ã§åˆ‡ã‚Šæ›¿ãˆ
 
-    // ¥ ’Ç‰Á: ©—R‰ñ“]iƒhƒ‰ƒbƒOjDEVİ’è
+    [Header("Rotation Animation")]
+    [Tooltip("å›è»¢æ™‚ã«ãƒ”ãƒœãƒƒãƒˆå›è»¢ã®ã‚¢ãƒ‹ãƒ¡ã‚’ä½¿ã†ï¼ˆOFFã§å³æ™‚ç¢ºå®šï¼‰")]
+    public bool animateBoardRotation = true;
+    [Tooltip("å›è»¢ã‚¢ãƒ‹ãƒ¡ã®æ‰€è¦æ™‚é–“ï¼ˆç§’ï¼‰")]
+    [Min(0.02f)] public float rotateAnimSeconds = 0.12f;
+    [Tooltip("å›è»¢ã‚¢ãƒ‹ãƒ¡ã®è£œé–“ã‚«ãƒ¼ãƒ–")]
+    public AnimationCurve rotateAnimCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
+    // â–¼ è¿½åŠ : è‡ªç”±å›è»¢ï¼ˆãƒ‰ãƒ©ãƒƒã‚°ï¼‰DEVè¨­å®š
     [Header("DEV / Free Rotate")]
-    [Tooltip("ƒhƒ‰ƒbƒO®‚Ì©—R‰ñ“]‚ğ—LŒø‚É‚·‚éiON‚Å‚à T ‚ÍƒLƒƒƒ“ƒZƒ‹ê—pj")]
+    [Tooltip("ãƒ‰ãƒ©ãƒƒã‚°å¼ã®è‡ªç”±å›è»¢ã‚’æœ‰åŠ¹ã«ã™ã‚‹ï¼ˆONæ™‚ã§ã‚‚ T ã¯ã‚­ãƒ£ãƒ³ã‚»ãƒ«å°‚ç”¨ï¼‰")]
     public bool devEnableFreeRotate = true;
-    [Tooltip("180‹‰ñ“]‚ğ‹–‰Âi‹–‰Â‚Í2AP‘z’èj")]
+    [Tooltip("180Â°å›è»¢ã‚’è¨±å¯ï¼ˆè¨±å¯æ™‚ã¯2APæƒ³å®šï¼‰")]
     public bool devAllow180Rotation = true;
-    [Tooltip("ƒXƒiƒbƒvŠp“xiÅ‹ß–T‹z’…‚Ì–ÚˆÀA«—ˆ—pj")]
+    [Tooltip("ã‚¹ãƒŠãƒƒãƒ—è§’åº¦ï¼ˆæœ€è¿‘å‚å¸ç€ã®ç›®å®‰ã€å°†æ¥ç”¨ï¼‰")]
     [Range(1f, 45f)] public float devSnapAngleDeg = 15f;
-    [Tooltip("ƒRƒ~ƒbƒg‹–—eŠpi«—ˆ—pjB‚±‚ÌŠpˆÈ“à‚È‚çŠm’è‹z’…‚·‚é‘z’è")]
+    [Tooltip("ã‚³ãƒŸãƒƒãƒˆè¨±å®¹è§’ï¼ˆå°†æ¥ç”¨ï¼‰ã€‚ã“ã®è§’ä»¥å†…ãªã‚‰ç¢ºå®šå¸ç€ã™ã‚‹æƒ³å®š")]
     [Range(1f, 45f)] public float devCommitAngleDeg = 15f;
-    [Tooltip("ƒXƒeƒBƒbƒLƒlƒXi«—ˆ—pj")]
+    [Tooltip("ã‚¹ãƒ†ã‚£ãƒƒã‚­ãƒã‚¹ï¼ˆå°†æ¥ç”¨ï¼‰")]
     [Range(0f, 1f)] public float devStickiness = 0.5f;
-    [Tooltip("ƒNƒŠƒbƒN’¼Œã‚Ì‰ñ“]•s‰Âƒtƒ‰ƒbƒVƒ…iÔGhostj•b”")]
+    [Tooltip("ã‚¯ãƒªãƒƒã‚¯ç›´å¾Œã®å›è»¢ä¸å¯ãƒ•ãƒ©ãƒƒã‚·ãƒ¥ï¼ˆèµ¤Ghostï¼‰ç§’æ•°")]
     [Range(0.1f, 2.0f)] public float devNgGhostSeconds = 0.5f;
     [Header("Outer Ring Visuals")]
-    [Tooltip("ŠOüFloor(COREŠO‚É‘¶İ‚·‚é‘S Floor) —pƒ}ƒeƒŠƒAƒ‹i–¢İ’è‚È‚ç’Êí‚Æ“¯‚¶j")]
+    [Tooltip("å¤–å‘¨Floor(COREå¤–ã«å­˜åœ¨ã™ã‚‹å…¨ Floor) ç”¨ãƒãƒ†ãƒªã‚¢ãƒ«ï¼ˆæœªè¨­å®šãªã‚‰é€šå¸¸ã¨åŒã˜ï¼‰")]
     public Material outerRingFloorMat;
-    [Tooltip("Gizmo ƒvƒŒƒrƒ…[—p ŠOüFloor F")]
+    [Tooltip("Gizmo ãƒ—ãƒ¬ãƒ“ãƒ¥ãƒ¼ç”¨ å¤–å‘¨Floor è‰²")]
     public Color previewOuterFloor = new Color(0.70f, 0.75f, 0.85f, 1f);
 
-    // ŠOüFloor”»’è”z—ñiautoGenerateOuterRings=false ‚Ì‚Æ‚« nullj
+    // å¤–å‘¨Flooråˆ¤å®šé…åˆ—ï¼ˆautoGenerateOuterRings=false ã®ã¨ã nullï¼‰
     private bool[,] outerRingFloor;
     [Header("Outer Ring Generation")]
-    [Tooltip("ŠOü(Anchor‘Ñ + OuterWall‘Ñ)‚ğ©“®¶¬‚·‚é")]
+    [Tooltip("å¤–å‘¨(Anchorå¸¯ + OuterWallå¸¯)ã‚’è‡ªå‹•ç”Ÿæˆã™ã‚‹")]
     public bool autoGenerateOuterRings = false;
 
-    [Tooltip("ÅŠOü Anchor(@) ‚ÌŒú‚İi’Êí1j")]
+    [Tooltip("æœ€å¤–å‘¨ Anchor(@) ã®åšã¿ï¼ˆé€šå¸¸1ï¼‰")]
     [Min(1)] public int anchorThickness = 1;
 
-    [Tooltip("Anchor “à‘¤‚ÌŠOü Wall(#) Œú‚İi0‚ÅAnchor‚Ì‚İj")]
+    [Tooltip("Anchor å†…å´ã®å¤–å‘¨ Wall(#) åšã¿ï¼ˆ0ã§Anchorã®ã¿ï¼‰")]
     [Min(0)] public int outerWallThickness = 1;
 
     [Header("Wall Materials (Outer/Core)")]
-    [Tooltip("Core(Œ³ƒ}ƒbƒv) or ŠOü“à‚É“ü‚Á‚½ŠOü•Ç—pi–¢İ’è‚È‚ç]—ˆŒ©‚½–ÚˆÛj")]
+    [Tooltip("Core(å…ƒãƒãƒƒãƒ—) or å¤–å‘¨å†…ã«å…¥ã£ãŸå¤–å‘¨å£ç”¨ï¼ˆæœªè¨­å®šãªã‚‰å¾“æ¥è¦‹ãŸç›®ç¶­æŒï¼‰")]
     public Material wallNormalMat;
-    [Tooltip("Core ŠO‘¤‚É‘¶İ‚·‚é Outer‹NŒ¹•Ç‚É“K—p‚·‚éƒ}ƒeƒŠƒAƒ‹")]
+    [Tooltip("Core å¤–å´ã«å­˜åœ¨ã™ã‚‹ Outerèµ·æºå£ã«é©ç”¨ã™ã‚‹ãƒãƒ†ãƒªã‚¢ãƒ«")]
     public Material wallOuterMat;
-    private void Awake()
-    {
-#if UNITY_EDITOR
-        if (Application.isPlaying) editorPreview = false;
-#endif
-        if (tilesRoot == null) tilesRoot = new GameObject("TilesRoot").transform;
-        if (actorsRoot == null) actorsRoot = new GameObject("ActorsRoot").transform;
-        if (itemsRoot == null) itemsRoot = new GameObject("ItemsRoot").transform;
-        LoadDevModeSettings();
-        Build(); // •K‚¸©g‚Ì level ‚Å¶¬
-    }
 
-    private void OnEnable()
-    {
-        if (!Application.isPlaying) Build();
-    }
-
-    public Vector3 GridToWorld(Vector2Int p) => new Vector3(p.x, 0f, p.y);
-    public Vector2Int WorldToGrid(Vector3 w) => new Vector2Int(Mathf.RoundToInt(w.x), Mathf.RoundToInt(w.z));
-    public Vector3 GridToWorldActor(Vector2Int p) => GridToWorld(p) + new Vector3(0, actorYOffset, 0f);
-    public bool InBounds(Vector2Int p) => p.x >= 0 && p.x < Width && p.y >= 0 && p.y < Height;
-
-    // šƒK[ƒh‚ª‚±‚Ìƒ}ƒX‚É‚¢‚é‚©iˆÚ“®æ‚àè—L‚Æ‚İ‚È‚·j
+    // â˜…ã‚¬ãƒ¼ãƒ‰ãŒã“ã®ãƒã‚¹ã«ã„ã‚‹ã‹ï¼ˆç§»å‹•å…ˆã‚‚å æœ‰ã¨ã¿ãªã™ï¼‰
     public bool IsOccupiedByGuard(Vector2Int p)
     {
         for (int i = 0; i < guards.Count; i++)
@@ -250,24 +235,24 @@ public class BoardManager : MonoBehaviour
             var g = guards[i];
             if (g == null) continue;
 
-            // Œ»İˆÊ’u or Ÿ‚Ì“’Bƒ}ƒXiˆÚ“®’†j‚ğƒuƒƒbƒN
+            // ç¾åœ¨ä½ç½® or æ¬¡ã®åˆ°é”ãƒã‚¹ï¼ˆç§»å‹•ä¸­ï¼‰ã‚’ãƒ–ãƒ­ãƒƒã‚¯
             if (g.pos == p) return true;
             if (g.IsMoving && g.NextPos == p) return true;
         }
         return false;
     }
 
-    // šƒvƒŒƒCƒ„[—pF“G‚ğƒuƒƒbƒJ[‚Æ‚µ‚Äˆµ‚¤Walkable”»’è
+    // â˜…ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ç”¨ï¼šæ•µã‚’ãƒ–ãƒ­ãƒƒã‚«ãƒ¼ã¨ã—ã¦æ‰±ã†Walkableåˆ¤å®š
     public bool IsWalkable(Vector2Int p, bool blockGuardsForPlayer)
     {
         if (!InBounds(p)) return false;
         if (autoGenerateOuterRings && !IsInsideCore(p))
             return false;
         var c = cells[p.y, p.x];
-        // ° or oŒû‚Í•às‰ÂB•Ç/ƒAƒ“ƒJ[‚Í•s‰ÂB
+        // åºŠ or å‡ºå£ã¯æ­©è¡Œå¯ã€‚å£/ã‚¢ãƒ³ã‚«ãƒ¼ã¯ä¸å¯ã€‚
         bool tileOK = (c == CellType.Floor || c == CellType.Exit);
         if (!tileOK) return false;
-        // “D–_‚ª‚¢‚éƒ}ƒX‚ÍN“ü•s‰Â
+        // æ³¥æ£’ãŒã„ã‚‹ãƒã‚¹ã¯ä¾µå…¥ä¸å¯
         if (IsThiefAt(p)) return false;
 
         if (blockGuardsForPlayer && IsOccupiedByGuard(p)) return false;
@@ -277,624 +262,19 @@ public class BoardManager : MonoBehaviour
     public bool IsWalkable(Vector2Int p)
     {
         if (!InBounds(p)) return false;
-        // “D–_‚ª‚¢‚éƒ}ƒX‚ÍN“ü•s‰Â
+        // æ³¥æ£’ãŒã„ã‚‹ãƒã‚¹ã¯ä¾µå…¥ä¸å¯
         if (IsThiefAt(p)) return false;
         if (autoGenerateOuterRings && !IsInsideCore(p))
-            return false; var c = cells[p.y, p.x];
+            return false;
+        var c = cells[p.y, p.x];
         return c == CellType.Floor || c == CellType.Exit;
-    }
-
-    public bool BlocksVision(Vector2Int p)
-    {
-        if (!InBounds(p)) return true;
-        var c = cells[p.y, p.x];
-        return (c == CellType.Wall || c == CellType.Anchor);
-    }
-
-    // ”jŠüƒwƒ‹ƒp[FƒGƒfƒBƒ^’â~’†‚Í DestroyImmediate
-    private void SafeDestroy(Object o)
-    {
-#if UNITY_EDITOR
-        if (!Application.isPlaying) { DestroyImmediate(o); return; }
-#endif
-        Destroy(o);
-    }
-    private void ClearAll()
-    {
-        // ©—R‰ñ“]ƒvƒŒƒrƒ…[’†‚¾‚Á‚½ê‡‚Í•K‚¸Œ³‚É–ß‚µ‚Ä‚©‚ç”jŠü
-        RestoreFreePreview();
-
-        if (player != null)
-        {
-            player.ClearGhost();
-        }
-        if (tilesRoot != null)
-            for (int i = tilesRoot.childCount - 1; i >= 0; --i)
-                SafeDestroy(tilesRoot.GetChild(i).gameObject);
-
-        if (actorsRoot != null)
-            for (int i = actorsRoot.childCount - 1; i >= 0; --i)
-                SafeDestroy(actorsRoot.GetChild(i).gameObject);
-
-        if (itemsRoot != null)
-            for (int i = itemsRoot.childCount - 1; i >= 0; --i)
-                SafeDestroy(itemsRoot.GetChild(i).gameObject);
-
-        guards.Clear();
-        player = null;
-        itemAt.Clear();
-    }
-
-    // ’Ç‰Á: ”jŠü‚É‚àƒvƒŒƒrƒ…[‚ğŠmÀ‚É–ß‚·
-    private void OnDisable()
-    {
-        if (Application.isPlaying)
-        {
-            RestoreFreePreview();
-        }
-        UnsubscribeTurnEvents();
-    }
-
-    private void OnDestroy()
-    {
-        RestoreFreePreview();
-        UnsubscribeTurnEvents();
-    }
-    //void ClearAll()
-    //{
-
-    //    if (player != null)
-    //    {
-    //        player.ClearGhost();
-    //    }
-    //    if (tilesRoot != null)
-    //        for (int i = tilesRoot.childCount - 1; i >= 0; --i)
-    //            SafeDestroy(tilesRoot.GetChild(i).gameObject);
-
-    //    if (actorsRoot != null)
-    //        for (int i = actorsRoot.childCount - 1; i >= 0; --i)
-    //            SafeDestroy(actorsRoot.GetChild(i).gameObject);
-
-    //    if (itemsRoot != null)
-    //        for (int i = itemsRoot.childCount - 1; i >= 0; --i)
-    //            SafeDestroy(itemsRoot.GetChild(i).gameObject);
-
-    //    guards.Clear();
-    //    player = null;
-    //    itemAt.Clear();
-    //}
-
-    // ===== Y‡‚í‚¹ƒ†[ƒeƒBƒŠƒeƒB =====
-    private Bounds GetWorldBounds(GameObject go)
-    {
-        var rends = go.GetComponentsInChildren<Renderer>();
-        if (rends.Length == 0) return new Bounds(go.transform.position, Vector3.zero);
-        var b = rends[0].bounds;
-        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-        return b;
-    }
-    private void AlignTopToY(GameObject go, float y)
-    {
-        var b = GetWorldBounds(go);
-        float delta = y - b.max.y;
-        go.transform.position += new Vector3(0, delta, 0);
-    }
-    private void AlignBottomToY(GameObject go, float y)
-    {
-        var b = GetWorldBounds(go);
-        float delta = y - b.min.y;
-        go.transform.position += new Vector3(0, delta, 0);
-    }
-
-    // ===== 2D©“®®—ñƒ†[ƒeƒBƒŠƒeƒB =====
-    private bool IsQuadMesh(GameObject go)
-    {
-        var mf = go.GetComponent<MeshFilter>();
-        return mf != null && mf.sharedMesh != null && mf.sharedMesh.name.ToLower().Contains("quad");
-    }
-    private bool HasSpriteRenderer(GameObject go) => go.GetComponent<SpriteRenderer>() != null;
-
-    private void AutoAlign2DObject(GameObject go, bool isActor, Vector2? xyScale = null)
-    {
-        if (!autoAlign2D) return;
-
-        bool isQuad = IsQuadMesh(go);
-        bool isSprite = HasSpriteRenderer(go);
-
-        if (isQuad || isSprite)
-        {
-            // ã‚©‚çŒ©‚¦‚é‚æ‚¤‚É“|‚·iXY¨XZj
-            go.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-
-            // YˆÊ’uFƒ^ƒCƒ‹=°AƒAƒNƒ^[=­‚µã‚°‚é
-            var p = go.transform.position;
-            p.y = floorY + (isActor ? actorYOffset : 0f);
-            go.transform.position = p;
-
-            // ‹ŠoƒXƒP[ƒ‹iƒZƒ‹Šî€j
-            if (xyScale.HasValue)
-            {
-                var s = xyScale.Value;
-                go.transform.localScale = new Vector3(s.x, s.y, 1f);
-            }
-        }
-    }
-
-    public void SetLevel(string[] newRows)
-    {
-        if (newRows == null || newRows.Length == 0) return;
-        // ƒfƒB[ƒvƒRƒs[‚µ‚ÄˆÀ‘S‚É•Û
-        level = new string[newRows.Length];
-        for (int i = 0; i < newRows.Length; i++) level[i] = newRows[i];
-        Build();
-    }
-    private string[] BuildExpandedLevelAndAllocateArrays()
-    {
-        levelOriginalCore = (string[])level.Clone();
-        coreHeight = level.Length;
-        coreWidth = coreHeight > 0 ? level[0].Length : 0;
-
-        if (!autoGenerateOuterRings)
-        {
-            coreOffsetX = coreOffsetY = 0;
-            expandedWidth = coreWidth;
-            expandedHeight = coreHeight;
-            cells = new CellType[expandedHeight, expandedWidth];
-            wallOrigin = new WallOrigin[expandedHeight, expandedWidth];
-            outerRingFloor = autoGenerateOuterRings ? new bool[expandedHeight, expandedWidth] : null;
-            return (string[])level.Clone();
-        }
-
-        int totalPad = anchorThickness + outerWallThickness;
-        coreOffsetX = totalPad;
-        coreOffsetY = totalPad;
-        expandedWidth = coreWidth + totalPad * 2;
-        expandedHeight = coreHeight + totalPad * 2;
-
-        var rows = new string[expandedHeight];
-        for (int y = 0; y < expandedHeight; y++)
-        {
-            var line = new char[expandedWidth];
-            for (int x = 0; x < expandedWidth; x++)
-            {
-                // Anchor ‘Ñ
-                bool isAnchorBand =
-                    x < anchorThickness || y < anchorThickness ||
-                    x >= expandedWidth - anchorThickness ||
-                    y >= expandedHeight - anchorThickness;
-                if (isAnchorBand) { line[x] = '@'; continue; }
-
-                // Outer Wall ‘Ñ
-                bool inOuterWall =
-                    x < anchorThickness + outerWallThickness ||
-                    y < anchorThickness + outerWallThickness ||
-                    x >= expandedWidth - (anchorThickness + outerWallThickness) ||
-                    y >= expandedHeight - (anchorThickness + outerWallThickness);
-                if (inOuterWall) { line[x] = '#'; continue; }
-
-                // Core –„‚ß‚İ
-                int cx = x - coreOffsetX;
-                int cy = y - coreOffsetY;
-                line[x] = (cx >= 0 && cx < coreWidth && cy >= 0 && cy < coreHeight)
-                        ? level[cy][cx]
-                        : '.';
-            }
-            rows[y] = new string(line);
-        }
-
-        cells = new CellType[expandedHeight, expandedWidth];
-        wallOrigin = new WallOrigin[expandedHeight, expandedWidth];
-        return rows;
-    }
-    // ========= ƒƒWƒbƒN‚¾‚¯XViGameObject¶¬‚È‚µj =========
-    // iC³‘O‚Í‚±‚±‚Å PlaceTile / playerStart “™‚ğQÆ‚µ‚Ä‚¢‚½‚½‚ßƒGƒ‰[j
-    private void ParseCellsFromLevel()
-    {
-        // ŠOü“WŠJ‚Æ”z—ñŠm•Û
-        string[] rows = BuildExpandedLevelAndAllocateArrays();
-        int h = rows.Length;
-        int w = h > 0 ? rows[0].Length : 0;
-
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                char ch;
-
-                if (autoGenerateOuterRings)
-                {
-                    // Core “à‚È‚çŒ³ levelOriginalCore ‚ğQÆ
-                    if (IsInsideCore(new Vector2Int(x, y)))
-                    {
-                        int cx = x - coreOffsetX;
-                        int cy = y - coreOffsetY;
-                        ch = levelOriginalCore[cy][cx];
-                    }
-                    else
-                    {
-                        // ŠOü‚Å©“®¶¬Ï‚İi@ / # / .j¨ rows ‚Ì•¶š‚ğ‚»‚Ì‚Ü‚Üg—p
-                        ch = rows[y][x];
-                    }
-                }
-                else
-                {
-                    ch = level[y][x];
-                }
-
-                // Guard / Item ‚Ì‹L†‚Íƒ^ƒCƒ‹“I‚É‚Í°ˆµ‚¢
-                bool isGuard = false;
-                for (int gi = 0; gi < guardTypes.Count; gi++)
-                {
-                    if (!string.IsNullOrEmpty(guardTypes[gi].symbol) &&
-                        guardTypes[gi].symbol[0] == ch) { isGuard = true; break; }
-                }
-                bool isItem = false;
-                for (int ii = 0; ii < itemTypes.Count; ii++)
-                {
-                    if (!string.IsNullOrEmpty(itemTypes[ii].symbol) &&
-                        itemTypes[ii].symbol[0] == ch) { isItem = true; break; }
-                }
-                if (isGuard || isItem)
-                {
-                    cells[y, x] = CellType.Floor;
-                    continue;
-                }
-
-                switch (ch)
-                {
-                    case '#':
-                        // ==== STEP1 MOD: ŠOü(#)‚ğ Floor «¿‚ÉiN“ü•s‰Â‚Í•Ê”»’è‚ÅÀ‘•j ====
-                        if (autoGenerateOuterRings &&
-                            (x < coreOffsetX || x >= coreOffsetX + coreWidth ||
-                             y < coreOffsetY || y >= coreOffsetY + coreHeight))
-                        {
-                            // ŠOü Wall ‘Ñ ¨ Floor ‚Æ‚µ‚Äˆµ‚¤i‹ŠE‚Í’Ê‚µA‰ñ“]ƒuƒƒbƒN‚µ‚È‚¢j
-                            cells[y, x] = CellType.Floor;
-                        }
-                        else
-                        {
-                            // Core “à‚Ì # ‚Í]—ˆ’Ê‚è Wall
-                            cells[y, x] = CellType.Wall;
-                            wallOrigin[y, x] = WallOrigin.Core;
-                        }
-                        break;
-                    case 'E': cells[y, x] = CellType.Exit; break;
-                    case 'P': cells[y, x] = CellType.Floor; break;
-                    case '@': cells[y, x] = CellType.Anchor; break;
-                    case 'x': cells[y, x] = CellType.Pit; break;
-                    default: cells[y, x] = CellType.Floor; break;
-                }
-            }
-        }
-        RecomputeOuterRingFloor();
-    }
-    private void RecomputeOuterRingFloor()
-    {
-        if (!autoGenerateOuterRings)
-        {
-            outerRingFloor = null;
-            return;
-        }
-        if (outerRingFloor == null ||
-            outerRingFloor.GetLength(0) != Height ||
-            outerRingFloor.GetLength(1) != Width)
-        {
-            outerRingFloor = new bool[Height, Width];
-        }
-
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                var p = new Vector2Int(x, y);
-                // Core ŠO ‚©‚Â Floor ‚ÌƒZƒ‹‚ğƒ}[ƒLƒ“ƒOiExit ‚Í•Êˆµ‚¢: Œ©‚½–Ú‚Í Exit F‚Å“h‚é‚Ì‚ÅŠÜ‚ß‚È‚¢j
-                outerRingFloor[y, x] = (!IsInsideCore(p) && cells[y, x] == CellType.Floor);
-            }
-        }
-    }
-    public bool IsOuterFloor(Vector2Int p)
-    {
-        return outerRingFloor != null &&
-               InBounds(p) &&
-               outerRingFloor[p.y, p.x];
-    }
-    private bool IsRotateLockedCell(Vector2Int p)
-    {
-        if (!InBounds(p)) return false;
-        var c = cells[p.y, p.x];
-        return (c == CellType.Exit || c == CellType.Anchor);
-    }
-
-    private void PlaceTile(CellType t, Vector2Int p)
-    {
-        bool isOuterF = IsOuterFloor(p);
-
-        GameObject prefab =
-            (t == CellType.Wall) ? pfWall :
-            (t == CellType.Exit) ? pfExit :
-            (t == CellType.Anchor) ? pfAnchor :
-            (t == CellType.Pit) ? pfPit : pfFloor;
-
-        var go = Instantiate(prefab, GridToWorld(p), Quaternion.identity, tilesRoot);
-        go.name = isOuterF ? $"OuterFloor_{p.x}_{p.y}" : $"{t}_{p.x}_{p.y}";
-        tileGOs[p.y, p.x] = go;
-
-        // ŠOü Floor —pƒ}ƒeƒŠƒAƒ‹
-        if (isOuterF && outerRingFloorMat != null)
-        {
-            var rend = go.GetComponentInChildren<Renderer>();
-            if (rend) rend.sharedMaterial = outerRingFloorMat;
-        }
-
-        if (autoAlign2D && (IsQuadMesh(go) || HasSpriteRenderer(go)))
-        {
-            AutoAlign2DObject(go, false);
-            if (t == CellType.Exit)
-            {
-                var pos = go.transform.position;
-                pos.y = floorY + exitTopOffset;
-                go.transform.position = pos;
-            }
-        }
-        else
-        {
-            if (t == CellType.Wall) AlignBottomToY(go, floorY);
-            else if (t == CellType.Floor || isOuterF) AlignTopToY(go, floorY);
-            else if (t == CellType.Exit) AlignTopToY(go, floorY + exitTopOffset);
-        }
-
-        if (t == CellType.Wall)
-            UpdateWallAppearanceAt(p);
-    }
-    private void UpdateWallAppearanceAt(Vector2Int p)
-    {
-        if (!InBounds(p)) return;
-        if (cells[p.y, p.x] != CellType.Wall) return;
-        if (!autoGenerateOuterRings) return;
-        if (wallNormalMat == null || wallOuterMat == null) return;
-
-        var go = tileGOs[p.y, p.x];
-        if (!go) return;
-        var rend = go.GetComponentInChildren<Renderer>();
-        if (!rend) return;
-
-        bool outsideCore = !IsInsideCore(p);
-        var origin = wallOrigin[p.y, p.x];
-        rend.sharedMaterial = (origin == WallOrigin.Outer && outsideCore) ? wallOuterMat : wallNormalMat;
-    }
-    private void UpdateAllWallAppearances()
-    {
-        if (!autoGenerateOuterRings) return;
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (cells[y, x] == CellType.Wall)
-                    UpdateWallAppearanceAt(new Vector2Int(x, y));
-    }
-    public void Build()
-    {
-        // ‚Ü‚¸ƒƒWƒbƒN‚¾‚¯ÅV‰»
-        ParseCellsFromLevel();
-        // Äw“Ç‘O‚É‰ğœ
-        UnsubscribeTurnEvents();
-
-        // ƒGƒfƒBƒ^‚ÌƒvƒŒƒrƒ…[‚ÍŒ©‚½–Ú‚ğˆê’U‘SÁ‚µ‚µ‚ÄI—¹iHierarchy‰˜‚³‚È‚¢j
-        if (!Application.isPlaying && editorPreview)
-        {
-            ClearAll();
-            return;
-        }
-
-        // ‚±‚±‚©‚çÀÛ‚Ì¶¬
-        ClearAll();
-
-        int h = Height;
-        int w = Width;
-        tileGOs = new GameObject[h, w];
-
-        Vector2Int? playerStart = null;
-
-        // Guard/Item ƒXƒ|[ƒ“î•ñ
-        var guardSpawns = new List<(Vector2Int pos, GuardType type)>();
-        var itemSpawns = new List<(Vector2Int pos, ItemType type)>();
-
-        // š ã•”UI—pF‚±‚Ìƒ}ƒbƒv‚É‘¶İ‚·‚éu•K{ƒAƒCƒeƒ€i=Œ® 'i'jv‚ğ¶¨‰E¨Ÿsc‚Å—ñ‹“
-        var requiredSymbols = new List<char>();
-
-        for (int y = 0; y < h; y++)
-        {
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    Vector2Int p = new Vector2Int(x, y);
-
-                    // Core/Outer ”»’è‚ÉŠî‚Ã‚«•\¦—p‹L†‚ğæ“¾
-                    char ch;
-                    if (autoGenerateOuterRings)
-                    {
-                        if (IsInsideCore(p))
-                        {
-                            int cx = x - coreOffsetX;
-                            int cy = y - coreOffsetY;
-                            ch = levelOriginalCore[cy][cx];
-                        }
-                        else
-                        {
-                            ch = '.'; // ŠOü—ÌˆæFƒvƒŒƒCƒ„[ / ƒK[ƒh / ƒAƒCƒeƒ€‹L†‚Í‘¶İ‚µ‚È‚¢ˆµ‚¢
-                        }
-                    }
-                    else
-                    {
-                        ch = level[y][x];
-                    }
-
-                    // ƒ^ƒCƒ‹¶¬icells ‚Í ParseCellsFromLevel Ï‚İj
-                    PlaceTile(cells[y, x], p);
-
-                    // ƒvƒŒƒCƒ„[‰ŠúˆÊ’u
-                    if (ch == 'P') playerStart = p;
-
-                    // ƒK[ƒhûW
-                    for (int gi = 0; gi < guardTypes.Count; gi++)
-                    {
-                        if (!string.IsNullOrEmpty(guardTypes[gi].symbol) &&
-                            guardTypes[gi].symbol[0] == ch)
-                        {
-                            guardSpawns.Add((p, guardTypes[gi]));
-                            break;
-                        }
-                    }
-
-                    // ƒAƒCƒeƒ€ûW
-                    for (int ii = 0; ii < itemTypes.Count; ii++)
-                    {
-                        if (!string.IsNullOrEmpty(itemTypes[ii].symbol) &&
-                            itemTypes[ii].symbol[0] == ch)
-                        {
-                            itemSpawns.Add((p, itemTypes[ii]));
-                            if (ch == 'i' || ch == 'e')
-                                requiredSymbols.Add('i'); // eef ‚àŒ®1‚Â‚Æ‚µ‚ÄƒJƒEƒ“ƒg
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Player
-        if (playerStart.HasValue && pfPlayer != null)
-        {
-            var go = Instantiate(pfPlayer, GridToWorld(playerStart.Value), Quaternion.identity, actorsRoot);
-            go.name = "Player";
-            AutoAlign2DObject(go, true, playerVisualScale);
-            var pc = go.GetComponent<PlayerController>();
-            if (pc == null) pc = go.AddComponent<PlayerController>();
-            player = pc;
-            player.Init(this, playerStart.Value);
-            player.LoadDevModeSettings();
-        }
-
-        // GuardsiPrefab‚É GuardController ‚ª•t‚¢‚Ä‚¢‚é‘O’ñj
-        foreach (var gs in guardSpawns)
-        {
-            if (gs.type.prefab == null)
-            {
-                Debug.LogError($"Guard prefab is null for symbol '{gs.type.symbol}'. Set it in BoardManager.guardTypes.");
-                continue;
-            }
-
-            var go = Instantiate(gs.type.prefab, GridToWorld(gs.pos), Quaternion.identity, actorsRoot);
-            go.name = $"Guard_{gs.pos.x}_{gs.pos.y}_{gs.type.symbol}";
-            AutoAlign2DObject(go, true, guardVisualScale);
-
-            var g = go.GetComponent<GuardController>();
-            if (g == null)
-            {
-                Debug.LogError($"GuardController is missing on prefab for symbol '{gs.type.symbol}'. Please attach it on the prefab.");
-                SafeDestroy(go);
-                continue;
-            }
-            char sym = !string.IsNullOrEmpty(gs.type.symbol) ? gs.type.symbol[0] : 'G';
-            ConfigureGuardFromSymbol(g, sym);
-
-            g.Init(this, gs.pos);
-            guards.Add(g);
-        }
-
-        // Items
-        foreach (var it in itemSpawns)
-        {
-            if (!it.type.prefab) { Debug.LogError($"Item prefab null for '{it.type.symbol}'"); continue; }
-            var go = Instantiate(it.type.prefab, GridToWorld(it.pos), Quaternion.identity, itemsRoot);
-            go.name = $"Item_{it.pos.x}_{it.pos.y}_{it.type.symbol}";
-            AutoAlign2DObject(go, true, GetItemVisualScaleBySymbol(it.type.symbol[0]));
-
-            // š ˆÊ’u ¨ (‹L†, À‘Ì) ‚ğ•Û‘¶iE“¾‚ÆUIXV‚Ég‚¤j
-            itemAt[it.pos] = (it.type.symbol[0], go);
-        }
-
-        // TurnManageri–¢‘¶İ‚È‚ç¶¬j{ûWUI‚Öu‚±‚Ìƒ}ƒbƒv‚Ì‘SƒAƒCƒeƒ€•À‚Ñv‚ğ“n‚·iŒ®‚Ì‚İj
-        var tm = UnityCompat.FindFirst<TurnManager>();
-        if (tm == null)
-        {
-            tm = new GameObject("TurnManager").AddComponent<TurnManager>();
-            tm.ResetScoreCounters();
-            tm.board = this;
-        }
-        else
-        {
-            tm.board = this; // ”O‚Ì‚½‚ßÄŠ„“–‚Ä
-        }
-        tm.ResetGoalState();
-        tm.InitRequiredItems(requiredSymbols);
-
-        // Exit ‚Ì‰Šúó‘Ô‚ğó‚¯æ‚é‚½‚ßAInitRequiredItems ‚æ‚è‘O‚Éw“Ç
-        _turn = tm;
-        _turn.onRequiredChanged += OnRequiredChanged_UpdateExitOpenState;
-        tm.InitRequiredItems(requiredSymbols); // ‚±‚±‚Å‰ŠúƒR[ƒ‹ƒoƒbƒN‚ª”ò‚Ôi–¢’B¬¨•Âj
-
-        // ƒJƒƒ‰’Ç]
-        var camFollow = UnityCompat.FindFirst<CameraFollow>();
-        if (camFollow != null && player != null)
-        {
-            camFollow.board = this;
-            camFollow.target = player.transform;
-            camFollow.Snap();
-        }
-
-        // ¶¬Œã‚É‹ŠE‰Â‹‰»‚ğXV
-        RefreshAllGuardVision();
-
-        UpdateAllWallAppearances();
-        var overlay = GetComponent<SelectionFramesOverlay>();
-        if (overlay == null) overlay = gameObject.AddComponent<SelectionFramesOverlay>();
-        overlay.board = this;
-        overlay.innerSize = 3;
-        overlay.outerRadius = 3;
-    }
-
-    // •K{ƒAƒCƒeƒ€‚Ìi’» ¨ Exit ‚ğˆêŠ‡‚ÅŠJ•Â
-    private void OnRequiredChanged_UpdateExitOpenState(IReadOnlyList<TurnManager.RequiredItem> reqs)
-    {
-        bool all = true;
-        if (reqs != null)
-        {
-            for (int i = 0; i < reqs.Count; i++)
-                if (!reqs[i].collected) { all = false; break; }
-        }
-        SetAllExitsOpen(all);
-    }
-
-    // ”Õ–Ê‚É‚ ‚é‘S Exit ‚ÖŠJ•Âó‘Ô‚ğ”½‰fiExitController Œo—Rj
-    public void SetAllExitsOpen(bool open)
-    {
-        if (tileGOs == null) return;
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                if (cells[y, x] != CellType.Exit) continue;
-                var go = tileGOs[y, x];
-                if (go == null) continue;
-                var ec = go.GetComponentInChildren<ExitController>(true);
-                if (ec != null) ec.SetOpen(open);
-            }
-        }
-    }
-
-    private void UnsubscribeTurnEvents()
-    {
-        if (_turn != null)
-        {
-            _turn.onRequiredChanged -= OnRequiredChanged_UpdateExitOpenState;
-            _turn = null;
-        }
     }
 
     private void ConfigureGuardFromSymbol(GuardController g, char sym)
     {
         if (g == null) return;
 
-        // Šù’èF–¢’è‹`‹L†‚ÍƒvƒŒƒtƒ@ƒuİ’è‚ğ‚»‚Ì‚Ü‚Üg‚¤
+        // æ—¢å®šï¼šæœªå®šç¾©è¨˜å·ã¯ãƒ—ãƒ¬ãƒ•ã‚¡ãƒ–è¨­å®šã‚’ãã®ã¾ã¾ä½¿ã†
         switch (sym)
         {
             case 'G': // R5
@@ -915,1031 +295,76 @@ public class BoardManager : MonoBehaviour
                 g.pattern = "D5";
                 break;
 
-            case 'K': // lŠp„‰ñ R4,U4,L4,D4
+            case 'K': // å››è§’å·¡å› R4,U4,L4,D4
                 g.patrolMode = GuardController.PatrolMode.Loop;
                 g.pattern = "R4,U4,L4,D4";
                 break;
 
-            case 'L': // Šñ‚è“¹„‰ñi2ƒ}ƒXj
+            case 'L': // å¯„ã‚Šé“å·¡å›ï¼ˆ2ãƒã‚¹ï¼‰
                 g.patrolMode = GuardController.PatrolMode.Loop;
-                g.pattern = "R3,U3"; // ©OŠp‚É‚µ‚½‚¢‚È‚ç ",D2" ‚ğŠO‚·
+                g.pattern = "R3,U3"; // â†ä¸‰è§’ã«ã—ãŸã„ãªã‚‰ ",D2" ã‚’å¤–ã™
                 break;
 
-            case 'T': // ã‚ğŠÄ‹i‚»‚Ìêj
+            case 'T': // ä¸Šã‚’ç›£è¦–ï¼ˆãã®å ´ï¼‰
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.OneDir;
                 g.startFacing = GuardController.Facing.Up;
                 g.pattern = "";
                 break;
 
-            case 'O': // ‰º
+            case 'O': // ä¸‹
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.OneDir;
                 g.startFacing = GuardController.Facing.Down;
                 g.pattern = "";
                 break;
 
-            case 'M': // ¶
+            case 'M': // å·¦
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.OneDir;
                 g.startFacing = GuardController.Facing.Left;
                 g.pattern = "";
                 break;
 
-            case 'N': // ‰E
+            case 'N': // å³
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.OneDir;
                 g.startFacing = GuardController.Facing.Right;
                 g.pattern = "";
                 break;
 
-            case 'R': // ã‰º2•ûŒü
+            case 'R': // ä¸Šä¸‹2æ–¹å‘
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.TwoDirUD;
                 g.pattern = "";
                 break;
 
-            case 'Q': // ¶‰E2•ûŒü
+            case 'Q': // å·¦å³2æ–¹å‘
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.TwoDirLR;
                 g.pattern = "";
                 break;
 
-            case 'S': // 4•ûŒüƒ[ƒei‚»‚Ìê‰ñ“]j
+            case 'S': // 4æ–¹å‘ãƒ­ãƒ¼ãƒ†ï¼ˆãã®å ´å›è»¢ï¼‰
                 g.patrolMode = GuardController.PatrolMode.Static;
                 g.watchMode = GuardController.WatchMode.Rotate4Dir;
-                g.rotatePeriod = 1.0f;        // ‚¨D‚İ‚Å
-                g.rotateClockwise = true;     // ‚¨D‚İ‚Å
+                g.rotatePeriod = 1.0f;        // ãŠå¥½ã¿ã§
+                g.rotateClockwise = true;     // ãŠå¥½ã¿ã§
                 g.pattern = "";
                 break;
             default:
-                // ‹L†–¢’è‹` ¨ ƒvƒŒƒnƒu‚Ìİ’è‚ğ‚»‚Ì‚Ü‚Üg‚¤
+                // è¨˜å·æœªå®šç¾© â†’ ãƒ—ãƒ¬ãƒãƒ–ã®è¨­å®šã‚’ãã®ã¾ã¾ä½¿ã†
                 break;
         }
     }
 
-    // ƒvƒŒƒCƒ„[‚ª p ‚ğ“¥‚ñ‚¾‚Æ‚«‚ÉŒÄ‚ÔiƒAƒCƒeƒ€æ“¾‚µ‚ÄUIXVj
-    public bool TryPickupItemAt(Vector2Int p)
-    {
-        if (itemAt.TryGetValue(p, out var t) && t.go != null)
-        {
-            // “D–_‚Íæ“¾•s‰Âi‚»‚à‚»‚àN“ü‚Å‚«‚È‚¢‘z’èj
-            if (t.sym == 'd' || t.sym == 'e') return false;
-            itemAt.Remove(p);
-            SafeDestroy(t.go); // ƒGƒfƒBƒ^/Às‚Ì—¼‘Î‰”jŠü
-
-            // š TurnManager‚Ö’Ê’m
-            var turn = UnityCompat.FindFirst<TurnManager>();
-            if (turn != null)
-            {
-                if (t.sym == 'i')
-                {
-                    // Œ®‚¾‚¯‚ğ•K{ƒAƒCƒeƒ€‚Æ‚µ‚Äˆµ‚¤
-                    turn.OnItemPicked('i');
-                }
-                else if (t.sym == 't')
-                {
-                    // •ó” iƒRƒŒƒNƒVƒ‡ƒ“j
-                    turn.OnTreasurePicked();
-                }
-                // ‘¼‚Ì‹L†‚ª‘‚¦‚½‚ç•K—v‚É‰‚¶‚Ä•ªŠò
-            }
-
-            return true;
-        }
-        return false;
-
-    }
-    // ===== “D–_ƒ†[ƒeƒBƒŠƒeƒB =====
-    public bool IsThiefAt(Vector2Int p)
-    {
-        return itemAt.TryGetValue(p, out var t) && (t.sym == 'd' || t.sym == 'e');
-    }
-
-    public bool TransformThiefToTreasureAt(Vector2Int p)
-    {
-        if (!itemAt.TryGetValue(p, out var t) || t.sym != 'd') return false;
-
-        // “D–_Œ©‚½–Ú‚ğÁ‚·
-        if (t.go) SafeDestroy(t.go);
-        itemAt.Remove(p);
-
-        // •ó” ƒvƒŒƒnƒu‚ğŒŸõ
-        GameObject chestPf = null;
-        for (int i = 0; i < itemTypes.Count; i++)
-        {
-            if (!string.IsNullOrEmpty(itemTypes[i].symbol) && itemTypes[i].symbol[0] == 't')
-            {
-                chestPf = itemTypes[i].prefab;
-                break;
-            }
-        }
-
-        GameObject chestGo = null;
-        if (chestPf != null)
-        {
-            chestGo = Instantiate(chestPf, GridToWorld(p), Quaternion.identity, itemsRoot);
-            chestGo.name = $"Item_{p.x}_{p.y}_t";
-            AutoAlign2DObject(chestGo, true, GetItemVisualScaleBySymbol('t'));
-        }
-        else
-        {
-            Debug.LogWarning("[Thief] Treasure prefab for symbol 't' is not assigned in BoardManager.itemTypes.");
-        }
-
-        // ˆÊ’u ¨ •ó” ‚ğ“o˜^
-        itemAt[p] = ('t', chestGo);
-        return true;
-    }
-
-    // Œ®“D–_iej¨ Œ®iij‚É•ÏŠ·
-    public bool TransformThiefToKeyAt(Vector2Int p)
-    {
-        if (!itemAt.TryGetValue(p, out var t) || t.sym != 'e') return false;
-
-        // “D–_Œ©‚½–Ú‚ğÁ‚·
-        if (t.go) SafeDestroy(t.go);
-        itemAt.Remove(p);
-
-        // Œ®ƒvƒŒƒnƒu‚ğŒŸõ
-        GameObject keyPf = null;
-        for (int i = 0; i < itemTypes.Count; i++)
-        {
-            if (!string.IsNullOrEmpty(itemTypes[i].symbol) && itemTypes[i].symbol[0] == 'i')
-            {
-                keyPf = itemTypes[i].prefab;
-                break;
-            }
-        }
-
-        GameObject keyGo = null;
-        if (keyPf != null)
-        {
-            keyGo = Instantiate(keyPf, GridToWorld(p), Quaternion.identity, itemsRoot);
-            keyGo.name = $"Item_{p.x}_{p.y}_i";
-            AutoAlign2DObject(keyGo, true, GetItemVisualScaleBySymbol('i'));
-        }
-        else
-        {
-            Debug.LogWarning("[Thief] Key prefab for symbol 'i' is not assigned in BoardManager.itemTypes.");
-        }
-
-        // ˆÊ’u ¨ Œ®‚ğ“o˜^iUI‚Ì•K{i’»‚ÍE“¾‚ÉXVj
-        itemAt[p] = ('i', keyGo);
-        return true;
-    }
-
-    // ========= ƒGƒfƒBƒ^ƒvƒŒƒrƒ…[•`‰æiGameObject¶¬‚È‚µj =========
-    private void OnDrawGizmos()
-    {
-        if (!enabled || !editorPreview || level == null) return;
-
-        // ƒƒWƒbƒN‚¾‚¯ÅV‰»
-        ParseCellsFromLevel();
-
-        if (cells == null)
-            return;
-        if (Height != cells.GetLength(0) || Width != cells.GetLength(1))
-            return;
-        // •`‰æ‡F° ¨ •Ç ¨ oŒû ¨ –ğÒƒ}[ƒJ[
-        float y0 = floorY;
-        float y1 = floorY + 0.001f;
-        float y2 = floorY + 0.002f;
-
-        // °iExit‚Ì‘«Œ³‚à°‚Å“h‚éj
-        Gizmos.color = previewFloor;
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                if (cells[y, x] == CellType.Floor)
-                {
-                    bool isOuterF = outerRingFloor != null && outerRingFloor[y, x];
-                    Gizmos.color = isOuterF ? previewOuterFloor : previewFloor;
-                    DrawCellGizmo(new Vector2Int(x, y), y0);
-                }
-                else if (cells[y, x] == CellType.Exit)
-                {
-                    // Exit ‚Ì‘«Œ³‚à°F‚Å“h‚éê‡‚ÍˆÈ‰ºƒRƒƒ“ƒgƒAƒEƒg‰ğœ
-                    // bool isOuterF = outerRingFloor != null && outerRingFloor[y, x];
-                    // Gizmos.color = isOuterF ? previewOuterFloor : previewFloor;
-                    // DrawCellGizmo(new Vector2Int(x, y), y0);
-                }
-            }
-        }
-        // •Ç
-        Gizmos.color = previewWall;
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (cells[y, x] == CellType.Wall)
-                    DrawCellGizmo(new Vector2Int(x, y), y1);
-
-        // ƒAƒ“ƒJ[i@ / CellType.Anchorjc•‚Å“h‚é
-        Gizmos.color = previewAnchor; // © ‚±‚±‚Å•‚É
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (cells[y, x] == CellType.Anchor)
-                    DrawCellGizmo(new Vector2Int(x, y), y1 /* or y1 + 0.0001f */);
-
-        // —‚Æ‚µŒŠix / CellType.Pitj
-        Gizmos.color = previewPit;
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (cells[y, x] == CellType.Pit)
-                    DrawCellGizmo(new Vector2Int(x, y), y1);
-
-
-        // oŒûiCore “à‚Ì‚İ‹L†•]‰¿BCore ŠO‚Í cells ‚Å Exit •\¦Ï‚İ‚Ì‚½‚ßAd•¡‚ğ”ğ‚¯‚éj
-        Gizmos.color = previewExit;
-        if (autoGenerateOuterRings)
-        {
-            for (int y = 0; y < coreHeight; y++)
-            {
-                for (int x = 0; x < coreWidth; x++)
-                {
-                    if (levelOriginalCore[y][x] == 'E')
-                    {
-                        var wp = new Vector2Int(x + coreOffsetX, y + coreOffsetY);
-                        DrawCellGizmo(wp, y2);
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (int y = 0; y < level.Length; y++)
-                for (int x = 0; x < level[y].Length; x++)
-                    if (level[y][x] == 'E')
-                        DrawCellGizmo(new Vector2Int(x, y), y2);
-        }
-
-        // ƒvƒŒƒCƒ„[
-        Gizmos.color = previewP;
-        if (autoGenerateOuterRings)
-        {
-            for (int y = 0; y < coreHeight; y++)
-            {
-                for (int x = 0; x < coreWidth; x++)
-                {
-                    if (levelOriginalCore[y][x] == 'P')
-                    {
-                        var wp = new Vector2Int(x + coreOffsetX, y + coreOffsetY);
-                        DrawActorDot(wp, y2 + 0.001f);
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (int y = 0; y < level.Length; y++)
-                for (int x = 0; x < level[y].Length; x++)
-                    if (level[y][x] == 'P')
-                        DrawActorDot(new Vector2Int(x, y), y2 + 0.001f);
-        }
-
-        // Guard ‹L†ƒ}[ƒJ[
-        if (autoGenerateOuterRings)
-        {
-            for (int y = 0; y < coreHeight; y++)
-            {
-                for (int x = 0; x < coreWidth; x++)
-                {
-                    char ch = levelOriginalCore[y][x];
-                    for (int gi = 0; gi < guardTypes.Count; gi++)
-                    {
-                        if (!string.IsNullOrEmpty(guardTypes[gi].symbol) &&
-                            guardTypes[gi].symbol[0] == ch)
-                        {
-                            Gizmos.color = guardTypes[gi].previewColor;
-                            var wp = new Vector2Int(x + coreOffsetX, y + coreOffsetY);
-                            DrawActorDot(wp, y2 + 0.001f);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (int y = 0; y < level.Length; y++)
-            {
-                for (int x = 0; x < level[y].Length; x++)
-                {
-                    char ch = level[y][x];
-                    for (int gi = 0; gi < guardTypes.Count; gi++)
-                    {
-                        if (!string.IsNullOrEmpty(guardTypes[gi].symbol) &&
-                            guardTypes[gi].symbol[0] == ch)
-                        {
-                            Gizmos.color = guardTypes[gi].previewColor;
-                            DrawActorDot(new Vector2Int(x, y), y2 + 0.001f);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Item ‹L†ƒ}[ƒJ[
-        if (autoGenerateOuterRings)
-        {
-            for (int y = 0; y < coreHeight; y++)
-            {
-                for (int x = 0; x < coreWidth; x++)
-                {
-                    char ch = levelOriginalCore[y][x];
-                    for (int ii = 0; ii < itemTypes.Count; ii++)
-                    {
-                        if (!string.IsNullOrEmpty(itemTypes[ii].symbol) &&
-                            itemTypes[ii].symbol[0] == ch)
-                        {
-                            Gizmos.color = itemTypes[ii].previewColor;
-                            var wp = new Vector2Int(x + coreOffsetX, y + coreOffsetY);
-                            DrawActorDot(wp, y2 + 0.001f);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            for (int y = 0; y < level.Length; y++)
-            {
-                for (int x = 0; x < level[y].Length; x++)
-                {
-                    char ch = level[y][x];
-                    for (int ii = 0; ii < itemTypes.Count; ii++)
-                    {
-                        if (!string.IsNullOrEmpty(itemTypes[ii].symbol) &&
-                            itemTypes[ii].symbol[0] == ch)
-                        {
-                            Gizmos.color = itemTypes[ii].previewColor;
-                            DrawActorDot(new Vector2Int(x, y), y2 + 0.001f);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void DrawCellGizmo(Vector2Int p, float y)
-    {
-        Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
-        Gizmos.DrawCube(c, new Vector3(1f, 0.001f, 1f));
-    }
-    private void DrawActorDot(Vector2Int p, float y)
-    {
-        Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
-        Gizmos.DrawCube(c, new Vector3(0.35f, 0.002f, 0.35f));
-    }
-
-    // ========= ‰ñ“]i”CˆÓƒ}ƒXE•”•ª‰ñ“]‘Î‰j ===========
-    public struct RotatePreview { public bool valid; public List<Vector2Int> area; }
-
-    public RotatePreview GetPreview(Vector2Int center, int size, int dir)
-    {
-        var res = new RotatePreview { valid = false, area = new List<Vector2Int>() };
-        int k = (size - 1) / 2; bool hasAnyIn = false;
-        for (int dy = -k; dy <= k; dy++)
-            for (int dx = -k; dx <= k; dx++)
-            {
-                var p = new Vector2Int(center.x + dx, center.y + dy);
-                res.area.Add(p);
-                if (InBounds(p))
-                {
-                    hasAnyIn = true;
-                    if (IsRotateLockedCell(p)) return res; // Exit/@ŠÜ‚Ş‚È‚çNG
-                }
-            }
-        if (!hasAnyIn) return res;
-
-        bool safeCW = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
-        bool safeCCW = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
-
-        // ‚Ç‚¿‚ç‚©•Ğ•û‚Å‚àOK‚È‚ç—Î
-        res.valid = safeCW || safeCCW;
-        return res;
-    }
-
-    // ‰ñ“]Œã‚ÉƒvƒŒƒCƒ„[/‰q•ºˆÊ’u‚ÖWall‚ª—ˆ‚È‚¢‚©i•”•ª‰ñ“]‘Î‰j
-    // BoardManager.cs “à‚Ìƒƒ\ƒbƒh’uŠ·—p
-    // WouldBeSafePartial: 90“x‰ñ“]‚ÌˆÀ‘S”»’èi“Gƒ}ƒX{ˆÚ“®’†‚Ì‘O1ƒ}ƒX‚ÍWall‚Ì‚İNGj
-    private bool WouldBeSafePartial(Vector2Int center, int size, int dir)
-    {
-        int k = (size - 1) / 2;
-
-        // è—LƒZƒ‹‚ÌûW
-        var occ = new List<Vector2Int>();
-        if (player != null) occ.Add(player.pos);
-        if (guards != null)
-        {
-            for (int i = 0; i < guards.Count; i++)
-            {
-                var g = guards[i];
-                if (g == null) continue;
-                occ.Add(g.pos);
-                if (g.IsMoving && g.NextPos != g.pos)
-                    occ.Add(g.NextPos); // ˆÚ“®’†‚Ì‘O1ƒ}ƒX‚à•ÛŒì
-            }
-        }
-
-        bool playerIn = IsPlayerInsideArea(center, size);
-
-        foreach (var o in occ)
-        {
-            // ‰ñ“]”ÍˆÍŠO‚Í–³‹
-            if (o.x < center.x - k || o.x > center.x + k ||
-                o.y < center.y - k || o.y > center.y + k) continue;
-
-            // o ‚Ìã‚É‰ñ“]Œã‚É—ˆ‚éƒ^ƒCƒ‹
-            int lx = o.x - (center.x - k);
-            int ly = o.y - (center.y - k);
-
-            int gdir = -dir; // ”z—ñ‚Í‹t‰ñ“]‚ÅŒvZ
-            int sx, sy;
-            if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // ‰E‰ñ‚è
-            else { sx = size - 1 - ly; sy = lx; }          // ¶‰ñ‚è
-
-            int gx = center.x - k + sx;
-            int gy = center.y - k + sy;
-
-            CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
-
-            bool oIn = (o.x >= center.x - k && o.x <= center.x + k &&
-                                    o.y >= center.y - k && o.y <= center.y + k);
-            Vector2Int finalPos = o;
-            if (oIn)
-                finalPos = Rot90(o, center, dir);
-
-            // ŠOü Floor ‚Ö‚ÌˆÚ“®‚Í•s‰ÂiƒvƒŒƒCƒ„[‚àƒK[ƒh‚àj
-            if (autoGenerateOuterRings && oIn && !IsInsideCore(finalPos))
-                return false;
-
-            if (player != null && o == player.pos)
-            {
-                if (!playerIn && (after == CellType.Wall || after == CellType.Pit))
-                    return false;
-            }
-            else
-            {
-                if (after == CellType.Wall)
-                    return false;
-            }
-        }
-        return true;
-    }
-    //bool WouldBeSafePartial(Vector2Int center, int size, int dir)
-    //{
-    //    int k = (size - 1) / 2;
-    //    var occ = new List<Vector2Int>();
-    //    if (player != null) occ.Add(player.pos);
-    //    foreach (var g in guards) occ.Add(g.pos);
-
-    //    foreach (var o in occ)
-    //    {
-    //        if (o.x < center.x - k || o.x > center.x + k ||
-    //            o.y < center.y - k || o.y > center.y + k) continue;
-
-    //        int lx = o.x - (center.x - k);
-    //        int ly = o.y - (center.y - k);
-
-    //        int gdir = -dir; // ”z—ñ‘¤‚Í•„†”½“]iŒ©‚½–Ú‚Æ‹tj
-
-    //        int sx, sy;
-    //        if (gdir > 0) { sx = ly; sy = size - 1 - lx; } // Œv‰ñ‚èi”z—ñj
-    //        else { sx = size - 1 - ly; sy = lx; } // ”½Œvi”z—ñj
-
-    //        int gx = center.x - k + sx;
-    //        int gy = center.y - k + sy;
-
-    //        CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
-    //        if (after == CellType.Wall) return false;
-    //    }
-    //    return true;
-    //}
-
-    private bool AreaHasExit(Vector2Int center, int size)
-    {
-        int k = (size - 1) / 2;
-        for (int j = -k; j <= k; j++)
-            for (int i = -k; i <= k; i++)
-            {
-                var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;
-                if (cells[p.y, p.x] == CellType.Exit) return true;
-            }
-        return false;
-    }
-
-    public void RotateArea(Vector2Int center, int size, int dir, System.Action onDone)
-    {
-        if (IsAnimating) return;
-        if (AreaHasExit(center, size)) { onDone?.Invoke(); return; }
-        if (!WouldBeSafePartial(center, size, dir)) { onDone?.Invoke(); return; }
-        // ƒvƒŒƒCƒ„[‚ª”ÍˆÍ“à/ŠO‚ÉŠÖŒW‚È‚­A‰ñ“]Œã‚É“G‚Æd‚È‚é‚È‚ç‹Ö~
-        if (WouldPlayerOverlapGuard(center, size, dir)) { onDone?.Invoke(); return; }
-
-        StartCoroutine(RotateCoro(center, size, dir, onDone));
-    }
-
-    // ¬Œ÷‚¾‚¯‰ñ“]‚ğŠJn‚µ‚Ä onSuccess ‚ğŒÄ‚ÔB¸”s‚Í falseiƒR[ƒ‹ƒoƒbƒN‚ÍŒÄ‚Î‚È‚¢j
-    public bool TryRotateArea(Vector2Int center, int size, int dir, System.Action onSuccess)
-    {
-        if (IsAnimating) return false;
-        if (AreaHasExit(center, size)) return false;
-        if (!WouldBeSafePartial(center, size, dir)) return false;
-        // ƒvƒŒƒCƒ„[‚ª”ÍˆÍ“à/ŠO‚ÉŠÖŒW‚È‚­A‰ñ“]Œã‚É“G‚Æd‚È‚é‚È‚ç‹Ö~
-        if (WouldPlayerOverlapGuard(center, size, dir)) return false;
-
-        StartCoroutine(RotateCoro(center, size, dir, onSuccess));
-        return true;
-    }
-
-    // ¬Œ÷‰Â”Û‚ğ•Ô‚·‘¦‰ñ“]i¬Œ÷‚Ì‚İÀs‚µ‚Ä truej
-    public bool RotateAreaInstantIfPossible(Vector2Int center, int size, int dir)
-    {
-        if (IsAnimating) return false;
-        if (AreaHasExit(center, size)) return false;
-        if (!WouldBeSafePartial(center, size, dir)) return false;
-        if (WouldPlayerOverlapGuard(center, size, dir)) return false;
-        // ˆÈ~‚Í RotateAreaInstant ‚Æ“¯“™ionDone ‚È‚µj
-        IsAnimating = true;
-
-        int k = (size - 1) / 2;
-
-        // 1) ƒZƒ‹“à—e‚Ì‰ñ“]i”z—ñj
-        var newCells = new Dictionary<Vector2Int, CellType>();
-        var newOrigins = new Dictionary<Vector2Int, WallOrigin>();
-        for (int j = 0; j < size; j++)
-        {
-            for (int i = 0; i < size; i++)
-            {
-                int gx = center.x + i - k;
-                int gy = center.y + j - k;
-                var dest = new Vector2Int(gx, gy);
-                if (!InBounds(dest)) continue;
-
-                int gdir = -dir; // ”z—ñ‚Í‹t‰ñ“]‚ÅŒvZ
-                int sx, sy;
-                if (gdir > 0) { sx = j; sy = size - 1 - i; }
-                else { sx = size - 1 - j; sy = i; }
-
-                int sgx = center.x - k + sx;
-                int sgy = center.y - k + sy;
-
-                CellType after = InBounds(new Vector2Int(sgx, sgy)) ? cells[sgy, sgx] : cells[gy, gx];
-                newCells[dest] = after;
-                if (after == CellType.Wall)
-                {
-                    if (InBounds(new Vector2Int(sgx, sgy)))
-                        newOrigins[dest] = wallOrigin[sgy, sgx];
-                    else
-                        newOrigins[dest] = wallOrigin[gy, gx];
-                }
-            }
-        }
-
-        // 2) Šù‘¶ƒ^ƒCƒ‹”jŠü
-        for (int j = 0; j < size; j++)
-            for (int i = 0; i < size; i++)
-            {
-                int gx = center.x + i - k;
-                int gy = center.y + j - k;
-                var gp = new Vector2Int(gx, gy);
-                if (!InBounds(gp)) continue;
-                var oldGo = tileGOs[gy, gx];
-                if (oldGo) SafeDestroy(oldGo);
-            }
-
-        // 3) Vƒ^ƒCƒ‹¶¬
-        foreach (var kv in newCells)
-        {
-            var p = kv.Key;
-            cells[p.y, p.x] = kv.Value;
-            if (kv.Value == CellType.Wall && newOrigins.TryGetValue(p, out var wo))
-                wallOrigin[p.y, p.x] = wo;
-            var go2 = Instantiate(
-                (cells[p.y, p.x] == CellType.Wall) ? pfWall :
-                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
-                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor :
-                (cells[p.y, p.x] == CellType.Pit) ? pfPit : pfFloor,
-                GridToWorld(p), Quaternion.identity, tilesRoot);
-            go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
-            AutoAlign2DObject(go2, false);
-            if (cells[p.y, p.x] == CellType.Exit)
-            {
-                var pos = go2.transform.position;
-                pos.y = floorY + exitTopOffset;
-                go2.transform.position = pos;
-            }
-            tileGOs[p.y, p.x] = go2;
-        }
-        // ŠOü Floor ÄŒvZ & Œ©‚½–ÚXV
-        RecomputeOuterRingFloor();
-        // Œ©‚½–ÚXV
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (IsOuterFloor(new Vector2Int(x, y)))
-                {
-                    var go = tileGOs[y, x];
-                    if (go != null && outerRingFloorMat != null)
-                    {
-                        var rend = go.GetComponentInChildren<Renderer>();
-                        if (rend) rend.sharedMaterial = outerRingFloorMat;
-                        if (!go.name.StartsWith("OuterFloor_"))
-                            go.name = $"OuterFloor_{x}_{y}";
-                    }
-                }
-        // 4) ƒAƒCƒeƒ€ˆÊ’uXV
-        if (itemAt != null && itemAt.Count > 0)
-        {
-            var moved = new List<(Vector2Int from, Vector2Int to, char sym, GameObject go)>();
-            foreach (var kv in itemAt)
-            {
-                var p = kv.Key;
-                if (p.x >= center.x - k && p.x <= center.x + k &&
-                    p.y >= center.y - k && p.y <= center.y + k)
-                {
-                    var dest = Rot90(p, center, dir);
-                    moved.Add((p, dest, kv.Value.sym, kv.Value.go));
-                }
-            }
-            foreach (var m in moved) itemAt.Remove(m.from);
-            foreach (var m in moved)
-            {
-                if (m.go)
-                {
-                    m.go.transform.position = GridToWorld(m.to);
-                    AutoAlign2DObject(m.go, true, GetItemVisualScaleBySymbol(m.sym));
-                }
-                itemAt[m.to] = (m.sym, m.go);
-            }
-        }
-
-        // 5) ƒvƒŒƒCƒ„[ˆÊ’uXVi”ÍˆÍ“à‚Ì‚İj
-        if (player != null && IsPlayerInsideArea(center, size))
-        {
-            var newP = Rot90(player.pos, center, dir);
-            player.pos = newP;
-            player.transform.position = GridToWorldActor(newP);
-        }
-
-        // 6) Œãˆ—
-        ResolvePitfallsAfterRotation();
-        UpdateAllWallAppearances();
-        IsAnimating = false;
-        RefreshAllGuardVision();
-        return true;
-    }
-
-    private Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
-    {
-        // dir>0 = Œv‰ñ‚è, dir<0 = ”½Œv‰ñ‚è
-        var d = p - c;
-        return (dir > 0)
-            ? new Vector2Int(c.x + d.y, c.y - d.x)
-            : new Vector2Int(c.x - d.y, c.y + d.x);
-    }
-    private IEnumerator RotateCoro(Vector2Int center, int size, int dir, System.Action onDone)
-    {
-        IsAnimating = true;
-        var pivotGO = new GameObject($"RotatePivot_{center.x}_{center.y}");
-        pivotGO.transform.position = GridToWorld(center) + new Vector3(0, 0.05f, 0);
-
-        List<GameObject> targets = new();
-        int k = (size - 1) / 2;
-
-        var movedItems = new List<(Vector2Int from, Vector2Int to, char sym, GameObject go)>();
-        // š ƒvƒŒƒCƒ„[‚ª‰ñ“]”ÍˆÍ“à‚©ƒ`ƒFƒbƒN•‰ñ“]‘O‚Ì‰ñ“]‚ğ•Û‘¶
-        bool playerIn = false;
-        Quaternion savedPlayerRot = Quaternion.identity;
-        Transform playerTf = null;
-        Vector2Int newPlayerPos = default;
-
-        if (player != null)
-        {
-            var p = player.pos;
-            playerIn = IsPlayerInsideArea(center, size);
-            if (playerIn)
-            {
-                playerTf = player.transform;
-                savedPlayerRot = playerTf.rotation; // ©Œ©‚½–Ú‚ÌŒü‚«‚ğ•Û‘¶
-                                                    // ˆê‚É“®‚©‚·‚½‚ßAƒsƒ{ƒbƒg‚É‚Ô‚ç‰º‚°‚éiˆÊ’u‚Í‚»‚Ì‚Ü‚Üj
-                playerTf.SetParent(pivotGO.transform, true);
-                // ÅI“I‚ÈVÀ•W‚Í”z—ñ‰ñ“]‚Æ“¯‚¶®‚Åæ‚ÉŒvZ‚µ‚Ä‚¨‚­
-                newPlayerPos = Rot90(player.pos, center, dir);
-            }
-        }
-
-        // Šù‘¶Fƒ^ƒCƒ‹GO‚ğƒsƒ{ƒbƒg”z‰º‚É
-        for (int j = 0; j < size; j++)
-            for (int i = 0; i < size; i++)
-            {
-                int gx = center.x + i - k;
-                int gy = center.y + j - k;
-                var gp = new Vector2Int(gx, gy);
-                if (!InBounds(gp)) continue;
-                var tile = tileGOs[gy, gx];
-                tile.transform.SetParent(pivotGO.transform, true);
-                targets.Add(tile);
-            }
-        if (itemAt != null && itemAt.Count > 0)
-        {
-            foreach (var kv in itemAt)
-            {
-                var p = kv.Key;
-                if (p.x >= center.x - k && p.x <= center.x + k &&
-                    p.y >= center.y - k && p.y <= center.y + k)
-                {
-                    var (sym, go) = kv.Value;
-                    if (go) go.transform.SetParent(pivotGO.transform, true);
-                    var dest = Rot90(p, center, dir);
-                    movedItems.Add((p, dest, sym, go));
-                }
-            }
-        }
-
-        // Šù‘¶F‰ñ“]ƒAƒjƒi‚±‚Ì‰ñ“]‚ªqƒvƒŒƒCƒ„[‚É‚àŠ|‚©‚é‚ªAŒã‚ÅŒü‚«‚ğ–ß‚·j
-        float t = 0f, dur = 0.15f;
-        Quaternion from = pivotGO.transform.rotation;
-        Quaternion to = Quaternion.AngleAxis(90f * dir, Vector3.up) * from;
-        while (t < 1f)
-        {
-            t += Time.deltaTime / dur;
-            pivotGO.transform.rotation = Quaternion.Slerp(from, to, Mathf.SmoothStep(0, 1, t));
-            yield return null;
-        }
-
-        // Šù‘¶FƒZƒ‹“à—e‚Ì‰ñ“]idest©src ‚Ì‹tÊ‰f‘œ‚Å newCells ‚ğì‚éj
-        var newCells = new Dictionary<Vector2Int, CellType>();
-        var newOrigins = new Dictionary<Vector2Int, WallOrigin>();
-        for (int j = 0; j < size; j++)
-            for (int i = 0; i < size; i++)
-            {
-                int gx = center.x + i - k;
-                int gy = center.y + j - k;
-                var dest = new Vector2Int(gx, gy);
-                if (!InBounds(dest)) continue;
-
-                int gdir = -dir; // ”z—ñ‘¤‚Í•„†”½“]iŒ©‚½–Ú‚Æ‹tj
-                int sx, sy;
-                if (gdir > 0) { sx = j; sy = size - 1 - i; }
-                else { sx = size - 1 - j; sy = i; }
-
-                int sgx = center.x - k + sx;
-                int sgy = center.y - k + sy;
-
-                CellType after = InBounds(new Vector2Int(sgx, sgy)) ? cells[sgy, sgx] : cells[gy, gx];
-                newCells[dest] = after;
-                if (after == CellType.Wall)
-                {
-                    if (InBounds(new Vector2Int(sgx, sgy)))
-                        newOrigins[dest] = wallOrigin[sgy, sgx];
-                    else
-                        newOrigins[dest] = wallOrigin[gy, gx];
-                }
-            }
-
-        // Šù‘¶FŒÃ‚¢ƒ^ƒCƒ‹•Ğ•t‚¯
-        foreach (var go in targets) SafeDestroy(go);
-        // š ƒvƒŒƒCƒ„[‚ÆƒAƒCƒeƒ€‚ğe‚©‚ç–ß‚·
-        if (playerIn && playerTf) playerTf.SetParent(actorsRoot, true);
-        foreach (var mi in movedItems) if (mi.go) mi.go.transform.SetParent(itemsRoot, true);
-        SafeDestroy(pivotGO);
-
-        // Šù‘¶FVƒ^ƒCƒ‹¶¬
-        foreach (var kv in newCells)
-        {
-            var p = kv.Key;
-            cells[p.y, p.x] = kv.Value;
-            if (kv.Value == CellType.Wall && newOrigins.TryGetValue(p, out var wo))
-                wallOrigin[p.y, p.x] = wo;
-            var go2 = Instantiate(
-                (cells[p.y, p.x] == CellType.Wall) ? pfWall :
-                (cells[p.y, p.x] == CellType.Exit) ? pfExit :
-                (cells[p.y, p.x] == CellType.Anchor) ? pfAnchor :
-                (cells[p.y, p.x] == CellType.Pit) ? pfPit : pfFloor,
-                GridToWorld(p), Quaternion.identity, tilesRoot);
-            go2.name = $"{cells[p.y, p.x]}_{p.x}_{p.y}";
-            AutoAlign2DObject(go2, false);
-            if (cells[p.y, p.x] == CellType.Exit)
-            {
-                var pos = go2.transform.position;
-                pos.y = floorY + exitTopOffset;
-                go2.transform.position = pos;
-            }
-            tileGOs[p.y, p.x] = go2;
-        }
-        // ŠOü Floor ÄŒvZ & Œ©‚½–ÚXV
-        RecomputeOuterRingFloor();
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (IsOuterFloor(new Vector2Int(x, y)))
-                {
-                    var go = tileGOs[y, x];
-                    if (go != null && outerRingFloorMat != null)
-                    {
-                        var rend = go.GetComponentInChildren<Renderer>();
-                        if (rend) rend.sharedMaterial = outerRingFloorMat;
-                        if (!go.name.StartsWith("OuterFloor_"))
-                            go.name = $"OuterFloor_{x}_{y}";
-                    }
-                }
-        // š ƒAƒCƒeƒ€‚Ì«‘•ˆÊ’u‚ğXV
-        if (movedItems.Count > 0)
-        {
-            foreach (var mi in movedItems) itemAt.Remove(mi.from);
-            foreach (var mi in movedItems)
-            {
-                if (mi.go)
-                {
-                    mi.go.transform.position = GridToWorld(mi.to);
-                    AutoAlign2DObject(mi.go, true, GetItemVisualScaleBySymbol(mi.sym));
-                }
-                itemAt[mi.to] = (mi.sym, mi.go); // ’l‚ª GameObject ‚Ì‚İ‚È‚ç: itemAt[mi.to] = mi.go;
-            }
-        }
-        // š ƒvƒŒƒCƒ„[‚ÌƒOƒŠƒbƒhÀ•W‚Æƒ[ƒ‹ƒhˆÊ’u‚ğXViŒü‚«‚Í‚»‚Ì‚Ü‚Üj
-        if (playerIn)
-        {
-            playerTf.rotation = savedPlayerRot;
-            player.pos = newPlayerPos;
-            player.transform.position = GridToWorldActor(newPlayerPos);
-        }
-
-        // š ‰ñ“]Œã‚É—‚Æ‚µŒŠ‚É‚¢‚éƒK[ƒh‚ğ”rœiƒAƒjƒ”Å‚É‚à“K—pj
-        ResolvePitfallsAfterRotation();
-
-        UpdateAllWallAppearances();
-        IsAnimating = false;
-        RefreshAllGuardVision();
-        onDone?.Invoke();
-    }
+    // ========= å›è»¢ï¼ˆä»»æ„ãƒã‚¹ãƒ»éƒ¨åˆ†å›è»¢å¯¾å¿œï¼‰ ===========
 
     public void SetLevelFromText(string text, bool rebuild = true)
     {
         level = ParseRows(text);
         level = NormalizeRows(level, pad: '.');
         if (rebuild) Build();
-    }
-    private static string[] NormalizeRows(string[] rows, char pad = '.')
-    {
-        if (rows == null || rows.Length == 0) return new string[0];
-        int w = 0;
-        for (int i = 0; i < rows.Length; i++)
-            w = Mathf.Max(w, rows[i].Length);
-
-        var outRows = new string[rows.Length];
-        for (int y = 0; y < rows.Length; y++)
-        {
-            var s = rows[y];
-            if (s.Length == w) { outRows[y] = s; continue; }
-            // ‘«‚è‚È‚¢‚Ô‚ñ‚ğ°('.')
-            if (s.Length < w) outRows[y] = s + new string(pad, w - s.Length);
-            else outRows[y] = s.Substring(0, w); // ’·‚·‚¬‚éê‡‚Í‰E’[‚ğƒJƒbƒg
-        }
-        return outRows;
-    }
-    // ‰üsƒR[ƒh‚â‹ósƒgƒŠƒ€‚É‹­‚¢s•ªŠ„
-    public static string[] ParseRows(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return new string[0];
-        text = text.Replace("\r", "");
-        var lines = text.Split('\n');
-        var rows = new List<string>(lines.Length);
-
-        foreach (var raw in lines)
-        {
-            var s = raw.TrimEnd();            // ––”öƒXƒy[ƒXœ‹is’·‚Ì•s‘µ‚¢‘Îôj
-            if (s.Length == 0) continue;      // ‹ós‚ÍƒXƒLƒbƒvi‚¨D‚İ‚Åc‚µ‚Ä‚àOKj
-            rows.Add(s);
-        }
-        return rows.ToArray();
-    }
-
-    // =========== LoSiŠp”²‚¯–h~‚Ìsupercover”Åj ===========
-    public bool HasLineOfSight(Vector2Int from, Vector2Int to)
-    {
-        // “¯ˆêƒZƒ‹‚Íí‚ÉŒ©‚¦‚éˆµ‚¢
-        if (from == to) return true;
-
-        // ŠÈˆÕƒQ[ƒg: from¨to ‚Ìå²•ûŒü‚É1ƒ}ƒXi‚ñ‚¾ƒZƒ‹‚ªÕ•Á‚È‚ç‹ŠE‚ğ‘¦ƒJƒbƒg
-        int dx0 = to.x - from.x;
-        int dy0 = to.y - from.y;
-        Vector2Int primaryDir;
-        if (Mathf.Abs(dx0) >= Mathf.Abs(dy0))
-            primaryDir = new Vector2Int(System.Math.Sign(dx0), 0); // © ‚±‚±‚ğC³
-        else
-            primaryDir = new Vector2Int(0, System.Math.Sign(dy0)); // © ‚±‚±‚ğC³
-
-        if (primaryDir != Vector2Int.zero)
-        {
-            var gate = from + primaryDir;
-            if (BlocksVision(gate)) return false;
-        }
-
-        // ˆÈ~‚Í]—ˆ‚Ì supercover BresenhamiŠp”²‚¯–h~j
-        int x0 = from.x, y0 = from.y, x1 = to.x, y1 = to.y;
-        int dx = Mathf.Abs(x1 - x0);
-        int dy = Mathf.Abs(y1 - y0);
-        int sx = x0 < x1 ? 1 : -1;
-        int sy = y0 < y1 ? 1 : -1;
-        int err = dx - dy;
-
-        int prevX = x0, prevY = y0;
-
-        while (true)
-        {
-            if (!(x0 == from.x && y0 == from.y))
-            {
-                if (BlocksVision(new Vector2Int(x0, y0))) return false;
-
-                if (x0 != prevX && y0 != prevY)
-                {
-                    var sideA = new Vector2Int(prevX + sx, prevY);
-                    var sideB = new Vector2Int(prevX, prevY + sy);
-                    if (BlocksVision(sideA) && BlocksVision(sideB)) return false;
-                }
-            }
-
-            if (x0 == x1 && y0 == y1) break;
-
-            int e2 = 2 * err;
-            prevX = x0; prevY = y0;
-
-            if (e2 > -dy) { err -= dy; x0 += sx; }
-            if (e2 < dx) { err += dx; y0 += sy; }
-        }
-
-        return true;
-    }
-    // ‚»‚ÌƒZƒ‹‚ÉƒK[ƒh‚ª‚¢‚éH
-    private bool IsGuardAt(Vector2Int p)
-    {
-        if (guards == null) return false;
-        for (int i = 0; i < guards.Count; i++)
-            if (guards[i] != null && guards[i].pos == p) return true;
-        return false;
-    }
-
-    // ƒGƒŠƒA“à‚ÉƒvƒŒƒCƒ„[‚ªŠÜ‚Ü‚ê‚éH
-    private bool IsPlayerInsideArea(Vector2Int center, int size)
-    {
-        if (player == null) return false;
-        if (!rotatePlayerWithArea) return false; // ©ƒtƒ‰ƒO‚ªfalse‚È‚çí‚ÉŠÜ‚ß‚È‚¢
-        int k = (size - 1) / 2;
-        return (player.pos.x >= center.x - k && player.pos.x <= center.x + k &&
-                player.pos.y >= center.y - k && player.pos.y <= center.y + k);
-    }
-
-    // w’è•ûŒü‚É‰ñ‚µ‚½‚Æ‚«AƒvƒŒƒCƒ„[‚ÌVÀ•W‚ªƒK[ƒh‚Éd‚È‚éHiŒ»İ/ŸˆÊ’u‚Ì—¼•û‚ğ‹Ö~j
-    public bool WouldPlayerOverlapGuard(Vector2Int center, int size, int dir)
-    {
-        if (player == null) return false;
-
-        int k = (size - 1) / 2;
-        bool playerIn = IsPlayerInsideArea(center, size);
-
-        // ƒvƒŒƒCƒ„[‚ÌÅIˆÊ’ui”ÍˆÍ“à‚È‚ç‰ñ“]‚É’Ç]A”ÍˆÍŠO‚È‚ç˜‚¦’u‚«j
-        Vector2Int nextP = playerIn ? Rot90(player.pos, center, dir) : player.pos;
-
-        for (int i = 0; i < guards.Count; i++)
-        {
-            var g = guards[i];
-            if (g == null) continue;
-
-            // “G‚ÌŒ»İˆÊ’u or ˆÚ“®æ‚ÆÕ“Ë‚·‚é‚È‚çNG
-            if (g.pos == nextP) return true;
-            if (g.IsMoving && g.NextPos == nextP) return true;
-        }
-        return false;
-    }
-
-    // =========== ‹ŠE‰Â‹‰»‚ÌˆêŠ‡§Œä ===========
-    public void RefreshAllGuardVision()
-    {
-#if UNITY_EDITOR
-        if (!Application.isPlaying) return; // ƒGƒfƒBƒ^‚Å‚Íì‚ç‚È‚¢iHierarchy‰˜‚³‚È‚¢j
-#endif
-        foreach (var g in guards)
-            if (g != null) g.UpdateVisionOverlay();
-    }
-    public void SetAllGuardVision(bool on)
-    {
-        foreach (var g in guards)
-        {
-            if (g == null) continue;
-            g.showVision = on;
-            g.UpdateVisionOverlay();
-        }
-    }
-    public void ToggleAllGuardVision()
-    {
-        bool next = true;
-        if (guards.Count > 0 && guards[0] != null) next = !guards[0].showVision;
-        SetAllGuardVision(next);
     }
 
 #if UNITY_EDITOR
@@ -1957,8 +382,8 @@ public class BoardManager : MonoBehaviour
 #endif
 #if UNITY_EDITOR
     [Header("DEV / Editor")]
-    public bool devUseSceneLevelInEditor = true;     // © ’Ç‰ÁFÄ¶‚ÉScene“à‚Ì”Õ–Ê‚ğ‚»‚Ì‚Ü‚Üg‚¤
-    public TextAsset devTargetTextAsset;             // © i”CˆÓj•Û‘¶æ
+    public bool devUseSceneLevelInEditor = true;     // â† è¿½åŠ ï¼šå†ç”Ÿæ™‚ã«Sceneå†…ã®ç›¤é¢ã‚’ãã®ã¾ã¾ä½¿ã†
+    public TextAsset devTargetTextAsset;             // â† ï¼ˆä»»æ„ï¼‰ä¿å­˜å…ˆ
 
     [ContextMenu("DEV: Save current level into devTargetTextAsset")]
     public void DevSaveLevelToTextAsset()
@@ -1971,26 +396,26 @@ public class BoardManager : MonoBehaviour
     }
 #endif
     [Header("Movement (Smooth Toggle & Speeds)")]
-    [Tooltip("ƒvƒŒƒCƒ„[ˆÚ“®‚ğ•âŠÔiƒXƒ€[ƒYj‚É‚·‚é")]
+    [Tooltip("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ç§»å‹•ã‚’è£œé–“ï¼ˆã‚¹ãƒ ãƒ¼ã‚ºï¼‰ã«ã™ã‚‹")]
     public bool smoothPlayerMove = true;
-    [Tooltip("ƒK[ƒhˆÚ“®‚ğ•âŠÔiƒXƒ€[ƒYj‚É‚·‚é")]
+    [Tooltip("ã‚¬ãƒ¼ãƒ‰ç§»å‹•ã‚’è£œé–“ï¼ˆã‚¹ãƒ ãƒ¼ã‚ºï¼‰ã«ã™ã‚‹")]
     public bool smoothGuardMove = true;
-    [Tooltip("ƒvƒŒƒCƒ„[‚ÌˆÚ“®‘¬“xiƒZƒ‹/•bj")]
+    [Tooltip("ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç§»å‹•é€Ÿåº¦ï¼ˆã‚»ãƒ«/ç§’ï¼‰")]
     [Min(0.1f)] public float playerMoveCellsPerSec = 6f;
-    [Tooltip("ƒK[ƒh‚ÌˆÚ“®‘¬“xiƒZƒ‹/•bj")]
+    [Tooltip("ã‚¬ãƒ¼ãƒ‰ã®ç§»å‹•é€Ÿåº¦ï¼ˆã‚»ãƒ«/ç§’ï¼‰")]
     [Min(0.1f)] public float guardMoveCellsPerSec = 4f;
-    [Tooltip("ƒK[ƒh‚Ì‰ñ“]‘¬“xi“x/•bj c ‹ü/Œü‚«‚Ì•âŠÔ‘¬“x")]
-    [Min(30f)] public float guardRotateDegPerSec = 1080f; // © 360 ¨ 1080 ‚Éˆø‚«ã‚°
-    [Tooltip("Œü‚«•ÏXiˆÚ“®/ŠÄ‹j‚É‘¦ƒXƒiƒbƒv‚·‚éi•âŠÔ‚ğƒXƒLƒbƒvj")]
-    public bool snapGuardFacingOnMove = true;             // © ’Ç‰Á
-    [Tooltip("ƒK[ƒh‹ŠE‚ÌŒ©‚½–ÚXVŠÔŠui•bjB¬‚³‚¢‚Ù‚ÇŠŠ‚ç‚©‚¾‚ª•‰‰×‚ªã‚ª‚é")]
+    [Tooltip("ã‚¬ãƒ¼ãƒ‰ã®å›è»¢é€Ÿåº¦ï¼ˆåº¦/ç§’ï¼‰ â€¦ è¦–ç·š/å‘ãã®è£œé–“é€Ÿåº¦")]
+    [Min(30f)] public float guardRotateDegPerSec = 1080f; // â† 360 â†’ 1080 ã«å¼•ãä¸Šã’
+    [Tooltip("å‘ãå¤‰æ›´ï¼ˆç§»å‹•/ç›£è¦–ï¼‰æ™‚ã«å³ã‚¹ãƒŠãƒƒãƒ—ã™ã‚‹ï¼ˆè£œé–“ã‚’ã‚¹ã‚­ãƒƒãƒ—ï¼‰")]
+    public bool snapGuardFacingOnMove = true;             // â† è¿½åŠ 
+    [Tooltip("ã‚¬ãƒ¼ãƒ‰è¦–ç•Œã®è¦‹ãŸç›®æ›´æ–°é–“éš”ï¼ˆç§’ï¼‰ã€‚å°ã•ã„ã»ã©æ»‘ã‚‰ã‹ã ãŒè² è·ãŒä¸ŠãŒã‚‹")]
     [Range(0.01f, 0.2f)] public float guardVisionUpdateInterval = 0.05f;
 
     public void SaveDevModeSettings()
     {
         PlayerPrefs.SetInt("rotatePlayerWithArea", rotatePlayerWithArea ? 1 : 0);
 
-        // ¥ ’Ç‰Á: ©—R‰ñ“]ŠÖ˜A‚Ì‰i‘±‰»
+        // â–¼ è¿½åŠ : è‡ªç”±å›è»¢é–¢é€£ã®æ°¸ç¶šåŒ–
         PlayerPrefs.SetInt("devEnableFreeRotate", devEnableFreeRotate ? 1 : 0);
         PlayerPrefs.SetInt("devAllow180Rotation", devAllow180Rotation ? 1 : 0);
         PlayerPrefs.SetFloat("devSnapAngleDeg", devSnapAngleDeg);
@@ -2004,7 +429,7 @@ public class BoardManager : MonoBehaviour
     {
         rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
 
-        // ¥ ’Ç‰Á: ©—R‰ñ“]ŠÖ˜A‚Ì‰i‘±‰»
+        // â–¼ è¿½åŠ : è‡ªç”±å›è»¢é–¢é€£ã®æ°¸ç¶šåŒ–
         devEnableFreeRotate = PlayerPrefs.GetInt("devEnableFreeRotate", 1) == 1;
         devAllow180Rotation = PlayerPrefs.GetInt("devAllow180Rotation", 0) == 1;
         devSnapAngleDeg = PlayerPrefs.GetFloat("devSnapAngleDeg", 15f);
@@ -2013,390 +438,20 @@ public class BoardManager : MonoBehaviour
         devNgGhostSeconds = PlayerPrefs.GetFloat("devNgGhostSeconds", 0.5f);
     }
 
-    // ========= ‰Â”Ûƒwƒ‹ƒp =========
-    public bool IsCenterWithinLimit(Vector2Int center)
-    {
-        if (player == null) return false;
-        int dx = Mathf.Abs(center.x - player.pos.x);
-        int dy = Mathf.Abs(center.y - player.pos.y);
-        int chebyshev = Mathf.Max(dx, dy); // ³•ûŒ`ƒGƒŠƒAŒü‚¯
-        return chebyshev <= rotationCenterMaxDistance;
-    }
-    public bool AreaContainsLocked(Vector2Int center, int size)
-    {
-        int k = (size - 1) / 2;
-        for (int j = -k; j <= k; j++)
-            for (int i = -k; i <= k; i++)
-            {
-                var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;
-                if (IsRotateLockedCell(p)) return true;
-            }
-        return false;
-    }
-    // ==== ADD STEP1: ‰ñ“]ƒGƒŠƒA‚ª Core ŠOiŠOü‘Ñj‚ğŠÜ‚Ş‚©iAnchor ‘ÑŠÜ‚ŞŠOü‘S•”j ====
-    private bool AreaCrossesOuterRing(Vector2Int center, int size)
-    {
-        if (!autoGenerateOuterRings) return false;
-        int k = (size - 1) / 2;
-        for (int j = -k; j <= k; j++)
-        {
-            for (int i = -k; i <= k; i++)
-            {
-                var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;
-                if (!IsInsideCore(p)) return true; // Core ‚©‚çŠO‚ê‚½ƒZƒ‹‚ğŠÜ‚Ş
-            }
-        }
-        return false;
-    }
-    public struct StepValidity
-    {
-        public bool cw90, ccw90, cw180, ccw180;
-        public bool Any(bool allow180) => cw90 || ccw90 || (allow180 && (cw180 || ccw180));
-    }
+    // ===== Core / Board åº§æ¨™ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£ï¼ˆLevelPainter ç”¨ï¼‰ =====
 
-    public StepValidity GetStepValidity(Vector2Int center, int size)
-    {
-        var v = new StepValidity();
-
-        // }90‹
-        v.cw90 = WouldBeSafePartial(center, size, +1) && !WouldPlayerOverlapGuard(center, size, +1);
-        v.ccw90 = WouldBeSafePartial(center, size, -1) && !WouldPlayerOverlapGuard(center, size, -1);
-
-        // }180‹i‹–‰Â‚Ì‚İ•]‰¿j
-        if (devAllow180Rotation)
-        {
-            v.cw180 = WouldBeSafePartial180(center, size) && !WouldPlayerOverlapGuard180(center, size);
-            v.ccw180 = v.cw180; // 180‹‚ÍŒü‚«‚ÉˆË‚ç‚¸“¯ˆê
-        }
-        else
-        {
-            v.cw180 = v.ccw180 = false;
-        }
-        return v;
-    }
-
-    // 180‹‚ÌˆÀ‘S”»’èi•ÇÕ“Ëj
-    // BoardManager.cs “à‚Ìƒƒ\ƒbƒh’uŠ·—p
-    // WouldBeSafePartial180: 180“x‰ñ“]‚ÌˆÀ‘S”»’èi“Gƒ}ƒX{ˆÚ“®’†‚Ì‘O1ƒ}ƒX‚à•ÛŒìAWall/Pit‚ÅNGj
-    private bool WouldBeSafePartial180(Vector2Int center, int size)
-    {
-        int k = (size - 1) / 2;
-
-        // è—LƒZƒ‹iƒvƒŒƒCƒ„[A‘SƒK[ƒhAˆÚ“®’†ƒK[ƒh‚ÌNextPosj
-        var occ = new List<Vector2Int>();
-        if (player != null) occ.Add(player.pos);
-        if (guards != null)
-        {
-            for (int i = 0; i < guards.Count; i++)
-            {
-                var g = guards[i];
-                if (g == null) continue;
-                occ.Add(g.pos);
-                if (g.IsMoving && g.NextPos != g.pos)
-                    occ.Add(g.NextPos);
-            }
-        }
-
-        bool playerIn = IsPlayerInsideArea(center, size);
-
-        foreach (var o in occ)
-        {
-            if (o.x < center.x - k || o.x > center.x + k ||
-                o.y < center.y - k || o.y > center.y + k) continue;
-
-            int lx = o.x - (center.x - k);
-            int ly = o.y - (center.y - k);
-
-            // 180“x‚Ì‹t‰ñ“]
-            int sx = size - 1 - lx;
-            int sy = size - 1 - ly;
-
-            int gx = center.x - k + sx;
-            int gy = center.y - k + sy;
-
-            CellType after = InBounds(new Vector2Int(gx, gy)) ? cells[gy, gx] : cells[o.y, o.x];
-
-            bool oIn = (o.x >= center.x - k && o.x <= center.x + k &&
-                                    o.y >= center.y - k && o.y <= center.y + k);
-            Vector2Int finalPos = o;
-            if (oIn)
-                finalPos = Rot180(o, center);
-
-            if (autoGenerateOuterRings && oIn && !IsInsideCore(finalPos))
-                return false;
-
-            if (player != null && o == player.pos)
-            {
-                if (!playerIn && (after == CellType.Wall || after == CellType.Pit))
-                    return false;
-            }
-            else
-            {
-                if (after == CellType.Wall)
-                    return false;
-            }
-        }
-        return true;
-    }
-    // 180‹‚ÅƒvƒŒƒCƒ„[‚ªƒK[ƒh‚Æd‚È‚é‚©
-    public bool WouldPlayerOverlapGuard180(Vector2Int center, int size)
-    {
-        if (player == null) return false;
-
-        bool playerIn = IsPlayerInsideArea(center, size);
-        Vector2Int nextP = playerIn ? Rot180(player.pos, center) : player.pos;
-
-        for (int i = 0; i < guards.Count; i++)
-        {
-            var g = guards[i];
-            if (g == null) continue;
-            if (g.pos == nextP) return true;
-            if (g.IsMoving && g.NextPos == nextP) return true;
-        }
-        return false;
-    }
-
-    private Vector2Int Rot180(Vector2Int p, Vector2Int c)
-    {
-        // p' = 2c - p
-        return new Vector2Int(2 * c.x - p.x, 2 * c.y - p.y);
-    }
-
-    // ========= ÀƒvƒŒƒrƒ…[ieq•t‚¯jAPI =========
-    private GameObject freePreviewPivot;
-    private Transform freePreviewGroup;   // Pivot’¼‰º‚ÌƒOƒ‹[ƒv
-    private List<Transform> freeTiles = new();
-    private List<Transform> freeItems = new();
-    private Transform freePlayerTf;
-    private Quaternion freeSavedPlayerRot = Quaternion.identity;
-    private bool freePlayerIn = false;
-    private Vector2Int freeCenter;
-    private int freeSize;
-    private struct PreviewWallEntry
-    {
-        public Transform tf;
-        public WallOrigin origin;
-        public Vector2Int originalGrid;
-    }
-    private List<PreviewWallEntry> previewWalls = new();
-    public bool AreaContainsLockedExceptCenter(Vector2Int center, int size)
-    {
-        int k = (size - 1) / 2;
-        for (int j = -k; j <= k; j++)
-        {
-            for (int i = -k; i <= k; i++)
-            {
-                var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;
-                if (p == center) continue; // ’†S‚Í—áŠO
-                if (IsRotateLockedCell(p)) return true;
-            }
-        }
-        return false;
-    }
-    public bool BeginFreePreview(Vector2Int center, int size)
-    {
-        if (freePreviewPivot != null) RestoreFreePreview(); // •ÛŒ¯
-        freeCenter = center;
-        freeSize = size;
-
-        // Pivot ‚ÍƒZƒ‹’†S‚É’u‚­
-        freePreviewPivot = new GameObject($"FreePreviewPivot_{center.x}_{center.y}");
-        freePreviewPivot.transform.position = CellCenter(center, floorY + 0.05f);
-
-        // Group ‚Í Pivot ‚Ìqi‘ÎÛ‚Í‘S‚Ä Group ‚É‚Ô‚ç‰º‚°‚éj
-        freePreviewGroup = new GameObject("FreePreviewGroup").transform;
-        freePreviewGroup.SetParent(freePreviewPivot.transform, false);
-        freePreviewGroup.localPosition = Vector3.zero;
-        freePreviewGroup.localRotation = Quaternion.identity;
-        freePreviewGroup.localScale = Vector3.one;
-
-        int k = (size - 1) / 2;
-
-        // ƒ^ƒCƒ‹
-        freeTiles.Clear();
-        previewWalls.Clear();
-        for (int j = -k; j <= k; j++)
-        {
-            for (int i = -k; i <= k; i++)
-            {
-                var p = new Vector2Int(center.x + i, center.y + j);
-                if (!InBounds(p)) continue;
-                var go = tileGOs[p.y, p.x];
-                if (!go) continue;
-                go.transform.SetParent(freePreviewGroup, true);
-                freeTiles.Add(go.transform);
-                if (cells[p.y, p.x] == CellType.Wall)
-                    previewWalls.Add(new PreviewWallEntry
-                    {
-                        tf = go.transform,
-                        origin = autoGenerateOuterRings ? wallOrigin[p.y, p.x] : WallOrigin.Core,
-                        originalGrid = p
-                    });
-            }
-        }
-
-        // ƒAƒCƒeƒ€
-        freeItems.Clear();
-        if (itemAt != null && itemAt.Count > 0)
-        {
-            foreach (var kv in itemAt)
-            {
-                var p = kv.Key;
-                if (p.x >= center.x - k && p.x <= center.x + k &&
-                    p.y >= center.y - k && p.y <= center.y + k)
-                {
-                    var go = kv.Value.go;
-                    if (go)
-                    {
-                        go.transform.SetParent(freePreviewGroup, true);
-                        freeItems.Add(go.transform);
-                    }
-                }
-            }
-        }
-
-        // ƒvƒŒƒCƒ„[iİ’è•”ÍˆÍ“àj
-        freePlayerIn = IsPlayerInsideArea(center, size);
-        if (player != null && rotatePlayerWithArea && freePlayerIn)
-        {
-            freePlayerTf = player.transform;
-            freeSavedPlayerRot = freePlayerTf.rotation;
-            freePlayerTf.SetParent(freePreviewGroup, true);
-        }
-        else
-        {
-            freePlayerTf = null;
-        }
-
-        return true;
-    }
-    // ==== STEP11 REPLACE: ƒvƒŒƒrƒ…[’†‚Ì•Çƒ}ƒeƒŠƒAƒ‹ˆê”½‰f ====
-    public void UpdateFreePreviewAngle(float angleDeg)
-    {
-        if (freePreviewPivot == null) return;
-        freePreviewPivot.transform.rotation = Quaternion.Euler(0f, angleDeg, 0f);
-
-        if (!autoGenerateOuterRings) return;
-        if (previewWalls.Count == 0) return;
-        if (wallNormalMat == null || wallOuterMat == null) return;
-
-        float rad = angleDeg * Mathf.Deg2Rad;
-        float sin = Mathf.Sin(rad);
-        float cos = Mathf.Cos(rad);
-
-        foreach (var w in previewWalls)
-        {
-            // Œ³ˆÊ’u·•ª
-            var d = w.originalGrid - freeCenter;
-            float rx = d.x * cos - d.y * sin;
-            float ry = d.x * sin + d.y * cos;
-            var proj = new Vector2Int(Mathf.RoundToInt(rx) + freeCenter.x,
-                                      Mathf.RoundToInt(ry) + freeCenter.y);
-            bool outside = !IsInsideCore(proj);
-
-            var rend = w.tf.GetComponentInChildren<Renderer>();
-            if (!rend) continue;
-
-            if (w.origin == WallOrigin.Outer && outside)
-                rend.sharedMaterial = wallOuterMat;
-            else
-                rend.sharedMaterial = wallNormalMat;
-        }
-    }
-    public void RestoreFreePreview()
-    {
-        if (freePreviewPivot == null) return;
-
-        // ‰ñ“]‚ğ–ß‚µ‚Ä‚©‚çe–ß‚µ
-        freePreviewPivot.transform.rotation = Quaternion.identity;
-        if (freePreviewGroup != null) freePreviewGroup.localRotation = Quaternion.identity;
-
-        // ƒ^ƒCƒ‹–ß‚µ
-        for (int i = 0; i < freeTiles.Count; i++)
-        {
-            var t = freeTiles[i];
-            if (t) t.SetParent(tilesRoot, true);
-        }
-        freeTiles.Clear();
-
-        // ƒAƒCƒeƒ€–ß‚µ
-        for (int i = 0; i < freeItems.Count; i++)
-        {
-            var t = freeItems[i];
-            if (t) t.SetParent(itemsRoot, true);
-        }
-        freeItems.Clear();
-
-        // ƒvƒŒƒCƒ„[–ß‚µ
-        if (freePlayerTf)
-        {
-            freePlayerTf.SetParent(actorsRoot, true);
-            freePlayerTf.rotation = freeSavedPlayerRot;
-        }
-        freePlayerTf = null;
-        freePlayerIn = false;
-
-        // ¶¬•¨”jŠü
-        if (freePreviewGroup != null)
-        {
-            SafeDestroy(freePreviewGroup.gameObject);
-            freePreviewGroup = null;
-        }
-        SafeDestroy(freePreviewPivot);
-        freePreviewPivot = null;
-        previewWalls.Clear();
-        UpdateAllWallAppearances();
-    }
-
-    private void ResolvePitfallsAfterRotation()
-    {
-        if (guards == null || guards.Count == 0) return;
-        for (int i = guards.Count - 1; i >= 0; i--)
-        {
-            var g = guards[i];
-            if (g == null) { guards.RemoveAt(i); continue; }
-            var p = g.pos;
-            if (InBounds(p) && cells[p.y, p.x] == CellType.Pit)
-            {
-                SafeDestroy(g.gameObject);
-                guards.RemoveAt(i);
-            }
-        }
-    }
-
-    // Ghost ‚ğe•t‚¯‚·‚é‚½‚ß‚Ì Transform ‚ğ•Ô‚·iGroup ‚ğ—Dæj
-    public Transform GetFreePreviewPivot()
-    {
-        return freePreviewGroup != null ? freePreviewGroup : (freePreviewPivot != null ? freePreviewPivot.transform : null);
-    }
-    public bool IsFreePreviewActive => freePreviewPivot != null;
-
-    private Vector2 GetItemVisualScaleBySymbol(char sym)
-    {
-        // “D–_‚¾‚¯1ƒZƒ‹ƒTƒCƒYA‚»‚Ì‘¼‚Í]—ˆ‚Ì¬‚³‚ß•\¦
-        if (sym == 'd') return new Vector2(0.2f, 0.2f);
-        if (sym == 'e') return new Vector2(0.25f, 0.25f);
-        return new Vector2(0.07f, 0.07f);
-    }
-
-
-    // ===== Core / Board À•Wƒ†[ƒeƒBƒŠƒeƒBiLevelPainter —pj =====
-
-    // Core ‚Ì¶ãƒIƒtƒZƒbƒgŒöŠJi•K—v‚È‚ç LevelPainter ‚ÅQÆj
+    // Core ã®å·¦ä¸Šã‚ªãƒ•ã‚»ãƒƒãƒˆå…¬é–‹ï¼ˆå¿…è¦ãªã‚‰ LevelPainter ã§å‚ç…§ï¼‰
     public int CoreOffsetX => coreOffsetX;
     public int CoreOffsetY => coreOffsetY;
     public int CoreWidth => coreWidth;
     public int CoreHeight => coreHeight;
 
-    // BoardÀ•W ¨ CoreÀ•Wi¬Œ÷ truej
+    // Boardåº§æ¨™ â†’ Coreåº§æ¨™ï¼ˆæˆåŠŸæ™‚ trueï¼‰
     public bool TryBoardToCore(Vector2Int boardPos, out Vector2Int corePos)
     {
         if (!autoGenerateOuterRings)
         {
-            // ‚»‚Ì‚Ü‚Ü
+            // ãã®ã¾ã¾
             if (boardPos.x < 0 || boardPos.y < 0 ||
                 boardPos.y >= level.Length || boardPos.x >= (level.Length > 0 ? level[0].Length : 0))
             {
@@ -2417,14 +472,14 @@ public class BoardManager : MonoBehaviour
                corePos.x < coreWidth && corePos.y < coreHeight;
     }
 
-    // CoreÀ•W ¨ BoardÀ•W
+    // Coreåº§æ¨™ â†’ Boardåº§æ¨™
     public Vector2Int CoreToBoard(Vector2Int corePos)
     {
         if (!autoGenerateOuterRings) return corePos;
         return new Vector2Int(corePos.x + coreOffsetX, corePos.y + coreOffsetY);
     }
 
-    // Core•¶š‚ğ·‚µ‘Ö‚¦‚Ä‘¦”½‰fiÄBuild”CˆÓj
+    // Coreæ–‡å­—ã‚’å·®ã—æ›¿ãˆã¦å³åæ˜ ï¼ˆå†Buildä»»æ„ï¼‰
     public bool SetCoreCellChar(Vector2Int corePos, char ch, bool rebuild = true)
     {
         if (corePos.x < 0 || corePos.y < 0 ||
@@ -2434,13 +489,13 @@ public class BoardManager : MonoBehaviour
         var row = level[corePos.y];
         if (corePos.x >= row.Length) return false;
 
-        if (row[corePos.x] == ch) // •Ï‰»‚È‚µ
+        if (row[corePos.x] == ch) // å¤‰åŒ–ãªã—
         {
             if (rebuild) { ParseCellsFromLevel(); UpdateAllWallAppearances(); }
             return true;
         }
 
-        // •¶š—ñ‘Š·
+        // æ–‡å­—åˆ—æ›¸æ›
         var chars = row.ToCharArray();
         chars[corePos.x] = ch;
         level[corePos.y] = new string(chars);
