@@ -9,37 +9,37 @@ public class GameUI : MonoBehaviour
     public Button btnResetTutorialCurrent;
     public Button btnResetTutorialAll;
 
-    StageManager stage; PlayerController player; TurnManager turn;
+    private StageManager stage; private PlayerController player; private TurnManager turn;
     public bool devMode = false;
 
     [Header("Editor 用 初期設定")]
-    [SerializeField] bool editorDevMode = false;
-    [SerializeField] bool editorInvincible = false;
-    [SerializeField, Range(3, 9)] int editorAreaSize = 3;
+    [SerializeField] private bool editorDevMode = false;
+    [SerializeField] private bool editorInvincible = false;
+    [SerializeField, Range(3, 9)] private int editorAreaSize = 3;
 
     [Header("Editor 用 Board初期設定")]
-    [SerializeField] bool editorRotatePlayerWithArea = true;
-    [SerializeField, Range(1, 10)] int editorRotationCenterMaxDistance = 3;
-    [SerializeField] bool editorFreeRotate = true;
-    [SerializeField] bool editorAllow180Rotation = false;
+    [SerializeField] private bool editorRotatePlayerWithArea = true;
+    [SerializeField, Range(1, 10)] private int editorRotationCenterMaxDistance = 3;
+    [SerializeField] private bool editorFreeRotate = true;
+    [SerializeField] private bool editorAllow180Rotation = false;
 
     [Header("Development Build 用 初期設定")]
-    [SerializeField] bool devBuildDevMode = false;
-    [SerializeField] bool devBuildInvincible = false;
-    [SerializeField, Range(3, 9)] int devBuildAreaSize = 3;
+    [SerializeField] private bool devBuildDevMode = false;
+    [SerializeField] private bool devBuildInvincible = false;
+    [SerializeField, Range(3, 9)] private int devBuildAreaSize = 3;
 
     [Header("Development Build 用 Board初期設定")]
-    [SerializeField] bool devBuildRotatePlayerWithArea = true;
-    [SerializeField, Range(1, 10)] int devBuildRotationCenterMaxDistance = 3;
-    [SerializeField] bool devBuildFreeRotate = true;
-    [SerializeField] bool devBuildAllow180Rotation = false;
+    [SerializeField] private bool devBuildRotatePlayerWithArea = true;
+    [SerializeField, Range(1, 10)] private int devBuildRotationCenterMaxDistance = 3;
+    [SerializeField] private bool devBuildFreeRotate = true;
+    [SerializeField] private bool devBuildAllow180Rotation = false;
 
     [Header("適用タイミング")]
-    [SerializeField] bool applyInitialOnStart = true;
+    [SerializeField] private bool applyInitialOnStart = true;
 
-    bool _appliedInitial = false;
+    private bool _appliedInitial = false;
 
-    void Awake()
+    private void Awake()
     {
         // ボタンフック
         if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
@@ -50,21 +50,22 @@ public class GameUI : MonoBehaviour
         if (btnResetTutorialAll) btnResetTutorialAll.onClick.AddListener(ResetTutorialForAllStages);
     }
 
-    void Start()
+    private void Start()
     {
         if (applyInitialOnStart) ApplyInitialSettingsOnce();
     }
 
-    void OnEnable() { ResolveRefs(); }  // 表示時に再解決
+    private void OnEnable()
+    { ResolveRefs(); }  // 表示時に再解決
 
-    void ResolveRefs()
+    private void ResolveRefs()
     {
         if (!stage) stage = UnityCompat.FindFirst<StageManager>();
         if (!player) player = UnityCompat.FindFirst<PlayerController>();
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
     }
 
-    void ApplyInitialSettingsOnce()
+    private void ApplyInitialSettingsOnce()
     {
         if (_appliedInitial) return;
         _appliedInitial = true;
@@ -127,11 +128,14 @@ public class GameUI : MonoBehaviour
 #endif
     }
 
-    void ActionRotateL() { ResolveRefs(); player?.UI_RotateCCW(); }
-    void ActionRotateR() { ResolveRefs(); player?.UI_RotateCW(); }
-    void ActionToggleRange() { ResolveRefs(); player?.UI_ToggleAreaSize(); }
+    private void ActionRotateL()
+    { ResolveRefs(); player?.UI_RotateCCW(); }
+    private void ActionRotateR()
+    { ResolveRefs(); player?.UI_RotateCW(); }
+    private void ActionToggleRange()
+    { ResolveRefs(); player?.UI_ToggleAreaSize(); }
 
-    void ActionReset()
+    private void ActionReset()
     {
         ResolveRefs();
         var gf = UnityCompat.FindFirst<GameFlow>();
@@ -188,7 +192,7 @@ public class GameUI : MonoBehaviour
 #endif
     }
 
-    void Update()
+    private void Update()
     {
         // 追加: メニュー/チュートリアルオーバーレイ表示中はゲームUIの入力処理を停止
         if (GlobalEscMenu.IsMenuOpen) return;
@@ -215,7 +219,7 @@ public class GameUI : MonoBehaviour
         if (btnRotateR) btnRotateR.interactable = canRotate;
     }
 
-    void OnGUI()
+    private void OnGUI()
     {
         if (!devMode) return; // devModeでUI表示制御
 
@@ -295,7 +299,7 @@ public class GameUI : MonoBehaviour
         GUILayout.EndArea();
     }
 
-    GUIStyle EditorLabel()
+    private GUIStyle EditorLabel()
     {
         var s = new GUIStyle(GUI.skin.label);
         s.fontStyle = FontStyle.Bold;

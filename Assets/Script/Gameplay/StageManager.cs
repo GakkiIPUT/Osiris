@@ -7,7 +7,7 @@ public class StageManager : MonoBehaviour
     public int currentIndex = 0;
     public BoardManager board;
 
-    void Awake()
+    private void Awake()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
     }
@@ -43,7 +43,7 @@ public class StageManager : MonoBehaviour
 #endif
     }
 
-    void PushParToGameFlow(int par)
+    private void PushParToGameFlow(int par)
     {
         var gf = UnityCompat.FindFirst<GameFlow>();
         if (gf != null) gf.parRot = par;

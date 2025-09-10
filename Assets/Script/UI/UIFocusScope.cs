@@ -16,27 +16,27 @@ public class UIFocusScope : MonoBehaviour
     [Tooltip("OnEnable時に firstSelected を自動選択する")]
     public bool focusOnEnable = true;
 
-    CanvasGroup _cg;
+    private CanvasGroup _cg;
 
-    void Awake()
+    private void Awake()
     {
         _cg = GetComponent<CanvasGroup>();
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         if (focusOnEnable)
             StartCoroutine(CoFocusFirstNextFrame());
     }
 
-    IEnumerator CoFocusFirstNextFrame()
+    private IEnumerator CoFocusFirstNextFrame()
     {
         // Canvasのレイアウト完了後に選択
         yield return null;
         FocusFirst();
     }
 
-    void Update()
+    private void Update()
     {
         if (!trapFocus) return;
         if (!isActiveAndEnabled) return;
@@ -63,7 +63,7 @@ public class UIFocusScope : MonoBehaviour
             EventSystem.current.SetSelectedGameObject(target.gameObject);
     }
 
-    bool IsMyDescendant(Transform t)
+    private bool IsMyDescendant(Transform t)
     {
         if (t == null) return false;
         var root = transform;
@@ -76,7 +76,7 @@ public class UIFocusScope : MonoBehaviour
         return false;
     }
 
-    Selectable GetFirstSelectableInChildren()
+    private Selectable GetFirstSelectableInChildren()
     {
         // アクティブかつ interactable な最初の Selectable を探す
         var selectables = GetComponentsInChildren<Selectable>(true);
@@ -88,7 +88,7 @@ public class UIFocusScope : MonoBehaviour
         return null;
     }
 
-    bool IsInteractableThisScope()
+    private bool IsInteractableThisScope()
     {
         // CanvasGroup がある場合は、その interactable を尊重
         if (_cg != null)

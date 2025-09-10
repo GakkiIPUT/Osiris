@@ -1,13 +1,12 @@
-﻿using System.Collections;
-using UnityEngine;
+﻿using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
 public class PlayerController : MonoBehaviour
 {
-    BoardManager board;
-    TurnManager turn;
+    private BoardManager board;
+    private TurnManager turn;
 
     public Vector2Int pos;
 
@@ -25,19 +24,19 @@ public class PlayerController : MonoBehaviour
     }
     private int _areaSize = 3;
 
-    bool aiming = true;           // 常時ON
-    Vector2Int aimCenter;
+    private bool aiming = true;           // 常時ON
+    private Vector2Int aimCenter;
 
     // 公開: FreeRotateController から参照
-    public Vector2Int AimCenter => aimCenter;   
+    public Vector2Int AimCenter => aimCenter;
 
-    GameObject ghostRoot; // 互換のため残置（未使用）
+    private GameObject ghostRoot; // 互換のため残置（未使用）
 
     // スムーズ移動
-    bool isMoving = false;
-    Vector3 moveFrom, moveTo;
-    float moveT = 0f;
-    float moveDur = 0.2f; // cellsPerSecから計算
+    private bool isMoving = false;
+    private Vector3 moveFrom, moveTo;
+    private float moveT = 0f;
+    private float moveDur = 0.2f; // cellsPerSecから計算
 
     // UI から参照するためのプロパティ
     public bool IsAiming => aiming;
@@ -46,8 +45,8 @@ public class PlayerController : MonoBehaviour
     public bool allowHoldMove = true;
     [Min(0.05f)] public float holdInitialDelay = 0.25f;
     [Min(0.03f)] public float holdRepeatInterval = 0.08f;
-    Vector2Int holdDir = Vector2Int.zero;
-    float holdNextTime = 0f;
+    private Vector2Int holdDir = Vector2Int.zero;
+    private float holdNextTime = 0f;
 
     [Header("Gamepad")]
     public bool enableGamepad = true;
@@ -59,13 +58,13 @@ public class PlayerController : MonoBehaviour
     public bool allowAimPadMove = true;
     [Min(0.05f)] public float aimInitialDelay = 0.25f;
     [Min(0.03f)] public float aimRepeatInterval = 0.08f;
-    Vector2Int aimHoldDir = Vector2Int.zero;
-    float aimHoldNextTime = 0f;
+    private Vector2Int aimHoldDir = Vector2Int.zero;
+    private float aimHoldNextTime = 0f;
 
 #if ENABLE_INPUT_SYSTEM
-    float _prevLT = 0f, _prevRT = 0f;
-    bool _ltDown = false, _rtDown = false;
-    const float _triggerEdge = 0.5f;
+    private float _prevLT = 0f, _prevRT = 0f;
+    private bool _ltDown = false, _rtDown = false;
+    private const float _triggerEdge = 0.5f;
 #endif
 
     //効果音
@@ -96,7 +95,7 @@ public class PlayerController : MonoBehaviour
         UpdateGhostVisual();
     }
 
-    void Update()
+    private void Update()
     {
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null && (turn.gameOver || turn.cleared)) return;
@@ -167,7 +166,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void HandleMoveInput()
+    private void HandleMoveInput()
     {
         if (board != null && board.IsFreePreviewActive)
         {
@@ -229,14 +228,14 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void StartHold(Vector2Int dir)
+    private void StartHold(Vector2Int dir)
     {
         holdDir = dir;
         TryMoveInDir(dir);
         holdNextTime = Time.time + holdInitialDelay;
     }
 
-    bool TryMoveInDir(Vector2Int dir)
+    private bool TryMoveInDir(Vector2Int dir)
     {
         if (dir == Vector2Int.zero || board == null) return false;
         if (board.IsAnimating) return false;
@@ -269,7 +268,7 @@ public class PlayerController : MonoBehaviour
             if (board.cells[pos.y, pos.x] == CellType.Exit) turn?.TriggerClear();
             turn?.EndPlayerTurn();
         }
-        
+
         PlaySound(walkAudio);
         return true;
     }
@@ -277,9 +276,10 @@ public class PlayerController : MonoBehaviour
     public void UI_RotateCW() { if (aiming) TryRotate(+1); }
     public void UI_RotateCCW() { if (aiming) TryRotate(-1); }
     public void UI_ToggleAreaSize() { /* 無効化（常に3） */ }
-    void ToggleAreaSize() { /* 無効化（常に3） */ }
+    private void ToggleAreaSize()
+    { /* 無効化（常に3） */ }
 
-    bool TryGetMouseGrid(out Vector2Int grid)
+    private bool TryGetMouseGrid(out Vector2Int grid)
     {
         grid = default;
         var cam = Camera.main;
@@ -295,7 +295,7 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    bool IsCenterAllowed(Vector2Int c)
+    private bool IsCenterAllowed(Vector2Int c)
     {
         int dx = Mathf.Abs(c.x - pos.x);
         int dy = Mathf.Abs(c.y - pos.y);
@@ -303,7 +303,7 @@ public class PlayerController : MonoBehaviour
         return dist <= Mathf.Max(0, board.rotationCenterMaxDistance);
     }
 
-    bool AreaContainsLocked(Vector2Int center, int size)
+    private bool AreaContainsLocked(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
         for (int j = -k; j <= k; j++)
@@ -318,7 +318,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // 回転実行（成功時も選択は維持）
-    void TryRotate(int dirRot)
+    private void TryRotate(int dirRot)
     {
         if (!IsCenterAllowed(AimCenter)) { UpdateGhostVisual(); return; }
         if (AreaContainsLocked(AimCenter, areaSize)) { UpdateGhostVisual(); return; }
@@ -347,10 +347,12 @@ public class PlayerController : MonoBehaviour
     }
 
     // ====== Ghost系はNO-OPにしてOverlayへ委譲 ======
-    void ShowGhost(bool on) { /* NO-OP（枠線表示に統一） */ }
-    void BuildGhostTiles() { /* NO-OP */ }
+    private void ShowGhost(bool on)
+    { /* NO-OP（枠線表示に統一） */ }
+    private void BuildGhostTiles()
+    { /* NO-OP */ }
 
-    void UpdateGhostVisual()
+    private void UpdateGhostVisual()
     {
         if (board == null) return;
         var pv = board.GetPreview(AimCenter, areaSize, 0);
@@ -401,7 +403,7 @@ public class PlayerController : MonoBehaviour
     public void AttachGhostTo(Transform parent, bool worldPositionStays = true) { /* NO-OP */ }
     public void DetachGhost(bool worldPositionStays = true) { /* NO-OP */ }
 
-    void HandleGamepadButtons()
+    private void HandleGamepadButtons()
     {
 #if ENABLE_INPUT_SYSTEM
         if (!enableGamepad) return;
@@ -428,7 +430,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // Pad: 選択中の範囲移動（右スティック）…クランプ適用
-    void HandleAimPadInput()
+    private void HandleAimPadInput()
     {
 #if ENABLE_INPUT_SYSTEM
         if (!enableGamepad || !allowAimPadMove) return;
@@ -513,7 +515,7 @@ public class PlayerController : MonoBehaviour
         }
 #endif
     }
-    void AimStartHold(Vector2Int dir)
+    private void AimStartHold(Vector2Int dir)
     {
         aimHoldDir = dir;
         MoveAimCenter(dir);
@@ -521,7 +523,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // 内枠中心の移動にもクランプを適用
-    void MoveAimCenter(Vector2Int dir)
+    private void MoveAimCenter(Vector2Int dir)
     {
         if (board == null) return;
         var wanted = AimCenter + dir;
@@ -531,7 +533,7 @@ public class PlayerController : MonoBehaviour
         UpdateGhostVisual();
     }
 
-    void GetPadDigitalDir(ref Vector2Int dir)
+    private void GetPadDigitalDir(ref Vector2Int dir)
     {
         dir = Vector2Int.zero;
         if (!enableGamepad) return;
@@ -542,7 +544,7 @@ public class PlayerController : MonoBehaviour
         else
             dir = (v.y > 0f) ? Vector2Int.up : Vector2Int.down;
     }
-    void HandleKeyboardMoveInput()
+    private void HandleKeyboardMoveInput()
     {
         // 回転プレビュー中は移動不可
         if (board != null && board.IsFreePreviewActive)
@@ -586,7 +588,7 @@ public class PlayerController : MonoBehaviour
             }
         }
     }
-    Vector2 GetPadMoveRaw()
+    private Vector2 GetPadMoveRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         if (!enableGamepad) return Vector2.zero;
@@ -602,7 +604,7 @@ public class PlayerController : MonoBehaviour
 #endif
     }
 
-    void UpdatePadState()
+    private void UpdatePadState()
     {
 #if ENABLE_INPUT_SYSTEM
         _ltDown = _rtDown = false;
@@ -633,7 +635,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // ====== 内枠クランプ（外枠=プレイヤー中心R=3、内枠=3×3,k=1） ======
-    Vector2Int ClampAimCenterToOuter(Vector2Int c, Vector2Int playerPos)
+    private Vector2Int ClampAimCenterToOuter(Vector2Int c, Vector2Int playerPos)
     {
         int k = (areaSize - 1) / 2; // =1
         int rout = k + 2;           // =3

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class StageSelectUI : MonoBehaviour
 {
@@ -20,10 +20,10 @@ public class StageSelectUI : MonoBehaviour
     public float minCellW = 160f;
     public float minCellH = 72f;
 
-    GameState gs;
-    GridLayoutGroup glg;
+    private GameState gs;
+    private GridLayoutGroup glg;
 
-    void Awake()
+    private void Awake()
     {
         if (grid == null) { enabled = false; return; }
         if (stageButtonPrefab == null) { enabled = false; return; }
@@ -42,7 +42,7 @@ public class StageSelectUI : MonoBehaviour
         if (backToMainButton) backToMainButton.onClick.AddListener(() => SceneNavigator.GoMain());
     }
 
-    void Start()
+    private void Start()
     {
         if (!enabled) return;
         BuildButtons();
@@ -51,14 +51,14 @@ public class StageSelectUI : MonoBehaviour
         StartCoroutine(CoSelectFirst());
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         if (!enabled) return;
         // 再表示時もフォーカスを戻す
         StartCoroutine(CoSelectFirst());
     }
 
-    void OnRectTransformDimensionsChange()
+    private void OnRectTransformDimensionsChange()
     {
         if (!enabled) return;
         if (!grid || !glg) return;
@@ -66,13 +66,13 @@ public class StageSelectUI : MonoBehaviour
         RebuildNow();
     }
 
-    void RebuildNow()
+    private void RebuildNow()
     {
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(grid);
     }
 
-    void BuildButtons()
+    private void BuildButtons()
     {
         for (int i = grid.childCount - 1; i >= 0; --i)
             Destroy(grid.GetChild(i).gameObject);
@@ -125,7 +125,7 @@ public class StageSelectUI : MonoBehaviour
         }
     }
 
-    void FitCellSize()
+    private void FitCellSize()
     {
         if (!grid || !glg) return;
 
@@ -143,7 +143,7 @@ public class StageSelectUI : MonoBehaviour
     }
 
     // 次フレームで最初のステージボタンを選択
-    System.Collections.IEnumerator CoSelectFirst()
+    private System.Collections.IEnumerator CoSelectFirst()
     {
         yield return null;
         if (EventSystem.current == null) yield break;

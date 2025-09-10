@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class MainMenuUI : MonoBehaviour
 {
@@ -11,11 +11,11 @@ public class MainMenuUI : MonoBehaviour
     public Button collectionButton;  // コレクション
     public GameObject titlePanel;
     public GameObject worldPanel;
-    GameState gs;
+    private GameState gs;
 
 
 
-    void Awake()
+    private void Awake()
     {
 
         gs = UnityCompat.FindFirst<GameState>();
@@ -46,7 +46,7 @@ public class MainMenuUI : MonoBehaviour
         WireButtons();
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         if (!enabled) return;
 
@@ -66,7 +66,7 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    void OnStartButton()
+    private void OnStartButton()
     {
         // タイトル隠す
         titlePanel?.SetActive(false);
@@ -76,17 +76,17 @@ public class MainMenuUI : MonoBehaviour
         StartCoroutine(CoSelectFirst());
     }
 
-    void OnSettingsButton()
+    private void OnSettingsButton()
     {
         // ここで設定画面を開く処理
         Debug.Log("[MainMenuUI] 終了ボタン押下");
     }
-    void OnCollectionButton()
+    private void OnCollectionButton()
     {
         // ここでコレクション画面を開く処理
         Debug.Log("[MainMenuUI] コレクションボタン押下");
     }
-    System.Collections.IEnumerator CoSelectFirst()
+    private System.Collections.IEnumerator CoSelectFirst()
     {
         yield return null; // 次フレームで選択（UI再構築後）
         if (EventSystem.current == null || worldButtons == null) yield break;
@@ -100,7 +100,7 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    void WireButtons()
+    private void WireButtons()
     {
         if (worldButtons == null || worldButtons.Length == 0) return;
 
@@ -132,7 +132,7 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    void FitButtonsState()
+    private void FitButtonsState()
     {
         int available = (gs?.catalog?.worlds != null) ? gs.catalog.worlds.Count : 0;
 

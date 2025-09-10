@@ -28,14 +28,14 @@ public class InputSchemeWatcher : MonoBehaviour
     [Header("Debug")]
     public bool logChanges = false;
 
-    void Awake()
+    private void Awake()
     {
         if (I != null) { Destroy(gameObject); return; }
         I = this;
         DontDestroyOnLoad(gameObject);
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
 #if ENABLE_INPUT_SYSTEM
         // 最初の推定
@@ -47,7 +47,7 @@ public class InputSchemeWatcher : MonoBehaviour
 #endif
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
 #if ENABLE_INPUT_SYSTEM
         InputSystem.onEvent -= OnInputEvent;
@@ -55,7 +55,7 @@ public class InputSchemeWatcher : MonoBehaviour
     }
 
 #if ENABLE_INPUT_SYSTEM
-    void OnInputEvent(InputEventPtr evt, InputDevice device)
+    private void OnInputEvent(InputEventPtr evt, InputDevice device)
     {
         if (!evt.IsA<StateEvent>() && !evt.IsA<DeltaStateEvent>()) return;
         if (device == null) return;
@@ -79,7 +79,7 @@ public class InputSchemeWatcher : MonoBehaviour
     }
 #endif
 
-    void Update()
+    private void Update()
     {
 #if ENABLE_INPUT_SYSTEM
         // 念のためのフレーム監視（onEventが拾えないケースの保険）
@@ -106,7 +106,7 @@ public class InputSchemeWatcher : MonoBehaviour
         go.AddComponent<InputSchemeWatcher>();
     }
 
-    static void SetScheme(InputSchemeType next, bool force = false)
+    private static void SetScheme(InputSchemeType next, bool force = false)
     {
         if (!force && next == CurrentScheme) return;
         CurrentScheme = next;
@@ -114,14 +114,14 @@ public class InputSchemeWatcher : MonoBehaviour
         OnSchemeChanged?.Invoke(next);
     }
 
-    void LogChange(InputSchemeType s)
+    private void LogChange(InputSchemeType s)
     {
         if (!logChanges) return;
         Debug.Log($"[InputScheme] => {s}");
     }
 
 #if ENABLE_INPUT_SYSTEM
-    static bool AnyGamepadActuated(float thr = 0.15f)
+    private static bool AnyGamepadActuated(float thr = 0.15f)
     {
         foreach (var gp in Gamepad.all)
         {
@@ -137,7 +137,7 @@ public class InputSchemeWatcher : MonoBehaviour
         return false;
     }
 
-    static bool AnyKeyboardMouseActuated()
+    private static bool AnyKeyboardMouseActuated()
     {
         var kb = Keyboard.current;
         var ms = Mouse.current;
@@ -151,7 +151,7 @@ public class InputSchemeWatcher : MonoBehaviour
         return false;
     }
 
-    static bool AnyTouchActuated()
+    private static bool AnyTouchActuated()
     {
         var ts = Touchscreen.current;
         if (ts == null) return false;

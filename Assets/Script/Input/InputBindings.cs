@@ -3,11 +3,11 @@ using UnityEngine;
 
 public static class InputBindings
 {
-    const string Pref_ResetKey = "key_reset";
+    private const string Pref_ResetKey = "key_reset";
 
-    static KeyCode _resetKey = KeyCode.P; // 既定は P
-    static bool _capturing = false;       // リバインド中フラグ
-    static int _suppressFrames = 0;       // 終了直後の誤爆抑止
+    private static KeyCode _resetKey = KeyCode.P; // 既定は P
+    private static bool _capturing = false;       // リバインド中フラグ
+    private static int _suppressFrames = 0;       // 終了直後の誤爆抑止
 
     static InputBindings()
     {

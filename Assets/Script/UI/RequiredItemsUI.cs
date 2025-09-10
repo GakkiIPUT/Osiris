@@ -1,8 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class RequiredItemsUI : MonoBehaviour
 {
@@ -27,27 +27,27 @@ public class RequiredItemsUI : MonoBehaviour
     [Tooltip("種別同士の間隔（px）※スペーサーで表現")] public float groupGap = 16f;
     [Tooltip("アイコンの推奨サイズ（px）")] public float iconPreferredSize = 56f;
 
-    TurnManager turn;
+    private TurnManager turn;
 
-    void Start()
+    private void Start()
     {
         EnsureContainerLayout();   // ★ レイアウトを自動補強
         TryHookTurnManager();      // ★ TurnManager を見つけて即描画
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         // シーン再表示等のケースでも拾えるように
         TryHookTurnManager();
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
         if (turn != null) turn.onRequiredChanged -= Refresh;
     }
 
     // ==== TurnManager 取得＆初期描画 ====
-    void TryHookTurnManager()
+    private void TryHookTurnManager()
     {
         if (turn != null) return;
 
@@ -65,7 +65,7 @@ public class RequiredItemsUI : MonoBehaviour
         }
     }
 
-    IEnumerator HookWhenReady()
+    private IEnumerator HookWhenReady()
     {
         yield return null; // 1フレーム待つ
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
@@ -77,7 +77,7 @@ public class RequiredItemsUI : MonoBehaviour
     }
 
     // ==== レイアウト補助 ====
-    void EnsureContainerLayout()
+    private void EnsureContainerLayout()
     {
         if (!container) return;
         var h = container.GetComponent<HorizontalLayoutGroup>();
@@ -90,7 +90,7 @@ public class RequiredItemsUI : MonoBehaviour
         h.childForceExpandHeight = false;
     }
 
-    void ApplyIconLayout(GameObject go)
+    private void ApplyIconLayout(GameObject go)
     {
         var rt = go.GetComponent<RectTransform>();
         if (rt != null) rt.sizeDelta = new Vector2(iconPreferredSize, iconPreferredSize);
@@ -101,7 +101,7 @@ public class RequiredItemsUI : MonoBehaviour
         le.preferredHeight = iconPreferredSize;
     }
 
-    GameObject CreateSpacer(float width)
+    private GameObject CreateSpacer(float width)
     {
         var go = new GameObject("Spacer", typeof(RectTransform), typeof(LayoutElement));
         go.transform.SetParent(container, false);
@@ -181,7 +181,7 @@ public class RequiredItemsUI : MonoBehaviour
         AddFlexibleSpacer("RightFlex");
 
     }
-    void AddFlexibleSpacer(string name)
+    private void AddFlexibleSpacer(string name)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(LayoutElement));
         go.transform.SetParent(container, false);
@@ -190,7 +190,7 @@ public class RequiredItemsUI : MonoBehaviour
         le.preferredWidth = 0f;
         le.flexibleWidth = 1f; // 残り幅を等分で吸収
     }
-    void SetAlpha(GameObject go, float a)
+    private void SetAlpha(GameObject go, float a)
     {
         foreach (var g in go.GetComponentsInChildren<Graphic>(true))
         {

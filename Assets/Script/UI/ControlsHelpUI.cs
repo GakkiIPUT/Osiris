@@ -1,11 +1,11 @@
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class ControlsHelpUI : MonoBehaviour
 {
-    [Header("Tab Buttons")] 
+    [Header("Tab Buttons")]
     public Button tabKeyboardButton;
     public Button tabGamepadButton;
 
@@ -20,14 +20,14 @@ public class ControlsHelpUI : MonoBehaviour
     [Header("Close")]
     public Button closeButton; // 追加: クローズボタン
 
-    void Awake()
+    private void Awake()
     {
         if (tabKeyboardButton) tabKeyboardButton.onClick.AddListener(SelectKeyboard);
         if (tabGamepadButton) tabGamepadButton.onClick.AddListener(SelectGamepad);
         if (closeButton) closeButton.onClick.AddListener(Close); // 追加: クリックで閉じる
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         // デフォルトはキーボードタブ
         RefreshTexts();
@@ -38,7 +38,7 @@ public class ControlsHelpUI : MonoBehaviour
     }
 
     // 親(ESCメニュー)ごと閉じられた場合でも、次回は説明を自動で開かないように自身を必ずOFFにする
-    void OnDisable()
+    private void OnDisable()
     {
         if (gameObject.activeSelf)
         {
@@ -48,7 +48,7 @@ public class ControlsHelpUI : MonoBehaviour
         }
     }
 
-    void Update()
+    private void Update()
     {
         // Escキーでも説明を閉じてESCメニューへ戻す
         if (Input.GetKeyDown(KeyCode.Escape))
@@ -118,7 +118,7 @@ public class ControlsHelpUI : MonoBehaviour
         TryFocusEscMenu();
     }
 
-    void TryFocusEscMenu()
+    private void TryFocusEscMenu()
     {
         if (EventSystem.current == null) return;
 
@@ -138,9 +138,10 @@ public class ControlsHelpUI : MonoBehaviour
         }
     }
 
-    void SetActiveSafe(GameObject go, bool on) { if (go) go.SetActive(on); }
+    private void SetActiveSafe(GameObject go, bool on)
+    { if (go) go.SetActive(on); }
 
-    void SetTabInteractable(bool keyboard, bool gamepad)
+    private void SetTabInteractable(bool keyboard, bool gamepad)
     {
         // ボタン選択式: 常に両方trueにする（引数は無視）
         if (tabKeyboardButton) tabKeyboardButton.interactable = true;

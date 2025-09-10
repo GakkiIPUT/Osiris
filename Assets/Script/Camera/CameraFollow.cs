@@ -18,9 +18,9 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("画面端の余白（ユニット）")]
     public Vector2 screenPadding = new Vector2(0.5f, 0.5f);
 
-    Vector3 velocity;
+    private Vector3 velocity;
 
-    void Start()
+    private void Start()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
         if (target == null)
@@ -32,7 +32,7 @@ public class CameraFollow : MonoBehaviour
         Snap();
     }
 
-    void LateUpdate()
+    private void LateUpdate()
     {
         if (target == null)
         {
@@ -47,7 +47,7 @@ public class CameraFollow : MonoBehaviour
             : desired;
     }
 
-    Vector3 GetDesiredPosition()
+    private Vector3 GetDesiredPosition()
     {
         // 上から見下ろす前提：Yは現状維持、X/Zのみ追従
         Vector3 desired = new Vector3(target.position.x, transform.position.y, target.position.z);

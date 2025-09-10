@@ -1,37 +1,41 @@
 #if UNITY_EDITOR
 using System.IO;
 using System.Linq;
+
 using UnityEditor;
+
 using UnityEngine;
 
 public class LevelPainter : EditorWindow
 {
     // ---- 参照 ----
-    [SerializeField] BoardManager board;
-    [SerializeField] TextAsset mapTxt;      // ← これを読み書きの「唯一のソース」にする
+    [SerializeField] private BoardManager board;
+    [SerializeField] private TextAsset mapTxt;      // ← これを読み書きの「唯一のソース」にする
 
     // ---- 編集バッファ（mapTxtの内容を常にここに展開し、ペイントはこの配列へ）----
-    string[] rows = new string[0];
+    private string[] rows = new string[0];
 
     // ---- ブラシ ----
-    char currentSymbol = '#';
-    bool paintWhileDrag = true;
-    Color hoverColor = new Color(1f, 1f, 0f, 0.75f);
-    
+    private char currentSymbol = '#';
+    private bool paintWhileDrag = true;
+    private Color hoverColor = new Color(1f, 1f, 0f, 0.75f);
+
     //----サイズ変更----
-    int resizeW = -1;
-    int resizeH = -1;
+    private int resizeW = -1;
+    private int resizeH = -1;
 
     // ---- UI スクロール ----
-    Vector2 scroll;
+    private Vector2 scroll;
 
     [MenuItem("Tools/Level Painter")]
     public static void Open() => GetWindow<LevelPainter>("Level Painter");
 
-    void OnEnable() { SceneView.duringSceneGui += OnSceneGUI; }
-    void OnDisable() { SceneView.duringSceneGui -= OnSceneGUI; }
+    private void OnEnable()
+    { SceneView.duringSceneGui += OnSceneGUI; }
+    private void OnDisable()
+    { SceneView.duringSceneGui -= OnSceneGUI; }
 
-    void OnGUI()
+    private void OnGUI()
     {
         using (new EditorGUILayout.VerticalScope())
         {
@@ -44,8 +48,8 @@ public class LevelPainter : EditorWindow
                 if (GUILayout.Button("Use Selected Board"))
                 {
                     var sel = Selection.activeGameObject;
-            EditorGUILayout.LabelField($"Map Size  W:{Width}  H:{Height}");
-        if (sel) board = sel.GetComponentInParent<BoardManager>();
+                    EditorGUILayout.LabelField($"Map Size  W:{Width}  H:{Height}");
+                    if (sel) board = sel.GetComponentInParent<BoardManager>();
                 }
                 EditorGUI.BeginDisabledGroup(mapTxt == null);
                 if (GUILayout.Button("Load From Text")) { LoadFromText(); }
@@ -134,7 +138,7 @@ public class LevelPainter : EditorWindow
             );
         }
     }
-    void ApplyResize(int newW, int newH)
+    private void ApplyResize(int newW, int newH)
     {
         if (rows == null) return;
         newW = Mathf.Max(1, newW);
@@ -164,7 +168,7 @@ public class LevelPainter : EditorWindow
     }
 
     // -------- Scene GUI（ペイント） --------
-    void OnSceneGUI(SceneView sv)
+    private void OnSceneGUI(SceneView sv)
     {
         if (rows == null || rows.Length == 0) return;
 
@@ -221,7 +225,7 @@ public class LevelPainter : EditorWindow
         }
     }
     // --------- 主要処理 ---------
-    void LoadFromText()
+    private void LoadFromText()
     {
         if (mapTxt == null) return;
         rows = Parse(mapTxt.text);
@@ -231,7 +235,7 @@ public class LevelPainter : EditorWindow
         ApplyToBoard();
     }
 
-    void SaveToText()
+    private void SaveToText()
     {
         if (mapTxt == null || rows == null) return;
         NormalizeRows();
@@ -247,7 +251,7 @@ public class LevelPainter : EditorWindow
         Debug.Log($"Saved map to: {path}");
     }
 
-    void ImportFromBoard()
+    private void ImportFromBoard()
     {
         if (!board || board.level == null || board.level.Length == 0)
         {
@@ -259,7 +263,7 @@ public class LevelPainter : EditorWindow
         Repaint();
     }
 
-    void ApplyToBoard()
+    private void ApplyToBoard()
     {
         if (!board || rows == null || rows.Length == 0) return;
         NormalizeRows();
@@ -279,10 +283,10 @@ public class LevelPainter : EditorWindow
     }
 
     // --------- ユーティリティ ---------
-    int Width => (rows == null || rows.Length == 0) ? 0 : rows.Max(r => r?.Length ?? 0);
-    int Height => rows?.Length ?? 0;
+    private int Width => (rows == null || rows.Length == 0) ? 0 : rows.Max(r => r?.Length ?? 0);
+    private int Height => rows?.Length ?? 0;
 
-    void NormalizeRows()
+    private void NormalizeRows()
     {
         if (rows == null) return;
         int w = Width;
@@ -294,7 +298,7 @@ public class LevelPainter : EditorWindow
         }
     }
 
-    static string[] Parse(string text)
+    private static string[] Parse(string text)
     {
         if (string.IsNullOrEmpty(text)) return new string[0];
         return text.Replace("\r", "")
@@ -303,7 +307,7 @@ public class LevelPainter : EditorWindow
                    .ToArray();
     }
 
-    void Paint(Vector2Int p, char sym)
+    private void Paint(Vector2Int p, char sym)
     {
         if (p.x < 0 || p.y < 0 || p.y >= Height || p.x >= Width) return;
 
@@ -331,9 +335,9 @@ public class LevelPainter : EditorWindow
     }
 
     // 2Dグリッド計算（BoardManager の座標系に合わせてXZ平面に1タイル=1m）
-    Vector3 CellOrigin(Vector2Int g) => new Vector3(g.x, 0f, g.y);
+    private Vector3 CellOrigin(Vector2Int g) => new Vector3(g.x, 0f, g.y);
     // 2Dグリッド計算（Board 全体座標系で返す）
-    bool TryGetMouseGrid(out Vector2Int boardGrid)
+    private bool TryGetMouseGrid(out Vector2Int boardGrid)
     {
         boardGrid = default;
         var e = Event.current;
@@ -360,16 +364,16 @@ public class LevelPainter : EditorWindow
         return true;
     }
     // UI
-    void ToggleBrush(char symbol, string label)
+    private void ToggleBrush(char symbol, string label)
     {
         bool on = currentSymbol == symbol;
         bool next = GUILayout.Toggle(on, label, "Button");
         if (next && !on) currentSymbol = symbol;
     }
-    char SafeSym(string s, char fallback) => !string.IsNullOrEmpty(s) ? s[0] : fallback;
+    private char SafeSym(string s, char fallback) => !string.IsNullOrEmpty(s) ? s[0] : fallback;
 
     // 目安のワイヤ
-    void DrawCellWire(Vector3 world, float size)
+    private void DrawCellWire(Vector3 world, float size)
     {
         var c = world + new Vector3(0.5f, 0, 0.5f);
         Vector3 a = c + new Vector3(-size / 2, 0, -size / 2);

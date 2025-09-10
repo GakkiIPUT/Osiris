@@ -1,23 +1,22 @@
 ﻿using UnityEngine;
-using System.Collections;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
 public class FreeRotateController : MonoBehaviour
 {
-    BoardManager board;
-    PlayerController player;
-    TurnManager turn;
+    private BoardManager board;
+    private PlayerController player;
+    private TurnManager turn;
 
-    bool freeDragging = false;
-    Vector2Int freeCenter;
-    int freeSize = 3;
-    int freeNearestSteps = 0; // -2..2（0は未確定）
-    bool freeStepOK = false;
+    private bool freeDragging = false;
+    private Vector2Int freeCenter;
+    private int freeSize = 3;
+    private int freeNearestSteps = 0; // -2..2（0は未確定）
+    private bool freeStepOK = false;
 
-    float freeStartAngleDeg = 0f;
-    float freeDeltaDeg = 0f; // 現在までの角度差（CCWが+）
+    private float freeStartAngleDeg = 0f;
+    private float freeDeltaDeg = 0f; // 現在までの角度差（CCWが+）
 
     [Header("Free Rotate Stabilizer")]
     [Range(0.0f, 0.5f)] public float mouseDeadZoneRadius = 0.18f;
@@ -63,22 +62,22 @@ public class FreeRotateController : MonoBehaviour
     [Range(0f, 0.5f)] public float padExplicitNeutralCancelDelay = 0.12f; // ★ 追加
 #endif
 
-    bool _isSnapped = false;
-    int _latchedSteps = 0;
-    float _previewDegSmoothed = 0f;
+    private bool _isSnapped = false;
+    private int _latchedSteps = 0;
+    private float _previewDegSmoothed = 0f;
 
 #if ENABLE_INPUT_SYSTEM
-    bool _padLeftWasActive = false;
-    float _padLeftInactiveSince = 0f;
-    bool _usingPad1D = false;
-    float _lastInputAngleDeg = 0f;
-    int _lastSnappedSteps = 0;
-    float _lastSnapTime = 0f;
-    bool _padNeedRecenter = false;
-    float _padNeutralSince = -1f; // ★ 追加: ニュートラル滞在開始時刻
+    private bool _padLeftWasActive = false;
+    private float _padLeftInactiveSince = 0f;
+    private bool _usingPad1D = false;
+    private float _lastInputAngleDeg = 0f;
+    private int _lastSnappedSteps = 0;
+    private float _lastSnapTime = 0f;
+    private bool _padNeedRecenter = false;
+    private float _padNeutralSince = -1f; // ★ 追加: ニュートラル滞在開始時刻
 #endif
 
-    void Update()
+    private void Update()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
         if (player == null) player = UnityCompat.FindFirst<PlayerController>();
@@ -88,7 +87,7 @@ public class FreeRotateController : MonoBehaviour
         HandleFreeRotate();
     }
 
-    void CancelIfNeeded()
+    private void CancelIfNeeded()
     {
         if (!freeDragging) return;
         player?.DetachGhost(true);
@@ -106,7 +105,7 @@ public class FreeRotateController : MonoBehaviour
 #endif
     }
 
-    void HandleFreeRotate()
+    private void HandleFreeRotate()
     {
         // キャンセル（マウス/キー）
         if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.T))
@@ -339,7 +338,7 @@ public class FreeRotateController : MonoBehaviour
     }
 
 #if ENABLE_INPUT_SYSTEM
-    bool TryPadCommitExplicit()
+    private bool TryPadCommitExplicit()
     {
         if (!freeDragging) return false;
         if (_isSnapped && freeNearestSteps != 0 && freeStepOK)
@@ -385,7 +384,7 @@ public class FreeRotateController : MonoBehaviour
     }
 #endif
 
-    void BeginPreview(Vector2Int center, float startAngle)
+    private void BeginPreview(Vector2Int center, float startAngle)
     {
         freeStartAngleDeg = startAngle;
         freeDeltaDeg = 0f;
@@ -407,7 +406,7 @@ public class FreeRotateController : MonoBehaviour
         if (pivot != null) player?.AttachGhostTo(pivot, true);
     }
 
-    void UpdateAngleFrom(float curAngle)
+    private void UpdateAngleFrom(float curAngle)
     {
         freeDeltaDeg = Mathf.DeltaAngle(freeStartAngleDeg, curAngle);
 #if ENABLE_INPUT_SYSTEM
@@ -418,7 +417,7 @@ public class FreeRotateController : MonoBehaviour
         }
 #endif
         int minStep = (board != null && board.devAllow180Rotation) ? -2 : -1;
-        int maxStep = (board != null && board.devAllow180Rotation) ?  2 :  1;
+        int maxStep = (board != null && board.devAllow180Rotation) ? 2 : 1;
         int candSteps;
         if (board != null && !board.devAllow180Rotation)
         {
@@ -470,7 +469,7 @@ public class FreeRotateController : MonoBehaviour
         player?.UpdateGhostOkExtern(_isSnapped);
     }
 
-    void ExplicitReturnPreview()
+    private void ExplicitReturnPreview()
     {
         // すでに原点付近なら何もしない
         float target = 0f;
@@ -496,7 +495,7 @@ public class FreeRotateController : MonoBehaviour
         player?.UpdateGhostOkExtern(false);
     }
 
-    void EndPreviewAndCommit()
+    private void EndPreviewAndCommit()
     {
         player?.DetachGhost(true);
         board.RestoreFreePreview();
@@ -522,7 +521,7 @@ public class FreeRotateController : MonoBehaviour
 #endif
     }
 
-    bool IsStepAllowed(BoardManager.StepValidity v, int steps, bool allow180)
+    private bool IsStepAllowed(BoardManager.StepValidity v, int steps, bool allow180)
     {
         if (steps == +1) return v.ccw90;
         if (steps == -1) return v.cw90;
@@ -532,7 +531,7 @@ public class FreeRotateController : MonoBehaviour
         return false;
     }
 
-    void CommitRotationInstant(Vector2Int center, int size, int steps)
+    private void CommitRotationInstant(Vector2Int center, int size, int steps)
     {
         int dirPerStep = (steps > 0) ? -1 : +1;
         int count = Mathf.Abs(steps);
@@ -550,7 +549,7 @@ public class FreeRotateController : MonoBehaviour
         if (applied > 0) turn?.EndPlayerTurn();
     }
 
-    bool TryGetMouseGrid(out Vector2Int grid)
+    private bool TryGetMouseGrid(out Vector2Int grid)
     {
         grid = default;
         var cam = Camera.main;
@@ -565,7 +564,7 @@ public class FreeRotateController : MonoBehaviour
         return false;
     }
 
-    bool TryGetMouseWorld(Vector2Int center, out float angleDeg)
+    private bool TryGetMouseWorld(Vector2Int center, out float angleDeg)
     {
         angleDeg = 0f;
         var cam = Camera.main;
@@ -584,20 +583,20 @@ public class FreeRotateController : MonoBehaviour
         return false;
     }
 
-    bool IsCenterAllowed(Vector2Int center)
+    private bool IsCenterAllowed(Vector2Int center)
     {
         freeSize = player != null ? player.areaSize : 3;
         if (board == null) return false;
         return board.IsCenterWithinLimit(center) && !board.AreaContainsLockedExceptCenter(center, freeSize);
     }
 
-    bool HasAnyStep(Vector2Int center)
+    private bool HasAnyStep(Vector2Int center)
     {
         var steps = board.GetStepValidity(center, freeSize);
         return steps.Any(board.devAllow180Rotation);
     }
 
-    void FlashNg(Vector2Int center)
+    private void FlashNg(Vector2Int center)
     {
         player?.FlashNgGhostExtern(center, freeSize, board != null ? board.devNgGhostSeconds : 0.5f);
     }

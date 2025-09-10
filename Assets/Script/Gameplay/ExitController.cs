@@ -19,10 +19,10 @@ public class ExitController : MonoBehaviour
     public bool useOpenTrigger = false;
     public string openTriggerName = "Open";
 
-    bool _isOpen = false;
+    private bool _isOpen = false;
     public bool IsOpen => _isOpen;
 
-    void Reset()
+    private void Reset()
     {
         if (spriteRenderer == null)
             spriteRenderer = GetComponentInChildren<SpriteRenderer>(true);

@@ -12,8 +12,8 @@ public class TurnManager : MonoBehaviour
     public bool gameOver { get; private set; }
     public bool cleared { get; private set; }
 
-    bool playerTurn = true;
-    bool runningGuards = false;
+    private bool playerTurn = true;
+    private bool runningGuards = false;
 
     // 旧フラグ（互換）
     public bool itemCollected = false;
@@ -28,7 +28,7 @@ public class TurnManager : MonoBehaviour
     public bool realtimeGuards = true;
     [Tooltip("ガードが1歩進む間隔（秒）")]
     public float guardStepInterval = 0.35f;
-    float guardTimer = 0f;
+    private float guardTimer = 0f;
 
     // ======= スコア用カウンタ（サイズ差なし） =======
     [Header("Score Counters")]
@@ -39,8 +39,8 @@ public class TurnManager : MonoBehaviour
     public int walkCount { get; private set; }
     [Header("Debug")]
     public bool debugLogGuardStepping = false;
-    bool wasAnimating = false;
-    float lastGuardTickT = 0f;
+    private bool wasAnimating = false;
+    private float lastGuardTickT = 0f;
 
     //SE
     public AudioClip goalAudio;
@@ -88,7 +88,7 @@ public class TurnManager : MonoBehaviour
     }
 
     // 必須アイテムのフラット配列（重複あり）
-    readonly List<RequiredItem> required = new List<RequiredItem>();
+    private readonly List<RequiredItem> required = new List<RequiredItem>();
     public IReadOnlyList<RequiredItem> CurrentRequired => required;
 
     // UIへ更新を通知
@@ -111,7 +111,7 @@ public class TurnManager : MonoBehaviour
     // GameOverイベント（必要ならUI側で購読）
     public event Action onGameOver;
 
-    void Start()
+    private void Start()
     {
         if (board == null) board = UnityCompat.FindFirst<BoardManager>();
         playerTurn = true;
@@ -126,7 +126,7 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    void Update()
+    private void Update()
     {
         if (gameOver || cleared) return;
 
@@ -243,7 +243,7 @@ public class TurnManager : MonoBehaviour
         StartCoroutine(GuardsTurnCoro());
     }
 
-    IEnumerator GuardsTurnCoro()
+    private IEnumerator GuardsTurnCoro()
     {
         runningGuards = true;
         playerTurn = false;
@@ -272,7 +272,7 @@ public class TurnManager : MonoBehaviour
         }
 
         //if (debugLogGuardStepping)
-          //  Debug.Log($"[Turn] StepAllGuards done guards={stepped} t={Time.time:F3}");
+        //  Debug.Log($"[Turn] StepAllGuards done guards={stepped} t={Time.time:F3}");
     }
 
     // ======= アイテム関連 =======
@@ -318,9 +318,9 @@ public class TurnManager : MonoBehaviour
         Debug.Log("[Treasure] Picked in this run.");
     }
 
-    void NotifyRequired() => onRequiredChanged?.Invoke(required);
+    private void NotifyRequired() => onRequiredChanged?.Invoke(required);
 
-    bool AllRequiredCollected()
+    private bool AllRequiredCollected()
     {
         for (int i = 0; i < required.Count; i++)
             if (!required[i].collected) return false;

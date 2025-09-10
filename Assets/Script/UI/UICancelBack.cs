@@ -18,12 +18,12 @@ public class UICancelBack : MonoBehaviour
     [Tooltip("UIにフォーカスが無くても受け付ける")]
     public bool acceptWithoutFocus = true;
 
-    void OnEnable()
+    private void OnEnable()
     {
         if (!target) target = GetComponentInChildren<Button>(true);
     }
 
-    void Update()
+    private void Update()
     {
         if (onlyWhenActive && !gameObject.activeInHierarchy) return;
 

@@ -2,11 +2,11 @@ using UnityEngine;
 
 public class DevModeUI : MonoBehaviour
 {
-    BoardManager board;
-    PlayerController player;
-    TurnManager turn;
+    private BoardManager board;
+    private PlayerController player;
+    private TurnManager turn;
 
-    void Update()
+    private void Update()
     {
         // 最新インスタンス取得
         board = Object.FindFirstObjectByType<BoardManager>();

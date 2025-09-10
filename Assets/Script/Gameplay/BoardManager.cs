@@ -17,7 +17,7 @@ public class BoardManager : MonoBehaviour
     public GameObject pfPlayer;   // PlayerはAddComponentでPlayerController付与（Prefab側にあってもOK）
 
     // TurnManager のイベント購読用（重複防止）
-    TurnManager _turn;
+    private TurnManager _turn;
 
     // ===== Guard 種類のマッピング（記号 → Prefab） =====
     [System.Serializable]
@@ -144,13 +144,13 @@ public class BoardManager : MonoBehaviour
     public CellType[,] cells;
     private GameObject[,] tileGOs;  // 1マス=1オブジェクト（Floor/Wall/Exit/Anchor）
 
-    int coreOffsetX, coreOffsetY;          // Core の左上オフセット（拡張後座標系内）
-    int coreWidth, coreHeight;             // 元 level の幅高さ
-    int expandedWidth, expandedHeight;     // 拡張後の全体サイズ
-    string[] levelOriginalCore;            // 元 level のコピー（外周 ON 時のみ使用）
-    WallOrigin[,] wallOrigin;              // 壁セルの起源（Wall 以外は未使用）
+    private int coreOffsetX, coreOffsetY;          // Core の左上オフセット（拡張後座標系内）
+    private int coreWidth, coreHeight;             // 元 level の幅高さ
+    private int expandedWidth, expandedHeight;     // 拡張後の全体サイズ
+    private string[] levelOriginalCore;            // 元 level のコピー（外周 ON 時のみ使用）
+    private WallOrigin[,] wallOrigin;              // 壁セルの起源（Wall 以外は未使用）
 
-    bool IsInsideCore(Vector2Int p)
+    private bool IsInsideCore(Vector2Int p)
     {
         if (!autoGenerateOuterRings) return InBounds(p);
         return p.x >= coreOffsetX && p.x < coreOffsetX + coreWidth &&
@@ -166,7 +166,7 @@ public class BoardManager : MonoBehaviour
     // ★ マップ上のアイテム：位置 → (記号, 実体)
     public Dictionary<Vector2Int, (char sym, GameObject go)> itemAt = new();
 
-    bool _isAnimating;
+    private bool _isAnimating;
     public bool IsAnimating
     {
         get => _isAnimating;
@@ -204,7 +204,7 @@ public class BoardManager : MonoBehaviour
     public Color previewOuterFloor = new Color(0.70f, 0.75f, 0.85f, 1f);
 
     // 外周Floor判定配列（autoGenerateOuterRings=false のとき null）
-    bool[,] outerRingFloor;
+    private bool[,] outerRingFloor;
     [Header("Outer Ring Generation")]
     [Tooltip("外周(Anchor帯 + OuterWall帯)を自動生成する")]
     public bool autoGenerateOuterRings = false;
@@ -220,7 +220,7 @@ public class BoardManager : MonoBehaviour
     public Material wallNormalMat;
     [Tooltip("Core 外側に存在する Outer起源壁に適用するマテリアル")]
     public Material wallOuterMat;
-    void Awake()
+    private void Awake()
     {
 #if UNITY_EDITOR
         if (Application.isPlaying) editorPreview = false;
@@ -232,7 +232,7 @@ public class BoardManager : MonoBehaviour
         Build(); // 必ず自身の level で生成
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
         if (!Application.isPlaying) Build();
     }
@@ -292,14 +292,14 @@ public class BoardManager : MonoBehaviour
     }
 
     // 破棄ヘルパー：エディタ停止中は DestroyImmediate
-    void SafeDestroy(Object o)
+    private void SafeDestroy(Object o)
     {
 #if UNITY_EDITOR
         if (!Application.isPlaying) { DestroyImmediate(o); return; }
 #endif
         Destroy(o);
     }
-    void ClearAll()
+    private void ClearAll()
     {
         // 自由回転プレビュー中だった場合は必ず元に戻してから破棄
         RestoreFreePreview();
@@ -326,7 +326,7 @@ public class BoardManager : MonoBehaviour
     }
 
     // 追加: 破棄時にもプレビューを確実に戻す
-    void OnDisable()
+    private void OnDisable()
     {
         if (Application.isPlaying)
         {
@@ -335,7 +335,7 @@ public class BoardManager : MonoBehaviour
         UnsubscribeTurnEvents();
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
         RestoreFreePreview();
         UnsubscribeTurnEvents();
@@ -365,7 +365,7 @@ public class BoardManager : MonoBehaviour
     //}
 
     // ===== Y合わせユーティリティ =====
-    Bounds GetWorldBounds(GameObject go)
+    private Bounds GetWorldBounds(GameObject go)
     {
         var rends = go.GetComponentsInChildren<Renderer>();
         if (rends.Length == 0) return new Bounds(go.transform.position, Vector3.zero);
@@ -373,13 +373,13 @@ public class BoardManager : MonoBehaviour
         for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
         return b;
     }
-    void AlignTopToY(GameObject go, float y)
+    private void AlignTopToY(GameObject go, float y)
     {
         var b = GetWorldBounds(go);
         float delta = y - b.max.y;
         go.transform.position += new Vector3(0, delta, 0);
     }
-    void AlignBottomToY(GameObject go, float y)
+    private void AlignBottomToY(GameObject go, float y)
     {
         var b = GetWorldBounds(go);
         float delta = y - b.min.y;
@@ -387,14 +387,14 @@ public class BoardManager : MonoBehaviour
     }
 
     // ===== 2D自動整列ユーティリティ =====
-    bool IsQuadMesh(GameObject go)
+    private bool IsQuadMesh(GameObject go)
     {
         var mf = go.GetComponent<MeshFilter>();
         return mf != null && mf.sharedMesh != null && mf.sharedMesh.name.ToLower().Contains("quad");
     }
-    bool HasSpriteRenderer(GameObject go) => go.GetComponent<SpriteRenderer>() != null;
+    private bool HasSpriteRenderer(GameObject go) => go.GetComponent<SpriteRenderer>() != null;
 
-    void AutoAlign2DObject(GameObject go, bool isActor, Vector2? xyScale = null)
+    private void AutoAlign2DObject(GameObject go, bool isActor, Vector2? xyScale = null)
     {
         if (!autoAlign2D) return;
 
@@ -428,7 +428,7 @@ public class BoardManager : MonoBehaviour
         for (int i = 0; i < newRows.Length; i++) level[i] = newRows[i];
         Build();
     }
-    string[] BuildExpandedLevelAndAllocateArrays()
+    private string[] BuildExpandedLevelAndAllocateArrays()
     {
         levelOriginalCore = (string[])level.Clone();
         coreHeight = level.Length;
@@ -488,7 +488,7 @@ public class BoardManager : MonoBehaviour
     }
     // ========= ロジックだけ更新（GameObject生成なし） =========
     // （修正前はここで PlaceTile / playerStart 等を参照していたためエラー）
-    void ParseCellsFromLevel()
+    private void ParseCellsFromLevel()
     {
         // 外周展開と配列確保
         string[] rows = BuildExpandedLevelAndAllocateArrays();
@@ -568,7 +568,7 @@ public class BoardManager : MonoBehaviour
         }
         RecomputeOuterRingFloor();
     }
-    void RecomputeOuterRingFloor()
+    private void RecomputeOuterRingFloor()
     {
         if (!autoGenerateOuterRings)
         {
@@ -598,14 +598,14 @@ public class BoardManager : MonoBehaviour
                InBounds(p) &&
                outerRingFloor[p.y, p.x];
     }
-    bool IsRotateLockedCell(Vector2Int p)
+    private bool IsRotateLockedCell(Vector2Int p)
     {
         if (!InBounds(p)) return false;
         var c = cells[p.y, p.x];
         return (c == CellType.Exit || c == CellType.Anchor);
     }
 
-    void PlaceTile(CellType t, Vector2Int p)
+    private void PlaceTile(CellType t, Vector2Int p)
     {
         bool isOuterF = IsOuterFloor(p);
 
@@ -646,7 +646,7 @@ public class BoardManager : MonoBehaviour
         if (t == CellType.Wall)
             UpdateWallAppearanceAt(p);
     }
-    void UpdateWallAppearanceAt(Vector2Int p)
+    private void UpdateWallAppearanceAt(Vector2Int p)
     {
         if (!InBounds(p)) return;
         if (cells[p.y, p.x] != CellType.Wall) return;
@@ -662,7 +662,7 @@ public class BoardManager : MonoBehaviour
         var origin = wallOrigin[p.y, p.x];
         rend.sharedMaterial = (origin == WallOrigin.Outer && outsideCore) ? wallOuterMat : wallNormalMat;
     }
-    void UpdateAllWallAppearances()
+    private void UpdateAllWallAppearances()
     {
         if (!autoGenerateOuterRings) return;
         for (int y = 0; y < Height; y++)
@@ -853,7 +853,7 @@ public class BoardManager : MonoBehaviour
     }
 
     // 必須アイテムの進捗 → Exit を一括で開閉
-    void OnRequiredChanged_UpdateExitOpenState(IReadOnlyList<TurnManager.RequiredItem> reqs)
+    private void OnRequiredChanged_UpdateExitOpenState(IReadOnlyList<TurnManager.RequiredItem> reqs)
     {
         bool all = true;
         if (reqs != null)
@@ -881,7 +881,7 @@ public class BoardManager : MonoBehaviour
         }
     }
 
-    void UnsubscribeTurnEvents()
+    private void UnsubscribeTurnEvents()
     {
         if (_turn != null)
         {
@@ -890,7 +890,7 @@ public class BoardManager : MonoBehaviour
         }
     }
 
-    void ConfigureGuardFromSymbol(GuardController g, char sym)
+    private void ConfigureGuardFromSymbol(GuardController g, char sym)
     {
         if (g == null) return;
 
@@ -1090,7 +1090,7 @@ public class BoardManager : MonoBehaviour
     }
 
     // ========= エディタプレビュー描画（GameObject生成なし） =========
-    void OnDrawGizmos()
+    private void OnDrawGizmos()
     {
         if (!enabled || !editorPreview || level == null) return;
 
@@ -1284,12 +1284,12 @@ public class BoardManager : MonoBehaviour
         }
     }
 
-    void DrawCellGizmo(Vector2Int p, float y)
+    private void DrawCellGizmo(Vector2Int p, float y)
     {
         Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
         Gizmos.DrawCube(c, new Vector3(1f, 0.001f, 1f));
     }
-    void DrawActorDot(Vector2Int p, float y)
+    private void DrawActorDot(Vector2Int p, float y)
     {
         Vector3 c = GridToWorld(p) + new Vector3(0.5f, y, 0.5f);
         Gizmos.DrawCube(c, new Vector3(0.35f, 0.002f, 0.35f));
@@ -1326,7 +1326,7 @@ public class BoardManager : MonoBehaviour
     // 回転後にプレイヤー/衛兵位置へWallが来ないか（部分回転対応）
     // BoardManager.cs 内のメソッド置換用
     // WouldBeSafePartial: 90度回転の安全判定（敵マス＋移動中の前1マスはWallのみNG）
-    bool WouldBeSafePartial(Vector2Int center, int size, int dir)
+    private bool WouldBeSafePartial(Vector2Int center, int size, int dir)
     {
         int k = (size - 1) / 2;
 
@@ -1420,7 +1420,7 @@ public class BoardManager : MonoBehaviour
     //    return true;
     //}
 
-    bool AreaHasExit(Vector2Int center, int size)
+    private bool AreaHasExit(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
         for (int j = -k; j <= k; j++)
@@ -1594,7 +1594,7 @@ public class BoardManager : MonoBehaviour
         return true;
     }
 
-    Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
+    private Vector2Int Rot90(Vector2Int p, Vector2Int c, int dir)
     {
         // dir>0 = 時計回り, dir<0 = 反時計回り
         var d = p - c;
@@ -1602,7 +1602,7 @@ public class BoardManager : MonoBehaviour
             ? new Vector2Int(c.x + d.y, c.y - d.x)
             : new Vector2Int(c.x - d.y, c.y + d.x);
     }
-    IEnumerator RotateCoro(Vector2Int center, int size, int dir, System.Action onDone)
+    private IEnumerator RotateCoro(Vector2Int center, int size, int dir, System.Action onDone)
     {
         IsAnimating = true;
         var pivotGO = new GameObject($"RotatePivot_{center.x}_{center.y}");
@@ -1784,7 +1784,7 @@ public class BoardManager : MonoBehaviour
         level = NormalizeRows(level, pad: '.');
         if (rebuild) Build();
     }
-    static string[] NormalizeRows(string[] rows, char pad = '.')
+    private static string[] NormalizeRows(string[] rows, char pad = '.')
     {
         if (rows == null || rows.Length == 0) return new string[0];
         int w = 0;
@@ -1876,7 +1876,7 @@ public class BoardManager : MonoBehaviour
         return true;
     }
     // そのセルにガードがいる？
-    bool IsGuardAt(Vector2Int p)
+    private bool IsGuardAt(Vector2Int p)
     {
         if (guards == null) return false;
         for (int i = 0; i < guards.Count; i++)
@@ -1885,7 +1885,7 @@ public class BoardManager : MonoBehaviour
     }
 
     // エリア内にプレイヤーが含まれる？
-    bool IsPlayerInsideArea(Vector2Int center, int size)
+    private bool IsPlayerInsideArea(Vector2Int center, int size)
     {
         if (player == null) return false;
         if (!rotatePlayerWithArea) return false; // ←フラグがfalseなら常に含めない
@@ -1944,7 +1944,7 @@ public class BoardManager : MonoBehaviour
 
 #if UNITY_EDITOR
     [ContextMenu("Commit Tiles Now (Editor)")]
-    void EditorCommitNow()
+    private void EditorCommitNow()
     {
         bool prev = editorPreview;
         editorPreview = false;
@@ -1953,7 +1953,7 @@ public class BoardManager : MonoBehaviour
     }
 
     [ContextMenu("Rebuild Level Now")]
-    void EditorRebuildNow() { Build(); }
+    private void EditorRebuildNow() { Build(); }
 #endif
 #if UNITY_EDITOR
     [Header("DEV / Editor")]
@@ -2035,7 +2035,7 @@ public class BoardManager : MonoBehaviour
         return false;
     }
     // ==== ADD STEP1: 回転エリアが Core 外（外周帯）を含むか（Anchor 帯含む外周全部） ====
-    bool AreaCrossesOuterRing(Vector2Int center, int size)
+    private bool AreaCrossesOuterRing(Vector2Int center, int size)
     {
         if (!autoGenerateOuterRings) return false;
         int k = (size - 1) / 2;
@@ -2080,7 +2080,7 @@ public class BoardManager : MonoBehaviour
     // 180°の安全判定（壁衝突）
     // BoardManager.cs 内のメソッド置換用
     // WouldBeSafePartial180: 180度回転の安全判定（敵マス＋移動中の前1マスも保護、Wall/PitでNG）
-    bool WouldBeSafePartial180(Vector2Int center, int size)
+    private bool WouldBeSafePartial180(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
 
@@ -2158,29 +2158,29 @@ public class BoardManager : MonoBehaviour
         return false;
     }
 
-    Vector2Int Rot180(Vector2Int p, Vector2Int c)
+    private Vector2Int Rot180(Vector2Int p, Vector2Int c)
     {
         // p' = 2c - p
         return new Vector2Int(2 * c.x - p.x, 2 * c.y - p.y);
     }
 
     // ========= 実プレビュー（親子付け）API =========
-    GameObject freePreviewPivot;
-    Transform freePreviewGroup;   // Pivot直下のグループ
-    List<Transform> freeTiles = new();
-    List<Transform> freeItems = new();
-    Transform freePlayerTf;
-    Quaternion freeSavedPlayerRot = Quaternion.identity;
-    bool freePlayerIn = false;
-    Vector2Int freeCenter;
-    int freeSize;
-    struct PreviewWallEntry
+    private GameObject freePreviewPivot;
+    private Transform freePreviewGroup;   // Pivot直下のグループ
+    private List<Transform> freeTiles = new();
+    private List<Transform> freeItems = new();
+    private Transform freePlayerTf;
+    private Quaternion freeSavedPlayerRot = Quaternion.identity;
+    private bool freePlayerIn = false;
+    private Vector2Int freeCenter;
+    private int freeSize;
+    private struct PreviewWallEntry
     {
         public Transform tf;
         public WallOrigin origin;
         public Vector2Int originalGrid;
     }
-    List<PreviewWallEntry> previewWalls = new();
+    private List<PreviewWallEntry> previewWalls = new();
     public bool AreaContainsLockedExceptCenter(Vector2Int center, int size)
     {
         int k = (size - 1) / 2;
@@ -2351,7 +2351,7 @@ public class BoardManager : MonoBehaviour
         UpdateAllWallAppearances();
     }
 
-    void ResolvePitfallsAfterRotation()
+    private void ResolvePitfallsAfterRotation()
     {
         if (guards == null || guards.Count == 0) return;
         for (int i = guards.Count - 1; i >= 0; i--)
@@ -2374,7 +2374,7 @@ public class BoardManager : MonoBehaviour
     }
     public bool IsFreePreviewActive => freePreviewPivot != null;
 
-    Vector2 GetItemVisualScaleBySymbol(char sym)
+    private Vector2 GetItemVisualScaleBySymbol(char sym)
     {
         // 泥棒だけ1セルサイズ、その他は従来の小さめ表示
         if (sym == 'd') return new Vector2(0.2f, 0.2f);

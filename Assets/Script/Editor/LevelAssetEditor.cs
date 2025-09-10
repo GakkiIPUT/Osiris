@@ -1,11 +1,12 @@
 ﻿#if UNITY_EDITOR
 using UnityEditor;
+
 using UnityEngine;
 
 [CustomEditor(typeof(LevelAsset), true)] // ← 継承（AsciiLevelAsset）も拾う
 public class LevelAssetEditor : Editor
 {
-    BoardManager board;
+    private BoardManager board;
 
     public override void OnInspectorGUI()
     {

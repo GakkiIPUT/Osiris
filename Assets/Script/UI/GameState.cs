@@ -11,7 +11,7 @@ public class GameState : MonoBehaviour
     public int worldIndex = 0;     // ‰½–Ê
     public int stageIndex = 0;     // 1-1,1-2...
 
-    void Awake()
+    private void Awake()
     {
         if (I != null) { Destroy(gameObject); return; }
         I = this; DontDestroyOnLoad(gameObject);

@@ -1,11 +1,13 @@
 #if UNITY_EDITOR
-using UnityEditor;
-using UnityEngine;
 using System.IO;
+
+using UnityEditor;
+
+using UnityEngine;
 
 public static class LevelTools
 {
-    static BoardManager GetBoard()
+    private static BoardManager GetBoard()
     {
         var sel = Selection.activeGameObject;
         var b = sel ? sel.GetComponentInParent<BoardManager>() : null;

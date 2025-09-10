@@ -25,29 +25,29 @@ public class VisibilityGroupByInputScheme : MonoBehaviour
     [Header("Debug")]
     public bool previewInEditor = true; // エディタ上でも見た目を反映
 
-    void OnEnable()
+    private void OnEnable()
     {
         InputSchemeWatcher.EnsureExists();
         ApplyByCurrentScheme();
         InputSchemeWatcher.OnSchemeChanged += OnSchemeChanged;
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
         InputSchemeWatcher.OnSchemeChanged -= OnSchemeChanged;
     }
 
-    void OnSchemeChanged(InputSchemeType s) => ApplyByCurrentScheme();
+    private void OnSchemeChanged(InputSchemeType s) => ApplyByCurrentScheme();
 
 #if UNITY_EDITOR
-    void Update()
+    private void Update()
     {
         if (!Application.isPlaying && previewInEditor)
             ApplyByCurrentScheme();
     }
 #endif
 
-    void ApplyByCurrentScheme()
+    private void ApplyByCurrentScheme()
     {
         bool visible = IsVisibleFor(InputSchemeWatcher.CurrentScheme);
 
@@ -64,7 +64,7 @@ public class VisibilityGroupByInputScheme : MonoBehaviour
         }
     }
 
-    void ApplyToTarget(GameObject go, bool visible)
+    private void ApplyToTarget(GameObject go, bool visible)
     {
         if (go == null) return;
 
@@ -92,7 +92,7 @@ public class VisibilityGroupByInputScheme : MonoBehaviour
         }
     }
 
-    bool IsVisibleFor(InputSchemeType s)
+    private bool IsVisibleFor(InputSchemeType s)
     {
         switch (s)
         {

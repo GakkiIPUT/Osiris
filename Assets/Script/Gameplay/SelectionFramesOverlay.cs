@@ -1,5 +1,5 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
 
 [ExecuteAlways]
 public class SelectionFramesOverlay : MonoBehaviour
@@ -33,31 +33,34 @@ public class SelectionFramesOverlay : MonoBehaviour
     [Tooltip("外枠の表示切替（デバッグ可視化用）")]
     public bool showOuter = true;
 
-    Transform _root, _innerRoot, _outerRoot;
-    Transform[] _innerEdges = new Transform[4];
-    Transform[] _outerEdges = new Transform[4];
-    Material _innerMat, _outerMat;
+    private Transform _root, _innerRoot, _outerRoot;
+    private Transform[] _innerEdges = new Transform[4];
+    private Transform[] _outerEdges = new Transform[4];
+    private Material _innerMat, _outerMat;
 
-    bool _innerOk = true;
-    Coroutine _flashCo;
+    private bool _innerOk = true;
+    private Coroutine _flashCo;
 
     // シェーダ選好順（アルファ最優先で Sprites/Default を先頭に）
-    const string ShaderSprites = "Sprites/Default";                     // 最優先（確実に SrcAlpha/OneMinusSrcAlpha）
-    const string ShaderURPUnlit = "Universal Render Pipeline/Unlit";    // 使う場合はSurface=Transparentに強制
-    const string ShaderBuiltInUnlitTransparent = "Unlit/Transparent";
+    private const string ShaderSprites = "Sprites/Default";                     // 最優先（確実に SrcAlpha/OneMinusSrcAlpha）
+    private const string ShaderURPUnlit = "Universal Render Pipeline/Unlit";    // 使う場合はSurface=Transparentに強制
+    private const string ShaderBuiltInUnlitTransparent = "Unlit/Transparent";
 
-    void Awake()
+    private void Awake()
     {
         if (board == null) board = GetComponent<BoardManager>();
         if (board == null) board = FindObjectOfType<BoardManager>();
         EnsureSetup();
     }
 
-    void OnEnable() { EnsureSetup(); }
-    void OnDisable() { Cleanup(); }
-    void OnDestroy() { Cleanup(); }
+    private void OnEnable()
+    { EnsureSetup(); }
+    private void OnDisable()
+    { Cleanup(); }
+    private void OnDestroy()
+    { Cleanup(); }
 
-    void LateUpdate()
+    private void LateUpdate()
     {
         if (board == null || board.player == null) return;
         EnsureSetup();
@@ -78,7 +81,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         if (applyInspectorEveryFrame) ApplyInspectorColors();
     }
 
-    void EnsureSetup()
+    private void EnsureSetup()
     {
         // 既存を再利用（増殖防止）
         if (_root == null)
@@ -142,7 +145,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         ApplyInspectorColors();
     }
 
-    void RebindEdges(Transform parent, Transform[] edges, string prefix)
+    private void RebindEdges(Transform parent, Transform[] edges, string prefix)
     {
         if (parent == null) return;
         edges[0] = parent.Find($"{prefix}_Top");
@@ -151,7 +154,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         edges[3] = parent.Find($"{prefix}_Right");
     }
 
-    Material CreateTransparentMaterial(Color color, string tag)
+    private Material CreateTransparentMaterial(Color color, string tag)
     {
         Shader sh = Shader.Find(ShaderSprites);
         if (sh == null) sh = Shader.Find(ShaderURPUnlit);
@@ -165,7 +168,7 @@ public class SelectionFramesOverlay : MonoBehaviour
     }
 
     // どのシェーダでも半透明になるように最低限の状態を強制
-    static void ForceTransparentState(Material m)
+    private static void ForceTransparentState(Material m)
     {
         if (m == null) return;
 
@@ -183,7 +186,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         // 共通のブレンド / 深度（持っている場合のみ）
         if (m.HasProperty("_SrcBlend")) m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
         if (m.HasProperty("_DstBlend")) m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        if (m.HasProperty("_ZWrite"))   m.SetInt("_ZWrite", 0);
+        if (m.HasProperty("_ZWrite")) m.SetInt("_ZWrite", 0);
 
         // RenderType/Queue を透過へ
         m.SetOverrideTag("RenderType", "Transparent");
@@ -191,18 +194,18 @@ public class SelectionFramesOverlay : MonoBehaviour
     }
 
     // Shader毎の色プロパティ名を吸収
-    static void SetMaterialColor(Material m, Color c)
+    private static void SetMaterialColor(Material m, Color c)
     {
         if (m == null) return;
         // 最も一般的な順に入れる
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c); // URP/HDRP
-        if (m.HasProperty("_Color"))     m.SetColor("_Color", c);     // Built-in / Sprites
+        if (m.HasProperty("_Color")) m.SetColor("_Color", c);     // Built-in / Sprites
         if (m.HasProperty("_TintColor")) m.SetColor("_TintColor", c); // 一部のUnlit
         // Material.color も併用（内部で _Color を持つ場合は連動）
         m.color = c;
     }
 
-    void Cleanup()
+    private void Cleanup()
     {
         if (_flashCo != null) { StopCoroutine(_flashCo); _flashCo = null; }
 
@@ -222,7 +225,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         if (_outerMat != null) { SafeDestroyMat(_outerMat); _outerMat = null; }
     }
 
-    static void SafeDestroyMat(Material m)
+    private static void SafeDestroyMat(Material m)
     {
 #if UNITY_EDITOR
         if (Application.isPlaying) Object.Destroy(m);
@@ -232,7 +235,7 @@ public class SelectionFramesOverlay : MonoBehaviour
 #endif
     }
 
-    void CreateEdges(Transform parent, Transform[] edges, Material mat, string prefix)
+    private void CreateEdges(Transform parent, Transform[] edges, Material mat, string prefix)
     {
         edges[0] = CreateEdge(parent, $"{prefix}_Top", mat);
         edges[1] = CreateEdge(parent, $"{prefix}_Bottom", mat);
@@ -240,7 +243,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         edges[3] = CreateEdge(parent, $"{prefix}_Right", mat);
     }
 
-    Transform CreateEdge(Transform parent, string name, Material mat)
+    private Transform CreateEdge(Transform parent, string name, Material mat)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
         go.name = name;
@@ -263,7 +266,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         return go.transform;
     }
 
-    void PlaceSquareFrame(Transform[] edges, Vector2 center, int size, float y, float thickness)
+    private void PlaceSquareFrame(Transform[] edges, Vector2 center, int size, float y, float thickness)
     {
         float half = size * 0.5f;
 
@@ -273,7 +276,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         PlaceRect(edges[3], new Vector3(center.x + half, y, center.y), thickness, size);
     }
 
-    void PlaceRect(Transform tr, Vector3 pos, float widthX, float depthZ)
+    private void PlaceRect(Transform tr, Vector3 pos, float widthX, float depthZ)
     {
         if (tr == null) return;
         tr.position = pos;
@@ -296,7 +299,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         _flashCo = StartCoroutine(CoFlashInnerNg(seconds));
     }
 
-    IEnumerator CoFlashInnerNg(float seconds)
+    private IEnumerator CoFlashInnerNg(float seconds)
     {
         var prevOk = _innerOk;
         SetInnerOk(false);
@@ -305,7 +308,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         _flashCo = null;
     }
 
-    void ApplyInspectorColors()
+    private void ApplyInspectorColors()
     {
         if (_innerMat != null)
         {
@@ -320,7 +323,7 @@ public class SelectionFramesOverlay : MonoBehaviour
         }
     }
 
-    void OnValidate()
+    private void OnValidate()
     {
         ApplyInspectorColors();
         if (_outerRoot != null) _outerRoot.gameObject.SetActive(showOuter);
@@ -328,7 +331,7 @@ public class SelectionFramesOverlay : MonoBehaviour
 
 #if UNITY_EDITOR
     [ContextMenu("Overlay: Dump Materials")]
-    void CtxDumpMaterials()
+    private void CtxDumpMaterials()
     {
         Debug.Log($"[Overlay] InnerMat={_innerMat?.shader?.name}, q={_innerMat?.renderQueue}, col={_innerMat?.color}");
         Debug.Log($"[Overlay] OuterMat={_outerMat?.shader?.name}, q={_outerMat?.renderQueue}, col={_outerMat?.color}");

@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class GuardController : MonoBehaviour
@@ -21,12 +20,12 @@ public class GuardController : MonoBehaviour
     }
 
     [Header("Refs")]
-    BoardManager board;
-    TurnManager turn;
+    private BoardManager board;
+    private TurnManager turn;
 
     [Header("State")]
     public Vector2Int pos;
-    Vector2Int forward = Vector2Int.right;
+    private Vector2Int forward = Vector2Int.right;
 
     [Header("Vision")]
     public int viewRange = 5;
@@ -55,36 +54,36 @@ public class GuardController : MonoBehaviour
     public bool rotateClockwise = true;
 
     // 経路
-    readonly List<Vector2Int> path = new();
-    int pathIndex = 0;
-    int pingDir = +1;
-    int loopDir = +1; // ← 追加：Loop用の進行向き
+    private readonly List<Vector2Int> path = new();
+    private int pathIndex = 0;
+    private int pingDir = +1;
+    private int loopDir = +1; // ← 追加：Loop用の進行向き
 
     // 視界
     public bool showVision = true;
-    GameObject visionRoot;
+    private GameObject visionRoot;
 
     // 監視内部状態
-    float lastRotateTime = -999f;
-    int facingIndex = 0;
-    List<Vector2Int> _tmpFwds;
+    private float lastRotateTime = -999f;
+    private int facingIndex = 0;
+    private List<Vector2Int> _tmpFwds;
 
     // スムーズ移動/回転
-    bool isMoving = false;
-    Vector3 moveFrom, moveTo;
-    Vector2Int gridFrom, gridTo;
-    float moveT = 0f;
-    float moveDur = 0.25f;
+    private bool isMoving = false;
+    private Vector3 moveFrom, moveTo;
+    private Vector2Int gridFrom, gridTo;
+    private float moveT = 0f;
+    private float moveDur = 0.25f;
 
     // 追加: Tick取りこぼし対策（移動完了直後に即1手消化）
-    bool stepQueued = false;
+    private bool stepQueued = false;
 
-    float currentYaw = 0f;
-    float targetYaw = 0f;
+    private float currentYaw = 0f;
+    private float targetYaw = 0f;
 
     // 基本回転（常にX=90°：上向き）
-    Quaternion baseRot = Quaternion.identity;
-    float visionTimer = 0f;
+    private Quaternion baseRot = Quaternion.identity;
+    private float visionTimer = 0f;
 
     // プレイヤー側の衝突判定用に公開（読み取り専用）
     public bool IsMoving => isMoving;
@@ -114,34 +113,34 @@ public class GuardController : MonoBehaviour
     [Tooltip("視界ロジック用のYawオフセット（角度判定・扇形補正）。通常は0")]
     public float visionYawOffsetDeg = 0f;
 
-    MeshFilter visionMf;
-    MeshRenderer visionMr;
-    Mesh visionMesh;
+    private MeshFilter visionMf;
+    private MeshRenderer visionMr;
+    private Mesh visionMesh;
 
     // ===== 反転時の挙動 =====
     [Header("Flip (Reverse) Control")]
     [Tooltip("反転（監視向き切替/行動反転）時に停止する秒数（視界も無効）")]
     [Min(0f)] public float flipPauseSeconds = 0.5f; // 反転後の視界OFF待機
-    float flippingUntil = 0f;
+    private float flippingUntil = 0f;
 
     // 追加: 反転前ホールド（移動だけ停止・視界は維持）
     [Tooltip("反転前に停止する時間（視界は維持）。デフォルト0.5s")]
     [Min(0f)] public float preFlipHoldSeconds = 0.5f;  // ← 追加: Inspector で編集可能
-    float preFlipUntil = 0f;
-    bool preFlipActive = false;
-    bool pendingTurn = false;
-    Vector2Int pendingForward;
-    float pendingTargetYaw = 0f;
-    string pendingFlipReason = "";
+    private float preFlipUntil = 0f;
+    private bool preFlipActive = false;
+    private bool pendingTurn = false;
+    private Vector2Int pendingForward;
+    private float pendingTargetYaw = 0f;
+    private string pendingFlipReason = "";
 
     // ===== Visual Aid =====
     [Header("Visual Aid")]
     public bool showFacingArrow = true;
     public Color facingArrowColor = new Color(1f, 1f, 0.25f, 0.9f);
-    GameObject facingArrow;
+    private GameObject facingArrow;
 
     // 直近に適用した見た目用の向き（反転再適用用）
-    Facing lastVisualFacing;
+    private Facing lastVisualFacing;
 
     // 追加: スプライト反転プロファイル
     public enum FlipProfile { Canonical, Requested, Inverted }
@@ -166,13 +165,13 @@ public class GuardController : MonoBehaviour
     [HideInInspector] public bool usePerDirectionFlip = true; // Inspector 非表示
 
     // デフォルトは「補正なし」。必要に応じてInspectorで設定
-    [HideInInspector] public VisualCorrection visUp    = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
-    [HideInInspector] public VisualCorrection visRight = new VisualCorrection { yawAdd = 0f,  flipX = false, flipY = false };
-    [HideInInspector] public VisualCorrection visDown  = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
-    [HideInInspector] public VisualCorrection visLeft  = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visUp = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visRight = new VisualCorrection { yawAdd = 0f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visDown = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
+    [HideInInspector] public VisualCorrection visLeft = new VisualCorrection { yawAdd = 90f, flipX = false, flipY = false };
 
     // 方向→補正取得
-    VisualCorrection VC(Facing f)
+    private VisualCorrection VC(Facing f)
     {
         switch (f)
         {
@@ -188,7 +187,7 @@ public class GuardController : MonoBehaviour
     [Tooltip("敵視界の色（アルファで不透明度）。各ガードごとに調整可能")]
     public Color visionColor = new Color(1f, 0.25f, 0.35f, 0.35f);
 
-    MaterialPropertyBlock _mpb;
+    private MaterialPropertyBlock _mpb;
 
     // ======== 追加: GameOver時の強調表示 ========
     [Header("Game Over Highlight")]
@@ -257,15 +256,15 @@ public class GuardController : MonoBehaviour
     public float exclamationHeight = 0.7f;
 
     // 内部
-    SpriteRenderer[] _bodySRs;
-    Color[] _bodySRsDefault;
-    Renderer[] _bodyRenderers;
-    MaterialPropertyBlock _bodyMpb;
-    Color _savedVisionColor;
-    bool _killerHighlighted = false;
+    private SpriteRenderer[] _bodySRs;
+    private Color[] _bodySRsDefault;
+    private Renderer[] _bodyRenderers;
+    private MaterialPropertyBlock _bodyMpb;
+    private Color _savedVisionColor;
+    private bool _killerHighlighted = false;
 
-    GameObject _killerMarkGO;
-    LineRenderer _killerOutlineLR;
+    private GameObject _killerMarkGO;
+    private LineRenderer _killerOutlineLR;
 
     // 監視向きの設定（開始時・ターン開始時）
     public void SetFacing(Facing f)
@@ -328,7 +327,7 @@ public class GuardController : MonoBehaviour
     }
 
     // パターン構築
-    void BuildPatrolPath(Vector2Int start)
+    private void BuildPatrolPath(Vector2Int start)
     {
         path.Clear();
         if (patrolMode == PatrolMode.Static) return;
@@ -409,7 +408,7 @@ public class GuardController : MonoBehaviour
         pingDir = +1;
     }
 
-    Vector2Int RunUntilBlocked(Vector2Int from, Vector2Int dir, int maxSteps)
+    private Vector2Int RunUntilBlocked(Vector2Int from, Vector2Int dir, int maxSteps)
     {
         var p = from;
         for (int s = 0; s < maxSteps; s++)
@@ -421,7 +420,7 @@ public class GuardController : MonoBehaviour
         return p;
     }
 
-    Vector2Int FindEdge(Vector2Int start, Vector2Int dir)
+    private Vector2Int FindEdge(Vector2Int start, Vector2Int dir)
     {
         var p = start;
         while (true)
@@ -432,7 +431,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    void Update()
+    private void Update()
     {
         if (!Application.isPlaying) return;
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
@@ -532,7 +531,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 実際の1手（watch更新＋移動/衝突処理＋視界→GO判定）
-    void DoOneStepCore()
+    private void DoOneStepCore()
     {
         // 監視向き更新（pre-flip/flip中は別処理で止める）
         UpdateFacingByWatchMode();
@@ -596,7 +595,7 @@ public class GuardController : MonoBehaviour
         RevealThievesInSight();
     }
     // ブロック時の対処（反転時は移動を止めて小休止）
-    bool HandleBlocked(ref Vector2Int step)
+    private bool HandleBlocked(ref Vector2Int step)
     {
         if (patrolMode == PatrolMode.PingPong || patrolMode == PatrolMode.AutoEdgePingPong)
         {
@@ -637,7 +636,7 @@ public class GuardController : MonoBehaviour
         }
     }
     // ターゲット管理
-    Vector2Int GetCurrentTargetOrFallback(Vector2Int fallback)
+    private Vector2Int GetCurrentTargetOrFallback(Vector2Int fallback)
     {
         if (path.Count == 0)
         {
@@ -653,7 +652,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 折り返し時に小休止できるように拡張
-    void AdvanceTarget(bool pauseOnEndpoint = false)
+    private void AdvanceTarget(bool pauseOnEndpoint = false)
     {
         if (path.Count == 0) return;
 
@@ -701,7 +700,7 @@ public class GuardController : MonoBehaviour
             }
         }
     }
-    void StepIndex(int d)
+    private void StepIndex(int d)
     {
         if (path.Count == 0) { pathIndex = 0; return; }
         if (patrolMode == PatrolMode.Loop)
@@ -715,7 +714,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    Vector2Int DirToStep(Vector2Int d)
+    private Vector2Int DirToStep(Vector2Int d)
     {
         if (d == Vector2Int.zero) return Vector2Int.zero;
         if (Mathf.Abs(d.x) >= Mathf.Abs(d.y)) return new Vector2Int((d.x > 0) ? 1 : -1, 0);
@@ -723,7 +722,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 向き/回転
-    float FacingToYaw(Facing f)
+    private float FacingToYaw(Facing f)
     {
         switch (f)
         {
@@ -736,7 +735,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 見た目は「上下/左右」flipだけを担当（transform.rotationは触らない）
-    void ApplyVisualByFacing()
+    private void ApplyVisualByFacing()
     {
         Facing curFacing = (forward == Vector2Int.zero) ? startFacing : StepToFacing(forward);
 
@@ -747,10 +746,10 @@ public class GuardController : MonoBehaviour
         switch (curFacing)
         {
             // 右だけ上下反転していた件: 右は X/Y 両方反転に固定
-            case Facing.Right: flipX = false;  flipY = true;  break;
-            case Facing.Left:  flipX = false;  flipY = false; break;
-            case Facing.Up:    flipX = false;  flipY = false; break;
-            case Facing.Down:  flipX = false;  flipY = false; break;
+            case Facing.Right: flipX = false; flipY = true; break;
+            case Facing.Left: flipX = false; flipY = false; break;
+            case Facing.Up: flipX = false; flipY = false; break;
+            case Facing.Down: flipX = false; flipY = false; break;
         }
 
         ApplySpriteFlipAll(flipX, flipY);
@@ -758,7 +757,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 追加: すべての SpriteRenderer に反転を適用（なければ localScale フォールバック）
-    void ApplySpriteFlipAll(bool flipX, bool flipY)
+    private void ApplySpriteFlipAll(bool flipX, bool flipY)
     {
         var srs = GetComponentsInChildren<SpriteRenderer>(true);
         if (srs != null && srs.Length > 0)
@@ -774,7 +773,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    void ApplyVisualYaw()
+    private void ApplyVisualYaw()
     {
         // 見た目の回転だけを担当（flipは触らない）
         float yawVisual = currentYaw + visualYawOffsetDeg;
@@ -782,11 +781,11 @@ public class GuardController : MonoBehaviour
     }
 
     // 反転小休止
-    bool IsFlipping() => Time.time < flippingUntil;
-    void BeginFlipPause() => BeginFlipPause("default");
+    private bool IsFlipping() => Time.time < flippingUntil;
+    private void BeginFlipPause() => BeginFlipPause("default");
 
     // 反転小休止
-    void BeginFlipPause(string reason)
+    private void BeginFlipPause(string reason)
     {
         // flipPauseSeconds をそのまま使用（pre-flipは別で1セル時間待つ）
         float pause = Mathf.Max(0f, flipPauseSeconds);
@@ -801,21 +800,21 @@ public class GuardController : MonoBehaviour
     }
 
     // 前方(2D)単位ベクトル（0°=Up(+Z)）
-    static Vector2 YawToDir2D(float yawDeg)
+    private static Vector2 YawToDir2D(float yawDeg)
     {
         float rad = yawDeg * Mathf.Deg2Rad;
         return new Vector2(Mathf.Sin(rad), Mathf.Cos(rad));
     }
 
     // 別名（互換用）：既存呼び出しを満たす
-    static Vector2 GetForward2DFromYaw(float yawDeg)
+    private static Vector2 GetForward2DFromYaw(float yawDeg)
     {
         return YawToDir2D(yawDeg);
     }
 
     // 視界の子オブジェクト/メッシュをクリア
     // 視界の子オブジェクト/メッシュをクリア
-    void ClearVision()
+    private void ClearVision()
     {
         if (visionRoot == null) return;
 
@@ -838,7 +837,7 @@ public class GuardController : MonoBehaviour
         }
     }
     // グリッド上で前方に進み、遮蔽セルで停止する簡易レイ
-    Vector2 CastVisionRay(Vector2Int start, float rad, int maxRange, float step, float startOffset = 0f)
+    private Vector2 CastVisionRay(Vector2Int start, float rad, int maxRange, float step, float startOffset = 0f)
     {
         Vector2 dir = new Vector2(Mathf.Sin(rad), Mathf.Cos(rad)); // 0°=+Z
         Vector2 p = new Vector2(start.x + 0.5f, start.y + 0.5f) + dir * Mathf.Max(0f, startOffset);
@@ -860,7 +859,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 視界：プレイヤーを見ているか
-    public　bool CanSeePlayer()
+    public bool CanSeePlayer()
     {
         if (board == null || board.player == null) return false;
         if (IsFlipping()) return false;
@@ -929,7 +928,7 @@ public class GuardController : MonoBehaviour
 
     // 追加: 視界内の泥棒を宝箱へ変える
     // 追加: 視界内の泥棒を変換（d=宝箱, e=鍵）
-    void RevealThievesInSight()
+    private void RevealThievesInSight()
     {
         if (board == null || board.itemAt == null || board.itemAt.Count == 0) return;
 
@@ -955,7 +954,7 @@ public class GuardController : MonoBehaviour
             board.TransformThiefToKeyAt(toKey[i]);
     }
     // セル中心（BoardManager.CellCenter に統一）
-    Vector3 WorldCenter(Vector2Int p, float y)
+    private Vector3 WorldCenter(Vector2Int p, float y)
     {
         return board.CellCenter(p, y);
     }
@@ -963,7 +962,7 @@ public class GuardController : MonoBehaviour
     // 追加: グリッド「中心座標系」の連続値(Vector2)をワールド座標に変換
     // center は (i+0.5, j+0.5) をセル中心とする座標系。
     // → CellCenter に (center - 0.5) のローカル差分を加えてワールドへ。
-    Vector3 WorldFromGridCenterCoords(Vector2 center, float y)
+    private Vector3 WorldFromGridCenterCoords(Vector2 center, float y)
     {
         int cx = Mathf.FloorToInt(center.x);
         int cy = Mathf.FloorToInt(center.y);
@@ -1043,7 +1042,7 @@ public class GuardController : MonoBehaviour
             }
     }
     // GridAligned 用: マス単位の視界判定（階段状の前方扇形）
-    bool IsCellVisibleGridAligned(Vector2Int gp, Facing curFacing, float halfDeg)
+    private bool IsCellVisibleGridAligned(Vector2Int gp, Facing curFacing, float halfDeg)
     {
         // LoS が必要（両立）
         if (!board.HasLineOfSight(pos, gp)) return false;
@@ -1083,13 +1082,13 @@ public class GuardController : MonoBehaviour
         return lateral <= lateralMax;
     }
 
-    void BuildSmoothVisionMesh()
+    private void BuildSmoothVisionMesh()
     {
         // 互換: 旧呼び出しからはオフセット(0)で呼ぶ
         BuildSmoothVisionMeshWithOffset(Vector3.zero, Vector2.zero);
     }
 
-    void BuildSmoothVisionMeshWithOffset(Vector3 offsetWorld, Vector2 offset2D)
+    private void BuildSmoothVisionMeshWithOffset(Vector3 offsetWorld, Vector2 offset2D)
     {
         var root = GetVisionRoot();
 
@@ -1125,10 +1124,10 @@ public class GuardController : MonoBehaviour
         Vector3 origin = WorldCenter(pos, board.visionY) + offsetWorld + new Vector3(fwd.x, 0f, fwd.y) * Mathf.Max(0f, visionOriginForwardOffset);
 
         _visionVerts ??= new List<Vector3>(rays + 2);
-        _visionTris  ??= new List<int>(rays * 3);
+        _visionTris ??= new List<int>(rays * 3);
 
         if (_visionVerts.Capacity < rays + 2) _visionVerts.Capacity = rays + 2;
-        if (_visionTris.Capacity  < rays * 3) _visionTris.Capacity  = rays * 3;
+        if (_visionTris.Capacity < rays * 3) _visionTris.Capacity = rays * 3;
 
         _visionVerts.Clear();
         _visionTris.Clear();
@@ -1158,7 +1157,7 @@ public class GuardController : MonoBehaviour
         root.transform.rotation = Quaternion.identity;
     }
 
-    GameObject GetVisionRoot()
+    private GameObject GetVisionRoot()
     {
         if (visionRoot == null)
         {
@@ -1175,7 +1174,7 @@ public class GuardController : MonoBehaviour
         return visionRoot;
     }
 
-    void EnsureFacingArrow()
+    private void EnsureFacingArrow()
     {
         if (facingArrow != null) return;
         facingArrow = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -1192,7 +1191,7 @@ public class GuardController : MonoBehaviour
         Destroy(facingArrow.GetComponent<MeshCollider>());
     }
 
-    Facing StepToFacing(Vector2Int st)
+    private Facing StepToFacing(Vector2Int st)
     {
         if (st.x > 0) return Facing.Right;
         if (st.x < 0) return Facing.Left;
@@ -1200,10 +1199,10 @@ public class GuardController : MonoBehaviour
         return Facing.Down;
     }
 
-    Vector2Int FacingToVec(Facing f)
+    private Vector2Int FacingToVec(Facing f)
     {
         switch (f)
-        {   
+        {
             case Facing.Up: return Vector2Int.up;
             case Facing.Down: return Vector2Int.down;
             case Facing.Left: return Vector2Int.left;
@@ -1212,10 +1211,10 @@ public class GuardController : MonoBehaviour
     }
 
     // 追加: 視界メッシュ用ワークバッファ（毎フレームの割当削減）
-    List<Vector3> _visionVerts = null;
-    List<int> _visionTris = null;
+    private List<Vector3> _visionVerts = null;
+    private List<int> _visionTris = null;
 
-    void UpdateFacingByWatchMode()
+    private void UpdateFacingByWatchMode()
     {
         if (watchMode == WatchMode.OneDir) return;
         if (IsPreFlipHolding() || IsFlipping()) return; // ← 追加: 待機中は回さない
@@ -1301,7 +1300,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    void BuildKillerOutline()
+    private void BuildKillerOutline()
     {
         if (board == null) return;
 
@@ -1343,7 +1342,7 @@ public class GuardController : MonoBehaviour
 
         _killerOutlineLR = lr;
     }
-    void ClearKillerOutline()
+    private void ClearKillerOutline()
     {
         if (_killerOutlineLR != null)
         {
@@ -1357,7 +1356,7 @@ public class GuardController : MonoBehaviour
     }
 
     // ===== 追加: 体のRendererキャッシュ/ティント適用/復元 =====
-    void CacheBodyRenderers()
+    private void CacheBodyRenderers()
     {
         _bodySRs = GetComponentsInChildren<SpriteRenderer>(true);
         if (_bodySRs != null && _bodySRs.Length > 0)
@@ -1379,7 +1378,7 @@ public class GuardController : MonoBehaviour
         _bodyMpb = new MaterialPropertyBlock();
     }
 
-    void ApplyBodyTint(Color tint)
+    private void ApplyBodyTint(Color tint)
     {
         if (_bodySRs != null)
         {
@@ -1405,7 +1404,7 @@ public class GuardController : MonoBehaviour
         }
     }
 
-    void RestoreBodyTint()
+    private void RestoreBodyTint()
     {
         if (_bodySRs != null && _bodySRsDefault != null && _bodySRsDefault.Length == _bodySRs.Length)
         {
@@ -1420,7 +1419,7 @@ public class GuardController : MonoBehaviour
     }
 
     // ===== 追加: 視界色の適用 =====
-    void ApplyVisionColor(Renderer r)
+    private void ApplyVisionColor(Renderer r)
     {
         if (!r) return;
         var mat = r.sharedMaterial;
@@ -1447,10 +1446,10 @@ public class GuardController : MonoBehaviour
         ApplyVisionRenderOrder(r);
     }
     // 透明レンダーキュー（犯人を後描画にする）
-    const int VisionQueueBase = 3000;          // Transparent
-    const int VisionQueueKiller = VisionQueueBase + 20; // 犯人用に少し後ろ
+    private const int VisionQueueBase = 3000;          // Transparent
+    private const int VisionQueueKiller = VisionQueueBase + 20; // 犯人用に少し後ろ
 
-    void ApplyVisionRenderOrder(Renderer r)
+    private void ApplyVisionRenderOrder(Renderer r)
     {
         if (!r) return;
 
@@ -1505,7 +1504,7 @@ public class GuardController : MonoBehaviour
         // 表示サイズ
         _killerMarkGO.transform.localScale = new Vector3(exclamationSize.x, exclamationSize.y, 1f);
     }
-    void HideKillerMark()
+    private void HideKillerMark()
     {
         if (_killerMarkGO == null) return;
 #if UNITY_EDITOR
@@ -1516,7 +1515,7 @@ public class GuardController : MonoBehaviour
         _killerMarkGO = null;
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
         // 視界オーバーレイを確実に破棄
         if (visionRoot != null)
@@ -1546,11 +1545,11 @@ public class GuardController : MonoBehaviour
     }
 
     // 個別停止の診断用
-    string lastFlipReason = "";
-    bool flipHoldLogged = false;
+    private string lastFlipReason = "";
+    private bool flipHoldLogged = false;
 
     // 移動完了直後に1手だけ消化するためのラッパ
-    void RunQueuedStepOnce()
+    private void RunQueuedStepOnce()
     {
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn == null) return;
@@ -1566,10 +1565,10 @@ public class GuardController : MonoBehaviour
     }
 
     // 反転前待機中か
-    bool IsPreFlipHolding() => preFlipActive && Time.time < preFlipUntil;
+    private bool IsPreFlipHolding() => preFlipActive && Time.time < preFlipUntil;
 
     // 反転前待機を開始（移動だけ止める。視界はそのまま）
-    void BeginPreFlipHold(Vector2Int newForward, string reason)
+    private void BeginPreFlipHold(Vector2Int newForward, string reason)
     {
         // Inspector で指定した固定秒数を使用
         float hold = Mathf.Max(0f, preFlipHoldSeconds);
@@ -1587,7 +1586,7 @@ public class GuardController : MonoBehaviour
     }
 
     // 反転前待機が終わったら反転を適用し、flip pause へ遷移
-    void TryApplyPendingTurn()
+    private void TryApplyPendingTurn()
     {
         if (!pendingTurn) return;
         if (IsPreFlipHolding()) return;

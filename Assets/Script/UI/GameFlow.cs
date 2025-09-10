@@ -60,20 +60,20 @@ public class GameFlow : MonoBehaviour
     // チュートリアル中のオーバーレイ表示時にゲーム入力を止めるためのフラグ
     public static bool TutorialOverlayOpen { get; private set; } = false;
 
-    StageManager stage;
-    TurnManager turn;
+    private StageManager stage;
+    private TurnManager turn;
 
     // クリアパネル表示後：コレクションパネルを後出しするための保留フラグ
-    bool treasureOverlayPending = false;
-    bool waitingResetRebind = false;
+    private bool treasureOverlayPending = false;
+    private bool waitingResetRebind = false;
 
     // 最上位パネルの記録（Padフォーカス更新のため）
-    GameObject _lastTopPanel = null;
+    private GameObject _lastTopPanel = null;
 
     // 追加: 次ステージ遷移直後にクリアパネルの自動表示を1フレーム抑止
-    bool _suppressClearPanelOnce = false;
+    private bool _suppressClearPanelOnce = false;
 
-    void Start()
+    private void Start()
     {
         var gs = UnityCompat.FindFirst<GameState>();
         stage = UnityCompat.FindFirst<StageManager>();
@@ -178,7 +178,7 @@ public class GameFlow : MonoBehaviour
         MaybeShowTutorialAtStart();
     }
 
-    void OnDestroy()
+    private void OnDestroy()
     {
         if (turn != null)
         {
@@ -186,7 +186,7 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    void HookTurnManager()
+    private void HookTurnManager()
     {
         if (turn == null) turn = UnityCompat.FindFirst<TurnManager>();
         if (turn != null)
@@ -202,7 +202,7 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    void Update()
+    private void Update()
     {
         if (!turn) turn = UnityCompat.FindFirst<TurnManager>();
 
@@ -309,7 +309,7 @@ public class GameFlow : MonoBehaviour
     }
 
     // ==== Tutorial ====
-    void MaybeShowTutorialAtStart()
+    private void MaybeShowTutorialAtStart()
     {
         if (!tutorialPanel) return;
 
@@ -342,7 +342,7 @@ public class GameFlow : MonoBehaviour
         ShowTutorial();
     }
 
-    void ShowTutorial()
+    private void ShowTutorial()
     {
         if (!tutorialPanel) return;
         TutorialOverlayOpen = true;
@@ -354,7 +354,7 @@ public class GameFlow : MonoBehaviour
         ApplyExclusiveFocus();
     }
 
-    void CloseTutorial()
+    private void CloseTutorial()
     {
         if (!tutorialPanel) return;
         tutorialPanel.SetActive(false);
@@ -373,7 +373,7 @@ public class GameFlow : MonoBehaviour
         // Start() で使っている既存の判定ロジックを再利用
         MaybeShowTutorialAtStart();
     }
-    bool IsAnyBlockingPanelActive()
+    private bool IsAnyBlockingPanelActive()
     {
         return (escMenuPanel && escMenuPanel.activeInHierarchy) ||
                (gameOverPanel && gameOverPanel.activeInHierarchy) ||
@@ -383,7 +383,7 @@ public class GameFlow : MonoBehaviour
     }
 
     // ==== 結果（通知など） ====
-    void OnStageCleared(TurnManager.ScoreResult res)
+    private void OnStageCleared(TurnManager.ScoreResult res)
     {
         if (rankText) rankText.text = $" {res.rank.ToString()}ランク";
         if (detailRotText) detailRotText.text = $"回転数: {res.rot}回";
@@ -396,7 +396,7 @@ public class GameFlow : MonoBehaviour
         Debug.Log($"[Result/UI] rank:{res.rank} score:{res.score} rot:{res.rot} steps:{res.steps} retries:{res.retries}");
     }
 
-    void ShowTreasureOverlayOnTop()
+    private void ShowTreasureOverlayOnTop()
     {
         if (!treasurePanel) return;
 
@@ -424,7 +424,7 @@ public class GameFlow : MonoBehaviour
         SelectDefault(treasureCloseButton ? treasureCloseButton.gameObject : null, treasurePanel);
     }
 
-    void ShowResult()
+    private void ShowResult()
     {
         var turnManager = UnityCompat.FindFirst<TurnManager>();
         int score;
@@ -450,7 +450,7 @@ public class GameFlow : MonoBehaviour
     }
 
     // ==== UIユーティリティ ====
-    void ShowOnTop(GameObject panel)
+    private void ShowOnTop(GameObject panel)
     {
         panel.SetActive(true);
         panel.transform.SetAsLastSibling();
@@ -461,7 +461,7 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    void OpenEscMenu()
+    private void OpenEscMenu()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(true);
@@ -474,7 +474,7 @@ public class GameFlow : MonoBehaviour
         ApplyExclusiveFocus();
     }
 
-    void CloseEscMenu()
+    private void CloseEscMenu()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
@@ -490,7 +490,7 @@ public class GameFlow : MonoBehaviour
         ApplyExclusiveFocus();
     }
 
-    void ResumeIfPaused()
+    private void ResumeIfPaused()
     {
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
@@ -534,7 +534,7 @@ public class GameFlow : MonoBehaviour
 
         ApplyExclusiveFocus();
     }
-    void QuitGame()
+    private void QuitGame()
     {
         ResumeIfPaused();
 
@@ -543,7 +543,7 @@ public class GameFlow : MonoBehaviour
 #elif UNITY_WEBGL
         // WebGLでは終了なし
 #else
-    #if UNITY_ANDROID
+#if UNITY_ANDROID
         try
         {
             using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -553,12 +553,12 @@ public class GameFlow : MonoBehaviour
             }
         }
         catch { }
-    #endif
+#endif
         Application.Quit(0);
 #endif
     }
 
-    void SelectDefault(GameObject preferred, GameObject panel)
+    private void SelectDefault(GameObject preferred, GameObject panel)
     {
         if (EventSystem.current == null || panel == null || !panel.activeInHierarchy) return;
 
@@ -590,7 +590,7 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    void ApplyExclusiveFocus()
+    private void ApplyExclusiveFocus()
     {
         var top = GetTopActivePanel();
         if (_lastTopPanel == top)
@@ -622,7 +622,7 @@ public class GameFlow : MonoBehaviour
         }
     }
 
-    GameObject GetTopActivePanel()
+    private GameObject GetTopActivePanel()
     {
         GameObject[] ps = new GameObject[] { escMenuPanel, gameOverPanel, clearPanel, treasurePanel, tutorialPanel };
         GameObject top = null;
@@ -642,7 +642,7 @@ public class GameFlow : MonoBehaviour
         return top;
     }
 
-    void SetPanelInteractable(GameObject panel, bool on)
+    private void SetPanelInteractable(GameObject panel, bool on)
     {
         if (panel == null) return;
         var cg = panel.GetComponent<CanvasGroup>();
@@ -652,7 +652,7 @@ public class GameFlow : MonoBehaviour
     }
 
     // 追記: リセットキーのリバインド開始
-    void BeginRebindResetKey()
+    private void BeginRebindResetKey()
     {
         waitingResetRebind = true;
         InputBindings.BeginCapture();
@@ -660,14 +660,14 @@ public class GameFlow : MonoBehaviour
     }
 
     // 追記: リセットキー表示更新
-    void UpdateResetKeyLabel()
+    private void UpdateResetKeyLabel()
     {
         if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
     }
 
     // ====== 追加実装：クリア画面「次のステージへ」「もう一度」 ======
 
-    void UpdateClearButtonsAndSelection()
+    private void UpdateClearButtonsAndSelection()
     {
         bool hasNext = HasNextStage();
 
@@ -690,14 +690,14 @@ public class GameFlow : MonoBehaviour
         SelectDefault(preferred, clearPanel);
     }
 
-    bool HasNextStage()
+    private bool HasNextStage()
     {
         if (stage == null) stage = UnityCompat.FindFirst<StageManager>();
         if (stage == null || stage.stageSet == null || stage.stageSet.stages == null) return false;
         return (stage.currentIndex + 1) < stage.stageSet.stages.Count;
     }
 
-    void ClearGoNext()
+    private void ClearGoNext()
     {
         if (HasNextStage())
         {
@@ -732,7 +732,7 @@ public class GameFlow : MonoBehaviour
             SceneNavigator.GoStage();
         }
     }
-    void ClearRetry()
+    private void ClearRetry()
     {
         // 回転中・自由回転プレビュー中は拒否（念のため）
         var board = UnityCompat.FindFirst<BoardManager>();

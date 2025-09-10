@@ -24,13 +24,13 @@ public class GlobalEscMenu : MonoBehaviour
     [Header("Selection")]
     public Selectable firstSelected;
 
-    bool waitingResetRebind = false;
+    private bool waitingResetRebind = false;
     public static bool IsMenuOpen { get; private set; } = false;
 
-    CanvasGroup _panelCg;
-    UIFocusScope _focusScope;
+    private CanvasGroup _panelCg;
+    private UIFocusScope _focusScope;
 
-    void Start()
+    private void Start()
     {
         if (escMenuPanel) escMenuPanel.SetActive(false);
         IsMenuOpen = false;
@@ -51,7 +51,7 @@ public class GlobalEscMenu : MonoBehaviour
         UpdateResetKeyLabel();
     }
 
-    void Update()
+    private void Update()
     {
         if (!enabled) return;
 
@@ -74,7 +74,7 @@ public class GlobalEscMenu : MonoBehaviour
                     UpdateResetKeyLabel();
                 }
             }
-        }   
+        }
 
         // KB: ESC で開閉
         if (Input.GetKeyDown(KeyCode.Escape)) ToggleMenu();
@@ -94,7 +94,7 @@ public class GlobalEscMenu : MonoBehaviour
 #endif
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
         if (IsMenuOpen) ResumeIfPaused();
         IsMenuOpen = false;
@@ -103,13 +103,13 @@ public class GlobalEscMenu : MonoBehaviour
         if (escMenuPanel) escMenuPanel.SetActive(false);
     }
 
-    void ToggleMenu()
+    private void ToggleMenu()
     {
         if (escMenuPanel && escMenuPanel.activeSelf) Close();
         else Open();
     }
 
-    void Open()
+    private void Open()
     {
         if (!escMenuPanel) return;
 
@@ -143,7 +143,7 @@ public class GlobalEscMenu : MonoBehaviour
         }
     }
 
-    System.Collections.IEnumerator CoFocusFirst()
+    private System.Collections.IEnumerator CoFocusFirst()
     {
         yield return null;
         var select = firstSelected ? firstSelected : (Selectable)closeButton;
@@ -153,7 +153,7 @@ public class GlobalEscMenu : MonoBehaviour
         }
     }
 
-    void Close()
+    private void Close()
     {
         if (!escMenuPanel) return;
         escMenuPanel.SetActive(false);
@@ -166,12 +166,12 @@ public class GlobalEscMenu : MonoBehaviour
             EventSystem.current.SetSelectedGameObject(null);
     }
 
-    void ResumeIfPaused()
+    private void ResumeIfPaused()
     {
         if (Time.timeScale == 0f) Time.timeScale = 1f;
     }
 
-    void QuitGame()
+    private void QuitGame()
     {
         ResumeIfPaused();
 
@@ -180,7 +180,7 @@ public class GlobalEscMenu : MonoBehaviour
 #elif UNITY_WEBGL
         // WebGL では終了不可
 #else
-    #if UNITY_ANDROID
+#if UNITY_ANDROID
         try
         {
             using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
@@ -190,24 +190,24 @@ public class GlobalEscMenu : MonoBehaviour
             }
         }
         catch { }
-    #endif
+#endif
         Application.Quit(0);
 #endif
     }
 
-    void BeginRebindResetKey()
+    private void BeginRebindResetKey()
     {
         waitingResetRebind = true;
         InputBindings.BeginCapture();
         if (bindResetKeyLabel) bindResetKeyLabel.text = "リセット: （次の入力を待機）";
     }
 
-    void UpdateResetKeyLabel()
+    private void UpdateResetKeyLabel()
     {
         if (bindResetKeyLabel) bindResetKeyLabel.text = $"リセット: {InputBindings.GetKeyDisplay(InputBindings.ResetKey)}";
     }
 
-    void EnsureCanvasGroupAndFocusScope()
+    private void EnsureCanvasGroupAndFocusScope()
     {
         _panelCg = escMenuPanel.GetComponent<CanvasGroup>();
         if (_panelCg == null) _panelCg = escMenuPanel.AddComponent<CanvasGroup>();
