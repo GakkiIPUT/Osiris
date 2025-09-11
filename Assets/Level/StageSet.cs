@@ -8,26 +8,36 @@ public class StageSet : ScriptableObject
     [Serializable]
     public class Entry
     {
-        public string id = "1-1";   // •\¦—pE”CˆÓ
-        public TextAsset mapTxt;    // © ‚±‚±‚É .txt ‚ğŠ„‚è“–‚Ä‚é
-        public int parRot = 6;      // ‘z’è‰ñ“]”iUI/ƒXƒRƒA—pj
-        [Tooltip("‘z’èAPiƒp[jB‚±‚ÌAP‚Ü‚Å‚ÍŒ¸“_‚µ‚È‚¢")]
+        /// <summary>ã‚¹ãƒ†ãƒ¼ã‚¸IDï¼ˆè¡¨ç¤ºç”¨ï¼‰ä¾‹: "1-1"</summary>
+        public string id = "1-1";   // è¡¨ç¤ºç”¨ãƒ»ä»»æ„
+
+        /// <summary>ASCIIãƒãƒƒãƒ—ã®TextAsset</summary>
+        public TextAsset mapTxt;    // â† ã“ã“ã« .txt ã‚’å‰²ã‚Šå½“ã¦ã‚‹
+
+        /// <summary>æƒ³å®šå›è»¢æ•°ï¼ˆãƒ¬ã‚¬ã‚·ãƒ¼æ–¹å¼ï¼‰</summary>
+        public int parRot = 6;      // æƒ³å®šå›è»¢æ•°ï¼ˆUI/ã‚¹ã‚³ã‚¢ç”¨ï¼‰
+
+        [Tooltip("æƒ³å®šAPï¼ˆãƒ‘ãƒ¼ï¼‰ã€‚ã“ã®APã¾ã§ã¯æ¸›ç‚¹ã—ãªã„")]
         [Min(0)] public int parAP = 6;
 
         [Header("Collection (Treasure)")]
-        [Tooltip("‚±‚ÌƒXƒe[ƒW‚Å•ó” ‚ğæ‚Á‚ÄƒNƒŠƒA‚µ‚½‚çö—^‚·‚éƒRƒŒƒNƒVƒ‡ƒ“–¼")]
-        public string collectName = "•sv‹c‚ÈƒRƒŒƒNƒVƒ‡ƒ“";
-        [Tooltip("ö—^ƒRƒŒƒNƒVƒ‡ƒ“‚ÌŒ©‚½–ÚiUI•\¦—pSpritej")]
+        [Tooltip("ã“ã®ã‚¹ãƒ†ãƒ¼ã‚¸ã§å®ç®±ã‚’å–ã£ã¦ã‚¯ãƒªã‚¢ã—ãŸã‚‰æˆä¸ã™ã‚‹ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³å")]
+        public string collectName = "ä¸æ€è­°ãªã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³";
+
+        [Tooltip("æˆä¸ã‚³ãƒ¬ã‚¯ã‚·ãƒ§ãƒ³ã®è¦‹ãŸç›®ï¼ˆUIè¡¨ç¤ºç”¨Spriteï¼‰")]
         public Sprite collectSprite;
 
         [Header("Tutorial (Optional)")]
-        [Tooltip("ƒXƒe[ƒWŠJn‚Éƒ`ƒ…[ƒgƒŠƒAƒ‹‚ğ•\¦‚·‚é")]
+        [Tooltip("ã‚¹ãƒ†ãƒ¼ã‚¸é–‹å§‹æ™‚ã«ãƒãƒ¥ãƒ¼ãƒˆãƒªã‚¢ãƒ«ã‚’è¡¨ç¤ºã™ã‚‹")]
         public bool showTutorialOnStart = false;
-        [Tooltip("ƒ`ƒ…[ƒgƒŠƒAƒ‹‚É•\¦‚·‚é‰æ‘œ")]
+
+        [Tooltip("ãƒãƒ¥ãƒ¼ãƒˆãƒªã‚¢ãƒ«ã«è¡¨ç¤ºã™ã‚‹ç”»åƒ")]
         public Sprite tutorialSprite;
-        [Tooltip("‰‰ñ‚Ì‚İ•\¦‚·‚éiid‚ÅŠù“ÇŠÇ—j")]
+
+        [Tooltip("åˆå›ã®ã¿è¡¨ç¤ºã™ã‚‹ï¼ˆidã§æ—¢èª­ç®¡ç†ï¼‰")]
         public bool tutorialOnlyOnce = true;
     }
 
+    /// <summary>ã“ã®ã‚»ãƒƒãƒˆã«å«ã¾ã‚Œã‚‹ã‚¹ãƒ†ãƒ¼ã‚¸é…åˆ—</summary>
     public List<Entry> stages = new List<Entry>();
 }
