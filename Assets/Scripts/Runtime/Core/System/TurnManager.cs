@@ -157,14 +157,14 @@ public class TurnManager : MonoBehaviour
                 if (!wasAnimating)
                 {
                     wasAnimating = true;
-                    if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause ON (Board.IsAnimating) t={Time.time:F3}");
+                    //if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause ON (Board.IsAnimating) t={Time.time:F3}");
                 }
                 return;
             }
             else if (wasAnimating)
             {
                 wasAnimating = false;
-                if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause OFF t={Time.time:F3}");
+                //if (debugLogGuardStepping) Debug.Log($"[Turn] GlobalPause OFF t={Time.time:F3}");
             }
 
             guardTimer += Time.deltaTime;

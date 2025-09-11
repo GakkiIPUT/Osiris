@@ -205,7 +205,7 @@ public partial class BoardManager : MonoBehaviour
         {
             if (_isAnimating == value) return;
             _isAnimating = value;
-            Debug.Log($"[Board] IsAnimating {(value ? "ON" : "OFF")} t={Time.time:F3}");
+            //Debug.Log($"[Board] IsAnimating {(value ? "ON" : "OFF")} t={Time.time:F3}");
         }
     }
 
