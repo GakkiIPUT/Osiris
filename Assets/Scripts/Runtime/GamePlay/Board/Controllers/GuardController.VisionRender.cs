@@ -3,7 +3,10 @@ using UnityEngine;
 
 public partial class GuardController : MonoBehaviour
 {
-    // 旧スタイル（セル毎Quad）/ 新グリッド整合の描画
+    private List<Vector3> _visionVerts = null;
+
+    private List<int> _visionTris = null;
+
     public void UpdateVisionOverlay()
     {
         if (!showVision || IsFlipping()) { ClearVision(); return; }
@@ -162,7 +165,6 @@ public partial class GuardController : MonoBehaviour
         return visionRoot;
     }
 
-    // ===== 追加: 視界色の適用 =====
     private void ApplyVisionColor(Renderer r)
     {
         if (!r) return;

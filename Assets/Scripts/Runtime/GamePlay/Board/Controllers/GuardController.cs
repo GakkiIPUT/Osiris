@@ -71,7 +71,6 @@ public partial class GuardController : MonoBehaviour
     private float lastRotateTime = -999f;
 
     private int facingIndex = 0;
-    private List<Vector2Int> _tmpFwds;
 
     // スムーズ移動/回転
     private bool isMoving = false;
