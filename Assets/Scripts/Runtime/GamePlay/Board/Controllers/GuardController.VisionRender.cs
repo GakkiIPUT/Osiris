@@ -3,9 +3,13 @@ using UnityEngine;
 
 public partial class GuardController : MonoBehaviour
 {
+    // SmoothFan用メッシュワーク
     private List<Vector3> _visionVerts = null;
-
     private List<int> _visionTris = null;
+
+    // CellFan/GridAligned 用 Quad プール
+    private readonly List<GameObject> _visionQuadPool = new();
+    private int _visionQuadsActive = 0;
 
     public void UpdateVisionOverlay()
     {
@@ -25,7 +29,7 @@ public partial class GuardController : MonoBehaviour
 
         // CellFan / GridAligned（セルごとQuad）
         var root = GetVisionRoot();
-        ClearVision();
+        ClearVision(); // 既存を無効化（破棄しない）
 
         int r = viewRange;
         float half = fovAngle * 0.5f;
@@ -40,6 +44,7 @@ public partial class GuardController : MonoBehaviour
         Vector2 origin2D = new Vector2(pos.x + 0.5f, pos.y + 0.5f) + offset2D + fwd * Mathf.Max(0f, visionOriginForwardOffset);
 
         for (int yCell = pos.y - r; yCell <= pos.y + r; yCell++)
+        {
             for (int xCell = pos.x - r; xCell <= pos.x + r; xCell++)
             {
                 var gp = new Vector2Int(xCell, yCell);
@@ -53,12 +58,7 @@ public partial class GuardController : MonoBehaviour
 
                 if (!visible) continue;
 
-                var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                q.name = $"Vision_{xCell}_{yCell}";
-                q.transform.SetParent(root.transform, false);
-                q.transform.rotation = Quaternion.Euler(90, 0, 0);
-                q.transform.localScale = Vector3.one;
-
+                var q = GetOrCreateVisionQuad(root.transform, xCell, yCell);
                 Vector3 drawPos = WorldCenter(gp, board.visionY);
                 if (visionMode == VisionMode.CellFan)
                     drawPos += offsetWorld;
@@ -67,10 +67,44 @@ public partial class GuardController : MonoBehaviour
                 var mr = q.GetComponent<MeshRenderer>();
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 mr.receiveShadows = false;
-                if (mat != null) mr.material = mat;
+                if (mat != null) mr.sharedMaterial = mat; // 共有材 + MPB
                 ApplyVisionColor(mr);
-                Destroy(q.GetComponent<MeshCollider>());
             }
+        }
+    }
+
+    private GameObject GetOrCreateVisionQuad(Transform parent, int x, int y)
+    {
+        GameObject q;
+        if (_visionQuadsActive < _visionQuadPool.Count && _visionQuadPool[_visionQuadsActive] != null)
+        {
+            q = _visionQuadPool[_visionQuadsActive];
+            q.SetActive(true);
+        }
+        else
+        {
+            q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            q.name = "Vision_Quad";
+            q.transform.rotation = Quaternion.Euler(90, 0, 0);
+            q.transform.localScale = Vector3.one;
+            q.transform.SetParent(parent, false);
+
+            var mr = q.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+            }
+            var mc = q.GetComponent<MeshCollider>();
+            if (mc != null) Destroy(mc);
+
+            _visionQuadPool.Add(q);
+        }
+
+        q.name = $"Vision_{x}_{y}";
+        q.transform.SetParent(parent, false);
+        _visionQuadsActive++;
+        return q;
     }
 
     private void BuildSmoothVisionMeshWithOffset(Vector3 offsetWorld, Vector2 offset2D)
@@ -95,9 +129,8 @@ public partial class GuardController : MonoBehaviour
                  : (board.ghostOkMat != null ? board.ghostOkMat : board.ghostNgMat);
         if (visionMr.sharedMaterial != mat) visionMr.sharedMaterial = mat;
 
-        // flipPause 中は UpdateVisionOverlay が先に return するため通常ここは呼ばれませんが、
-        // 念のため描画再開時に有効化
-        if (!visionMr.enabled) visionMr.enabled = true; // ← 追加
+        // 描画再開時に有効化
+        if (!visionMr.enabled) visionMr.enabled = true;
 
         int rays = Mathf.Clamp(visionRayCount, 12, 256);
         float half = fovAngle * 0.5f;
@@ -116,7 +149,6 @@ public partial class GuardController : MonoBehaviour
 
         _visionVerts.Clear();
         _visionTris.Clear();
-
         _visionVerts.Add(origin);
 
         for (int i = 0; i <= rays; i++)
@@ -175,7 +207,7 @@ public partial class GuardController : MonoBehaviour
         _mpb.Clear();
 
         bool setAny = false;
-        if (mat.HasProperty("_Color")) { _mpb.SetColor("_Color", visionColor); setAny = true; }
+        if (mat.HasProperty("_Color"))     { _mpb.SetColor("_Color",     visionColor); setAny = true; }
         if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
         if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
 
@@ -183,7 +215,7 @@ public partial class GuardController : MonoBehaviour
         else
         {
             var inst = r.material;
-            if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
+            if (inst.HasProperty("_Color"))      inst.SetColor("_Color", visionColor);
             else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
             else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
         }
@@ -194,7 +226,6 @@ public partial class GuardController : MonoBehaviour
 
     // 透明レンダーキュー（犯人を後描画にする）
     private const int VisionQueueBase = 3000;          // Transparent
-
     private const int VisionQueueKiller = VisionQueueBase + 20; // 犯人用に少し後ろ
 
     private void ApplyVisionRenderOrder(Renderer r)
@@ -203,50 +234,40 @@ public partial class GuardController : MonoBehaviour
 
         if (_killerHighlighted)
         {
-            // 犯人はマテリアルインスタンス化してレンダーキューを上げる
             var inst = r.material; // インスタンス化
             if (inst != null) inst.renderQueue = VisionQueueKiller;
-
-            // 念のためソーティングオーダーも上げておく（同一距離のタイブレーク）
             r.sortingOrder = 10;
         }
         else
         {
             var inst = r.material;
             if (inst != null) inst.renderQueue = VisionQueueBase;
-            // 非犯人はデフォルトのまま（共有マテリアルのキュー=3000）
             r.sortingOrder = 0;
-            // ここで inst に戻す必要は特にありません（再生成時に共有マテリアルへ戻るため）
         }
     }
 
-    // 視界の子オブジェクト/メッシュをクリア
+    // 視界の子オブジェクト/メッシュをクリア（プールを無効化）
     private void ClearVision()
     {
         if (visionRoot == null) return;
 
         if (visionMode == VisionMode.SmoothFan)
         {
-            // Mesh を空にしつつ Renderer も明示的に無効化して完全に非表示化
             if (visionMesh != null) visionMesh.Clear();
-            if (visionMr != null) visionMr.enabled = false; // ← 追加
+            if (visionMr != null) visionMr.enabled = false;
             return;
         }
 
-        for (int i = visionRoot.transform.childCount - 1; i >= 0; --i)
+        // 生成済みQuadを無効化して使い回す
+        for (int i = 0; i < _visionQuadsActive; i++)
         {
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-                DestroyImmediate(visionRoot.transform.GetChild(i).gameObject);
-            else
-#endif
-                Destroy(visionRoot.transform.GetChild(i).gameObject);
+            var go = _visionQuadPool[i];
+            if (go) go.SetActive(false);
         }
+        _visionQuadsActive = 0;
     }
 
-    // 追加: グリッド「中心座標系」の連続値(Vector2)をワールド座標に変換
-    // center は (i+0.5, j+0.5) をセル中心とする座標系。
-    // → CellCenter に (center - 0.5) のローカル差分を加えてワールドへ。
+    // グリッド「中心座標系」の連続値(Vector2)をワールド座標に変換
     private Vector3 WorldFromGridCenterCoords(Vector2 center, float y)
     {
         int cx = Mathf.FloorToInt(center.x);
