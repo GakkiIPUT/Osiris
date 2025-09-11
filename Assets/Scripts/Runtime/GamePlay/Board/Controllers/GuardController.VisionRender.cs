@@ -5,10 +5,12 @@ public partial class GuardController : MonoBehaviour
 {
     // SmoothFan用メッシュワーク
     private List<Vector3> _visionVerts = null;
+
     private List<int> _visionTris = null;
 
     // CellFan/GridAligned 用 Quad プール
     private readonly List<GameObject> _visionQuadPool = new();
+
     private int _visionQuadsActive = 0;
 
     public void UpdateVisionOverlay()
@@ -207,7 +209,7 @@ public partial class GuardController : MonoBehaviour
         _mpb.Clear();
 
         bool setAny = false;
-        if (mat.HasProperty("_Color"))     { _mpb.SetColor("_Color",     visionColor); setAny = true; }
+        if (mat.HasProperty("_Color")) { _mpb.SetColor("_Color", visionColor); setAny = true; }
         if (mat.HasProperty("_BaseColor")) { _mpb.SetColor("_BaseColor", visionColor); setAny = true; }
         if (mat.HasProperty("_TintColor")) { _mpb.SetColor("_TintColor", visionColor); setAny = true; }
 
@@ -215,7 +217,7 @@ public partial class GuardController : MonoBehaviour
         else
         {
             var inst = r.material;
-            if (inst.HasProperty("_Color"))      inst.SetColor("_Color", visionColor);
+            if (inst.HasProperty("_Color")) inst.SetColor("_Color", visionColor);
             else if (inst.HasProperty("_BaseColor")) inst.SetColor("_BaseColor", visionColor);
             else if (inst.HasProperty("_TintColor")) inst.SetColor("_TintColor", visionColor);
         }
@@ -226,6 +228,7 @@ public partial class GuardController : MonoBehaviour
 
     // 透明レンダーキュー（犯人を後描画にする）
     private const int VisionQueueBase = 3000;          // Transparent
+
     private const int VisionQueueKiller = VisionQueueBase + 20; // 犯人用に少し後ろ
 
     private void ApplyVisionRenderOrder(Renderer r)
