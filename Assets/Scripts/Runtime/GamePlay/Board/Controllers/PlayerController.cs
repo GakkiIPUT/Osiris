@@ -126,6 +126,7 @@ public class PlayerController : MonoBehaviour
             moveT += Time.deltaTime / Mathf.Max(0.0001f, moveDur);
             float t = Mathf.Clamp01(moveT);
             transform.position = Vector3.Lerp(moveFrom, moveTo, t);
+            UpdateAimWhileMoving();
             if (t >= 1f)
             {
                 isMoving = false;
@@ -178,6 +179,74 @@ public class PlayerController : MonoBehaviour
         {
             HandleMoveInput();
         }
+    }
+
+    private void UpdateAimWhileMoving()
+    {
+        if (board == null) return;
+        if (board.IsFreePreviewActive) return; // 自由回転プレビュー中は抑止
+
+        // マウス左クリックでエイム中心移動
+        if (Input.GetMouseButtonDown(0))
+        {
+            if (TryGetMouseGrid(out var g))
+            {
+                aimCenter = ClampAimCenterToOuter(g, pos);
+                UpdateGhostVisual();
+            }
+        }
+
+#if ENABLE_INPUT_SYSTEM
+        ///summary>
+        /// 右スティックでエイム中心移動（長押しリピート対応）
+        /// </summary>
+        if (enableGamepad && allowAimPadMove)
+        {
+            var gp = Gamepad.current;
+            if (gp != null)
+            {
+                Vector2 rs = gp.rightStick.ReadValue();
+                Vector2Int dir = Vector2Int.zero;
+                if (Mathf.Abs(rs.x) >= stickDigitalThreshold || Mathf.Abs(rs.y) >= stickDigitalThreshold)
+                {
+                    if (Mathf.Abs(rs.x) > Mathf.Abs(rs.y))
+                        dir = (rs.x > 0f) ? Vector2Int.right : Vector2Int.left;
+                    else
+                        dir = (rs.y > 0f) ? Vector2Int.up : Vector2Int.down;
+                }
+
+                if (dir != Vector2Int.zero)
+                {
+                    if (aimHoldDir == Vector2Int.zero || dir != aimHoldDir)
+                    {
+                        AimStartHold(dir);
+                    }
+                }
+
+                if (aimHoldDir != Vector2Int.zero)
+                {
+                    Vector2 rsv = gp.rightStick.ReadValue();
+                    bool held =
+                        (aimHoldDir == Vector2Int.up && rsv.y >= stickDigitalThreshold) ||
+                        (aimHoldDir == Vector2Int.down && rsv.y <= -stickDigitalThreshold) ||
+                        (aimHoldDir == Vector2Int.left && rsv.x <= -stickDigitalThreshold) ||
+                        (aimHoldDir == Vector2Int.right && rsv.x >= stickDigitalThreshold);
+
+                    if (!held)
+                    {
+                        aimHoldDir = Vector2Int.zero;
+                        return;
+                    }
+
+                    if (Time.time >= aimHoldNextTime)
+                    {
+                        MoveAimCenter(aimHoldDir);
+                        aimHoldNextTime = Time.time + aimRepeatInterval;
+                    }
+                }
+            }
+        }
+#endif
     }
 
     /// <summary>
