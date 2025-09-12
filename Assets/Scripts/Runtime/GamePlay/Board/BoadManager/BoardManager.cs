@@ -1,19 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum CellType
-{ Floor, Wall, Exit, Anchor, Pit } // ← 追加: 落とし穴
-
-public enum WallOrigin
-{ Core, Outer }
-
 /// <summary>
 /// 盤面の構築・座標系・アイテム/ガード配置・通行判定・各種可視化設定を司る中核マネージャ（partial）。
 /// Editorプレビュー/ランタイム双方に対応し、他コンポーネント（Player/Guard/Turn）と連携する。
 /// </summary>
-[ExecuteAlways] // エディタでもプレビュー用に動かす
+///
+public enum CellType
+{
+    Empty = 0,  // 空（未使用・外周生成ON時のCore外など）
+    Floor = 1,  // 床（.）
+    Wall = 2,   // 壁（#）
+    Exit = 3,   // 出口（E）
+    Anchor = 4, // 回転不可マス（@）
+    Pit = 5,    // 落とし穴（x）
+}
+public enum WallOrigin
+{
+    None = 0,   // 壁以外
+    Core = 1,   // Core起源の壁
+    Outer = 2,  // 外周起源の壁
+}
 public partial class BoardManager : MonoBehaviour
 {
+
     [Header("Prefabs (Tiles & Player)")]
     public GameObject pfFloor;
 
@@ -242,6 +252,10 @@ public partial class BoardManager : MonoBehaviour
     [Tooltip("クリック直後の回転不可フラッシュ（赤Ghost）秒数")]
     [Range(0.1f, 2.0f)] public float devNgGhostSeconds = 0.5f;
 
+    [Header("DEV / Input")]
+    [Tooltip("Pad 左スティックで移動する（ONでPadによる自由回転は無効。マウス回転は可）")]
+    public bool devPadLeftStickMoves = false;
+
     [Header("Outer Ring Visuals")]
     [Tooltip("外周Floor(CORE外に存在する全 Floor) 用マテリアル（未設定なら通常と同じ）")]
     public Material outerRingFloorMat;
@@ -266,7 +280,7 @@ public partial class BoardManager : MonoBehaviour
     [Tooltip("Core(元マップ) or 外周内に入った外周壁用（未設定なら従来見た目維持）")]
     public Material wallNormalMat;
 
-    [Tooltip("Core 外側に存在する Outer起源壁に適用するマテリアル")]
+    [Tooltip("Core 外側に存在する Outer起源壁に適用すFるマテリアル")]
     public Material wallOuterMat;
 
     /// <summary>
@@ -486,13 +500,14 @@ public partial class BoardManager : MonoBehaviour
     {
         PlayerPrefs.SetInt("rotatePlayerWithArea", rotatePlayerWithArea ? 1 : 0);
 
-        // ▼ 追加: 自由回転関連の永続化
+        // ▼ 追加/更新: 自由回転・入力関連の永続化
         PlayerPrefs.SetInt("devEnableFreeRotate", devEnableFreeRotate ? 1 : 0);
         PlayerPrefs.SetInt("devAllow180Rotation", devAllow180Rotation ? 1 : 0);
         PlayerPrefs.SetFloat("devSnapAngleDeg", devSnapAngleDeg);
         PlayerPrefs.SetFloat("devCommitAngleDeg", devCommitAngleDeg);
         PlayerPrefs.SetFloat("devStickiness", devStickiness);
         PlayerPrefs.SetFloat("devNgGhostSeconds", devNgGhostSeconds);
+        PlayerPrefs.SetInt("devPadLeftStickMoves", devPadLeftStickMoves ? 1 : 0);
 
         PlayerPrefs.Save();
     }
@@ -502,13 +517,14 @@ public partial class BoardManager : MonoBehaviour
     {
         rotatePlayerWithArea = PlayerPrefs.GetInt("rotatePlayerWithArea", 1) == 1;
 
-        // ▼ 追加: 自由回転関連の永続化
-        devEnableFreeRotate = PlayerPrefs.GetInt("devEnableFreeRotate", 1) == 1;
-        devAllow180Rotation = PlayerPrefs.GetInt("devAllow180Rotation", 0) == 1;
-        devSnapAngleDeg = PlayerPrefs.GetFloat("devSnapAngleDeg", 15f);
-        devCommitAngleDeg = PlayerPrefs.GetFloat("devCommitAngleDeg", 15f);
-        devStickiness = PlayerPrefs.GetFloat("devStickiness", 0.5f);
-        devNgGhostSeconds = PlayerPrefs.GetFloat("devNgGhostSeconds", 0.5f);
+        // ▼ 自由回転/入力 関連
+        devEnableFreeRotate   = PlayerPrefs.GetInt("devEnableFreeRotate", 1) == 1;
+        devAllow180Rotation   = PlayerPrefs.GetInt("devAllow180Rotation", 0) == 1;
+        devSnapAngleDeg       = PlayerPrefs.GetFloat("devSnapAngleDeg", 15f);
+        devCommitAngleDeg     = PlayerPrefs.GetFloat("devCommitAngleDeg", 15f);
+        devStickiness         = PlayerPrefs.GetFloat("devStickiness", 0.5f);
+        devNgGhostSeconds     = PlayerPrefs.GetFloat("devNgGhostSeconds", 0.5f);
+        devPadLeftStickMoves  = PlayerPrefs.GetInt("devPadLeftStickMoves", 0) == 1;
     }
 
     // ===== Core / Board 座標ユーティリティ（LevelPainter 用） =====

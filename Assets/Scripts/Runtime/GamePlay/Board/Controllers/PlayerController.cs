@@ -1,9 +1,7 @@
 using UnityEngine;
 
 #if ENABLE_INPUT_SYSTEM
-
 using UnityEngine.InputSystem;
-
 #endif
 
 /// <summary>
@@ -46,7 +44,6 @@ public class PlayerController : MonoBehaviour
 
     // スムーズ移動
     private bool isMoving = false;
-
     private Vector3 moveFrom, moveTo;
     private float moveT = 0f;
     private float moveDur = 0.2f;
@@ -77,6 +74,9 @@ public class PlayerController : MonoBehaviour
     private float aimHoldNextTime = 0f;
 
 #if ENABLE_INPUT_SYSTEM
+    private enum PadMoveSource { None, LeftStick, DPad }
+    private PadMoveSource holdPadSource = PadMoveSource.None;
+
     private float _prevLT = 0f, _prevRT = 0f;
     private bool _ltDown = false, _rtDown = false;
     private const float _triggerEdge = 0.5f;
@@ -84,7 +84,6 @@ public class PlayerController : MonoBehaviour
 
     // 効果音
     public AudioClip walkAudio;
-
     public AudioClip rotateAudio;
     public AudioClip goalAudio;
     public AudioClip gameoverAudio;
@@ -387,6 +386,8 @@ public class PlayerController : MonoBehaviour
         if (!started)
         {
             UpdateGhostVisual();
+            var overlay = board.GetComponent<SelectionFramesOverlay>();
+            if (overlay != null) overlay.FlashInnerNg(board.devNgGhostSeconds);
         }
     }
 
@@ -408,7 +409,12 @@ public class PlayerController : MonoBehaviour
         var pv = board.GetPreview(AimCenter, areaSize, 0);
         bool centerOk = IsCenterAllowed(AimCenter);
         bool lockedInArea = AreaContainsLocked(AimCenter, areaSize);
-        bool ok = pv.valid && centerOk && !lockedInArea;
+
+        // 回転（±90/±180）が1つもなければNG（赤）
+        var steps = board.GetStepValidity(AimCenter, areaSize);
+        bool any = steps.Any(board.devAllow180Rotation);
+
+        bool ok = pv.valid && centerOk && !lockedInArea && any;
 
         var overlay = board.GetComponent<SelectionFramesOverlay>();
         if (overlay != null) overlay.SetInnerOk(ok);
@@ -487,7 +493,7 @@ public class PlayerController : MonoBehaviour
     }
 
     /// <summary>
-    /// エイム中心のゲームパッド操作（D-Padで移動、右スティックで中心移動）を処理する。
+    /// エイム中心のゲームパッド操作（D-Pad/左スティックで移動、右スティックで中心移動）を処理する。
     /// </summary>
     private void HandleAimPadInput()
     {
@@ -498,30 +504,77 @@ public class PlayerController : MonoBehaviour
         var gp = Gamepad.current;
         if (gp == null) return;
 
-        // D-Pad: プレイヤー移動（優先）
-        Vector2 dv = gp.dpad.ReadValue();
-        if (Mathf.Abs(dv.x) > 0.5f || Mathf.Abs(dv.y) > 0.5f)
-        {
-            Vector2Int moveDir = Mathf.Abs(dv.x) > Mathf.Abs(dv.y)
-                ? (dv.x > 0f ? Vector2Int.right : Vector2Int.left)
-                : (dv.y > 0f ? Vector2Int.up : Vector2Int.down);
+        // 両入力（左スティック/D-Pad）を同時に評価。左スティック移動モードがONでもD-Padは常に有効。
+        bool leftStickMoves = board != null && board.devPadLeftStickMoves;
 
+        Vector2 vLS = gp.leftStick.ReadValue();
+        Vector2 vDP = gp.dpad.ReadValue();
+
+        float thrLS = Mathf.Clamp01(stickDigitalThreshold);
+        float thrDP = 0.5f;
+
+        // 入力からデジタル方向を抽出
+        Vector2Int dirLS = Vector2Int.zero;
+        if (Mathf.Abs(vLS.x) >= thrLS || Mathf.Abs(vLS.y) >= thrLS)
+            dirLS = (Mathf.Abs(vLS.x) > Mathf.Abs(vLS.y)) ? (vLS.x > 0f ? Vector2Int.right : Vector2Int.left)
+                                                          : (vLS.y > 0f ? Vector2Int.up : Vector2Int.down);
+
+        Vector2Int dirDP = Vector2Int.zero;
+        if (Mathf.Abs(vDP.x) > thrDP || Mathf.Abs(vDP.y) > thrDP)
+            dirDP = (Mathf.Abs(vDP.x) > Mathf.Abs(vDP.y)) ? (vDP.x > 0f ? Vector2Int.right : Vector2Int.left)
+                                                          : (vDP.y > 0f ? Vector2Int.up : Vector2Int.down);
+
+        // どの入力を採用するか
+        Vector2Int moveDir = Vector2Int.zero;
+        PadMoveSource src = PadMoveSource.None;
+
+        // 左スティック移動モードONなら左スティック優先、どちらも無ければD-Pad。OFFならD-Pad優先、無ければ左スティック。
+        if (leftStickMoves)
+        {
+            if (dirLS != Vector2Int.zero) { moveDir = dirLS; src = PadMoveSource.LeftStick; }
+            else if (dirDP != Vector2Int.zero) { moveDir = dirDP; src = PadMoveSource.DPad; }
+        }
+        else
+        {
+            if (dirDP != Vector2Int.zero) { moveDir = dirDP; src = PadMoveSource.DPad; }
+            else if (dirLS != Vector2Int.zero) { moveDir = dirLS; src = PadMoveSource.LeftStick; }
+        }
+
+        // Move: プレイヤー移動（優先）
+        if (moveDir != Vector2Int.zero)
+        {
             if (holdDir == Vector2Int.zero || moveDir != holdDir)
             {
                 StartHold(moveDir);
+                holdPadSource = src;
             }
             else
             {
-                Vector2 dv2 = gp.dpad.ReadValue();
-                bool held =
-                    (holdDir == Vector2Int.up && dv2.y > 0.5f) ||
-                    (holdDir == Vector2Int.down && dv2.y < -0.5f) ||
-                    (holdDir == Vector2Int.left && dv2.x < -0.5f) ||
-                    (holdDir == Vector2Int.right && dv2.x > 0.5f);
+                // どの入力でホールドしたかに応じて継続判定
+                bool held = false;
+                if (holdPadSource == PadMoveSource.LeftStick)
+                {
+                    Vector2 v = gp.leftStick.ReadValue();
+                    held =
+                        (holdDir == Vector2Int.up && v.y >= thrLS) ||
+                        (holdDir == Vector2Int.down && v.y <= -thrLS) ||
+                        (holdDir == Vector2Int.left && v.x <= -thrLS) ||
+                        (holdDir == Vector2Int.right && v.x >= thrLS);
+                }
+                else if (holdPadSource == PadMoveSource.DPad)
+                {
+                    Vector2 v = gp.dpad.ReadValue();
+                    held =
+                        (holdDir == Vector2Int.up && v.y > thrDP) ||
+                        (holdDir == Vector2Int.down && v.y < -thrDP) ||
+                        (holdDir == Vector2Int.left && v.x < -thrDP) ||
+                        (holdDir == Vector2Int.right && v.x > thrDP);
+                }
 
                 if (!held)
                 {
                     holdDir = Vector2Int.zero;
+                    holdPadSource = PadMoveSource.None;
                 }
                 else if (Time.time >= holdNextTime)
                 {

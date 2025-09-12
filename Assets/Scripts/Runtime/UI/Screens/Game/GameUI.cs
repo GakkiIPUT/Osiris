@@ -7,7 +7,6 @@ public class GameUI : MonoBehaviour
 
     [Header("Tutorial Reset (Optional Buttons)")]
     public Button btnResetTutorialCurrent;
-
     public Button btnResetTutorialAll;
 
     private StageManager stage; private PlayerController player; private TurnManager turn;
@@ -15,36 +14,33 @@ public class GameUI : MonoBehaviour
 
     [Header("Editor 用 初期設定")]
     [SerializeField] private bool editorDevMode = false;
-
     [SerializeField] private bool editorInvincible = false;
     [SerializeField, Range(3, 9)] private int editorAreaSize = 3;
 
     [Header("Editor 用 Board初期設定")]
     [SerializeField] private bool editorRotatePlayerWithArea = true;
-
     [SerializeField, Range(1, 10)] private int editorRotationCenterMaxDistance = 3;
     [SerializeField] private bool editorFreeRotate = true;
     [SerializeField] private bool editorAllow180Rotation = false;
+    [SerializeField] private bool editorPadLeftMoves = true; // 追加: 左スティック移動
 
     [Header("Development Build 用 初期設定")]
     [SerializeField] private bool devBuildDevMode = false;
-
     [SerializeField] private bool devBuildInvincible = false;
     [SerializeField, Range(3, 9)] private int devBuildAreaSize = 3;
 
     [Header("Development Build 用 Board初期設定")]
     [SerializeField] private bool devBuildRotatePlayerWithArea = true;
-
     [SerializeField, Range(1, 10)] private int devBuildRotationCenterMaxDistance = 3;
     [SerializeField] private bool devBuildFreeRotate = true;
     [SerializeField] private bool devBuildAllow180Rotation = false;
+    [SerializeField] private bool devBuildPadLeftMoves = true; // 追加: 左スティック移動
 
     [Header("適用タイミング")]
     [SerializeField] private bool applyInitialOnStart = true;
 
     private bool _appliedInitial = false;
 
-    /// <summary>ボタンのコールバックを登録する。</summary>
     private void Awake()
     {
         if (btnRotateL) btnRotateL.onClick.AddListener(ActionRotateL);
@@ -98,13 +94,14 @@ public class GameUI : MonoBehaviour
         {
             board.rotatePlayerWithArea = editorRotatePlayerWithArea;
             board.rotationCenterMaxDistance = Mathf.RoundToInt(Mathf.Clamp(editorRotationCenterMaxDistance, 1, 10));
-            board.devEnableFreeRotate = editorFreeRotate;     // 自由回転ON
+            board.devEnableFreeRotate = editorFreeRotate;
             board.devAllow180Rotation = editorAllow180Rotation;
+            board.devPadLeftStickMoves = editorPadLeftMoves; // 左スティック移動
             board.SaveDevModeSettings();
         }
 #elif DEVELOPMENT_BUILD
         // Development Build
-        devMode = devBuildDevMode;                            // 既定 Dev モード
+        devMode = devBuildDevMode;
 
         if (player != null)
         {
@@ -116,8 +113,9 @@ public class GameUI : MonoBehaviour
         {
             board.rotatePlayerWithArea = devBuildRotatePlayerWithArea;
             board.rotationCenterMaxDistance = Mathf.RoundToInt(Mathf.Clamp(devBuildRotationCenterMaxDistance, 1, 10));
-            board.devEnableFreeRotate = devBuildFreeRotate;   // 自由回転ON
+            board.devEnableFreeRotate = devBuildFreeRotate;
             board.devAllow180Rotation = devBuildAllow180Rotation;
+            board.devPadLeftStickMoves = devBuildPadLeftMoves; // 左スティック移動
             board.SaveDevModeSettings();
         }
 #else
@@ -126,14 +124,15 @@ public class GameUI : MonoBehaviour
 
         if (player != null)
         {
-            player.invincible = false;                        // 無敵は必ずOFF
+            player.invincible = false;
             player.areaSize = Mathf.Clamp(player.areaSize, 3, 9);
             player.SaveDevModeSettings();
         }
         if (board != null)
         {
-            board.devEnableFreeRotate = true;                // 自由回転
+            board.devEnableFreeRotate = true;
             board.devAllow180Rotation = false;
+            board.devPadLeftStickMoves = true; // 左スティックは移動（Padの自由回転は無効）
             board.SaveDevModeSettings();
         }
 #endif
@@ -233,7 +232,7 @@ public class GameUI : MonoBehaviour
         bool canRotate =
             player && turn != null && !turn.gameOver && !turn.cleared &&
             player.IsAiming &&
-            board != null && !board.devEnableFreeRotate; // 自由回転ONなら回転ボタン無効
+            board != null && !board.devEnableFreeRotate;
 
         if (btnRotateL) btnRotateL.interactable = canRotate;
         if (btnRotateR) btnRotateR.interactable = canRotate;
@@ -254,11 +253,9 @@ public class GameUI : MonoBehaviour
         {
             bool changed = false;
 
-            // プレイヤー回転に追従
             bool rpwa = GUILayout.Toggle(board.rotatePlayerWithArea, "プレイヤー回転に追従");
             if (rpwa != board.rotatePlayerWithArea) { board.rotatePlayerWithArea = rpwa; changed = true; }
 
-            // 回転中心最大距離
             int maxDist = Mathf.RoundToInt(GUILayout.HorizontalSlider(board.rotationCenterMaxDistance, 1, 10));
             if (maxDist != board.rotationCenterMaxDistance) { board.rotationCenterMaxDistance = maxDist; changed = true; }
             GUILayout.Label($"回転中心の最大距離: {board.rotationCenterMaxDistance}");
@@ -271,11 +268,14 @@ public class GameUI : MonoBehaviour
             if (free != board.devEnableFreeRotate) { board.devEnableFreeRotate = free; changed = true; }
             GUILayout.Label("※ 自由回転ON中はQ/E回転無効");
 
-            // 180度回転許可
             bool allow180 = GUILayout.Toggle(board.devAllow180Rotation, "180度回転許可（2AP）");
             if (allow180 != board.devAllow180Rotation) { board.devAllow180Rotation = allow180; changed = true; }
 
-            // ★ 追加: スティック離し確定モード
+            // 追加: Pad 左スティックの役割
+            bool leftMoves = GUILayout.Toggle(board.devPadLeftStickMoves, "左スティックで移動（Pad）");
+            if (leftMoves != board.devPadLeftStickMoves) { board.devPadLeftStickMoves = leftMoves; changed = true; }
+            GUILayout.Label(leftMoves ? "Pad 左スティック=移動 / 自由回転はマウスのみ" : "Pad 左スティック=自由回転 / D-Pad=移動");
+
             var frc = Object.FindFirstObjectByType<FreeRotateController>();
             if (frc != null)
             {

@@ -3558,11 +3558,15 @@ MonoBehaviour:
   previewAnchor: {r: 0, g: 0, b: 0, a: 1}
   previewPit: {r: 0.15, g: 0.15, b: 0.6, a: 1}
   level:
-  - '@@@@@@@'
-  - '@.#..E@'
-  - '@.#.##@'
-  - '@P#O..@'
-  - '@@@@@@@'
+  - ....T.........
+  - ..P..x........
+  - ...........#..
+  - '@@@@@@@@@@....'
+  - ..#..#...@Nx.M
+  - .Gx..#...@....
+  - ..#..#...@@..@
+  - ..NE..........
+  - .xi......@...t
   previewY: 0.0001
   visionY: 0.0002
   tilesRoot: {fileID: 114234969}
@@ -3570,12 +3574,39 @@ MonoBehaviour:
   player: {fileID: 0}
   guards: []
   rotatePlayerWithArea: 1
+  animateBoardRotation: 1
+  rotateAnimSeconds: 0.12
+  rotateAnimCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   devEnableFreeRotate: 1
   devAllow180Rotation: 0
   devSnapAngleDeg: 15
   devCommitAngleDeg: 15
   devStickiness: 0.5
   devNgGhostSeconds: 0.5
+  devPadLeftStickMoves: 0
   outerRingFloorMat: {fileID: 2100000, guid: 34401cddade37014491906c0863b67f1, type: 2}
   previewOuterFloor: {r: 0.7, g: 0.75, b: 0.85, a: 1}
   autoGenerateOuterRings: 1
@@ -3609,12 +3640,18 @@ MonoBehaviour:
   padDeadZone: 0.25
   pad1DInnerDeadZoneFactor: 0.4
   padStepMinDegrees: 30
+  padUseReleaseToCommit: 1
   padCommitImmediateOnRelease: 1
   padCommitIdleSeconds: 0.055
   padCancelIfNotSnappedOnRelease: 1
   padAutoSnapOnRelease: 1
   padAutoSnapDeg: 20
   padGraceSnapMillis: 25
+  padRecenterClearFactor: 0.6
+  padExplicitReleaseReturn: 1
+  padExplicitReturnLerp: 0.35
+  padExplicitAutoCancelOnNeutral: 1
+  padExplicitNeutralCancelDelay: 0.12
 --- !u!114 &926001102
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3863,15 +3900,17 @@ MonoBehaviour:
   editorAreaSize: 3
   editorRotatePlayerWithArea: 1
   editorRotationCenterMaxDistance: 3
-  editorFreeRotate: 1
+  editorFreeRotate: 0
   editorAllow180Rotation: 0
+  editorPadLeftMoves: 1
   devBuildDevMode: 0
   devBuildInvincible: 0
   devBuildAreaSize: 3
   devBuildRotatePlayerWithArea: 1
   devBuildRotationCenterMaxDistance: 3
-  devBuildFreeRotate: 1
+  devBuildFreeRotate: 0
   devBuildAllow180Rotation: 0
+  devBuildPadLeftMoves: 1
   applyInitialOnStart: 1
 --- !u!114 &977650113
 MonoBehaviour:

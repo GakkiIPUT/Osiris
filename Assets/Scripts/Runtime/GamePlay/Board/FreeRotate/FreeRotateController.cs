@@ -153,15 +153,13 @@ public class FreeRotateController : MonoBehaviour
         var gp = Gamepad.current;
         if (gp != null)
         {
-            // B(East) = キャンセル
+            // B(East) キャンセル / A(South) 確定 は従来通り
             if (freeDragging && gp.buttonEast.wasPressedThisFrame)
             {
                 CancelIfNeeded();
                 _padNeedRecenter = true;
                 return;
             }
-
-            // A(South) = 明示確定
             if (freeDragging && gp.buttonSouth.wasPressedThisFrame)
             {
                 if (TryPadCommitExplicit())
@@ -171,173 +169,178 @@ public class FreeRotateController : MonoBehaviour
                 }
             }
 
-            Vector2 lvFull = gp.leftStick.ReadValue();
-
-            // 再センター解除
-            if (_padNeedRecenter)
+            // ★ 左スティック移動モード時は、Pad左スティックでの自由回転入力を無効化（マウスは可）
+            bool leftStickMoves = board != null && board.devPadLeftStickMoves;
+            if (!leftStickMoves)
             {
-                float baseThrC = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float outerThrC = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrC);
-                float clearThr = outerThrC * padRecenterClearFactor;
-                if (lvFull.sqrMagnitude < (clearThr * clearThr))
-                    _padNeedRecenter = false;
-            }
+                Vector2 lvFull = gp.leftStick.ReadValue();
 
-            // 明示確定モード: ニュートラル処理 & 自動キャンセル
-            if (!padUseReleaseToCommit && freeDragging && !_padNeedRecenter)
-            {
-                float baseThrX = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float outerThrX = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrX);
-                bool neutral = lvFull.sqrMagnitude < outerThrX * outerThrX;
-
-                if (neutral)
+                // 再センター解除
+                if (_padNeedRecenter)
                 {
-                    if (padExplicitReleaseReturn)
-                        ExplicitReturnPreview();
+                    float baseThrC = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                    float outerThrC = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrC);
+                    float clearThr = outerThrC * padRecenterClearFactor;
+                    if (lvFull.sqrMagnitude < (clearThr * clearThr))
+                        _padNeedRecenter = false;
+                }
 
-                    if (padExplicitAutoCancelOnNeutral &&
-                        freeNearestSteps == 0 &&
-                        Mathf.Abs(freeDeltaDeg) < 1f) // ほぼ原点
+                // 明示確定モード: ニュートラル処理 & 自動キャンセル
+                if (!padUseReleaseToCommit && freeDragging && !_padNeedRecenter)
+                {
+                    float baseThrX = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                    float outerThrX = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThrX);
+                    bool neutral = lvFull.sqrMagnitude < outerThrX * outerThrX;
+
+                    if (neutral)
                     {
-                        if (_padNeutralSince < 0f) _padNeutralSince = Time.time;
-                        else if (Time.time - _padNeutralSince >= padExplicitNeutralCancelDelay)
+                        if (padExplicitReleaseReturn)
+                            ExplicitReturnPreview();
+
+                        if (padExplicitAutoCancelOnNeutral &&
+                            freeNearestSteps == 0 &&
+                            Mathf.Abs(freeDeltaDeg) < 1f) // ほぼ原点
                         {
-                            // 自動キャンセル（再センター要求は不要）
-                            CancelIfNeeded();
-                            return;
+                            if (_padNeutralSince < 0f) _padNeutralSince = Time.time;
+                            else if (Time.time - _padNeutralSince >= padExplicitNeutralCancelDelay)
+                            {
+                                // 自動キャンセル（再センター要求は不要）
+                                CancelIfNeeded();
+                                return;
+                            }
                         }
-                    }
-                }
-                else
-                {
-                    _padNeutralSince = -1f; // ニュートラル離脱
-                }
-            }
-
-            // 角度更新（Aiming 中）
-            if (player != null && player.IsAiming)
-            {
-                Vector2 lv = lvFull;
-                float baseThr = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float outerThr = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr);
-                float inner1D = outerThr * Mathf.Clamp01(pad1DInnerDeadZoneFactor);
-                float magSqr = lv.sqrMagnitude;
-
-                if (magSqr >= outerThr * outerThr)
-                {
-                    _padNeutralSince = -1f; // ★ 回転操作再開でリセット
-                    if (_padNeedRecenter && !freeDragging) return; // 再センター待ち中は開始禁止
-
-                    if (!freeDragging)
-                    {
-                        var center = player.AimCenter;
-                        freeSize = player.areaSize;
-                        if (!IsCenterAllowed(center) || !HasAnyStep(center)) { FlashNg(center); return; }
-
-                        bool allow180 = board != null && board.devAllow180Rotation;
-                        float startAngle = allow180 ? Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg : 0f;
-                        BeginPreview(center, startAngle);
-                        _padLeftWasActive = true;
-                        _padLeftInactiveSince = 0f;
-                        _usingPad1D = !allow180;
                     }
                     else
                     {
-                        if (_usingPad1D)
+                        _padNeutralSince = -1f; // ニュートラル離脱
+                    }
+                }
+
+                // 角度更新（Aiming 中）
+                if (player != null && player.IsAiming)
+                {
+                    Vector2 lv = lvFull;
+                    float baseThr = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                    float outerThr = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr);
+                    float inner1D = outerThr * Mathf.Clamp01(pad1DInnerDeadZoneFactor);
+                    float magSqr = lv.sqrMagnitude;
+
+                    if (magSqr >= outerThr * outerThr)
+                    {
+                        _padNeutralSince = -1f; // ★ 回転操作再開でリセット
+                        if (_padNeedRecenter && !freeDragging) return; // 再センター待ち中は開始禁止
+
+                        if (!freeDragging)
                         {
-                            float x = Mathf.Clamp(lv.x, -1f, 1f);
-                            if (padInvertHorizontal) x = -x;
-                            if (Mathf.Abs(x) < inner1D) x = 0f;
-                            float curAngle = x * 90f;
-                            _lastInputAngleDeg = curAngle;
-                            UpdateAngleFrom(curAngle);
+                            var center = player.AimCenter;
+                            freeSize = player.areaSize;
+                            if (!IsCenterAllowed(center) || !HasAnyStep(center)) { FlashNg(center); return; }
+
+                            bool allow180 = board != null && board.devAllow180Rotation;
+                            float startAngle = allow180 ? Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg : 0f;
+                            BeginPreview(center, startAngle);
+                            _padLeftWasActive = true;
+                            _padLeftInactiveSince = 0f;
+                            _usingPad1D = !allow180;
                         }
                         else
                         {
-                            float curAngle = Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg;
-                            if (padInvertHorizontal) curAngle = -curAngle;
-                            _lastInputAngleDeg = curAngle;
-                            UpdateAngleFrom(curAngle);
+                            if (_usingPad1D)
+                            {
+                                float x = Mathf.Clamp(lv.x, -1f, 1f);
+                                if (padInvertHorizontal) x = -x;
+                                if (Mathf.Abs(x) < inner1D) x = 0f;
+                                float curAngle = x * 90f;
+                                _lastInputAngleDeg = curAngle;
+                                UpdateAngleFrom(curAngle);
+                            }
+                            else
+                            {
+                                float curAngle = Mathf.Atan2(lv.y, lv.x) * Mathf.Rad2Deg;
+                                if (padInvertHorizontal) curAngle = -curAngle;
+                                _lastInputAngleDeg = curAngle;
+                                UpdateAngleFrom(curAngle);
+                            }
+                            _padLeftWasActive = true;
+                            _padLeftInactiveSince = 0f;
                         }
-                        _padLeftWasActive = true;
+                    }
+                }
+
+                // Release モードの離し確定
+                if (padUseReleaseToCommit && !_padNeedRecenter && freeDragging && _padLeftWasActive)
+                {
+                    Vector2 lv2 = gp.leftStick.ReadValue();
+                    float baseThr2 = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
+                    float outerThr2 = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr2);
+                    bool belowOuter = lv2.sqrMagnitude < outerThr2 * outerThr2;
+
+                    if (belowOuter)
+                    {
+                        if (_padLeftInactiveSince <= 0f) _padLeftInactiveSince = Time.time;
+
+                        bool withinGrace =
+                            (Time.time - _lastSnapTime) * 1000f <= padGraceSnapMillis &&
+                            _lastSnappedSteps != 0;
+
+                        int candidateSteps = freeNearestSteps;
+                        bool candidateOk = freeStepOK;
+
+                        if (!_isSnapped && withinGrace)
+                        {
+                            candidateSteps = _lastSnappedSteps;
+                            candidateOk = true;
+                        }
+                        else if (!_isSnapped && padAutoSnapOnRelease && freeNearestSteps == 0)
+                        {
+                            float ad = Mathf.Abs(freeDeltaDeg);
+                            if (ad >= padStepMinDegrees && (90f - ad) <= padAutoSnapDeg)
+                            {
+                                candidateSteps = (freeDeltaDeg > 0f) ? +1 : -1;
+                                var v = board.GetStepValidity(freeCenter, freeSize);
+                                candidateOk = IsStepAllowed(v, candidateSteps, board.devAllow180Rotation) &&
+                                              !board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
+                            }
+                        }
+
+                        if (padCommitImmediateOnRelease)
+                        {
+                            if (candidateOk && candidateSteps != 0)
+                            {
+                                freeNearestSteps = candidateSteps;
+                                freeStepOK = true;
+                                EndPreviewAndCommit();
+                                return;
+                            }
+                            else if (!candidateOk && padCancelIfNotSnappedOnRelease)
+                            {
+                                CancelIfNeeded();
+                                return;
+                            }
+                        }
+
+                        if (Time.time - _padLeftInactiveSince >= padCommitIdleSeconds)
+                        {
+                            if (candidateOk && candidateSteps != 0)
+                            {
+                                freeNearestSteps = candidateSteps;
+                                freeStepOK = true;
+                                EndPreviewAndCommit();
+                            }
+                            else
+                            {
+                                if (padCancelIfNotSnappedOnRelease)
+                                    CancelIfNeeded();
+                                else
+                                    EndPreviewAndCommit();
+                            }
+                            return;
+                        }
+                    }
+                    else
+                    {
                         _padLeftInactiveSince = 0f;
                     }
-                }
-            }
-
-            // Release モードの離し確定
-            if (padUseReleaseToCommit && !_padNeedRecenter && freeDragging && _padLeftWasActive)
-            {
-                Vector2 lv2 = gp.leftStick.ReadValue();
-                float baseThr2 = player != null ? Mathf.Max(0.2f, player.stickDigitalThreshold * 0.6f) : 0.3f;
-                float outerThr2 = Mathf.Max(Mathf.Clamp01(padDeadZone), baseThr2);
-                bool belowOuter = lv2.sqrMagnitude < outerThr2 * outerThr2;
-
-                if (belowOuter)
-                {
-                    if (_padLeftInactiveSince <= 0f) _padLeftInactiveSince = Time.time;
-
-                    bool withinGrace =
-                        (Time.time - _lastSnapTime) * 1000f <= padGraceSnapMillis &&
-                        _lastSnappedSteps != 0;
-
-                    int candidateSteps = freeNearestSteps;
-                    bool candidateOk = freeStepOK;
-
-                    if (!_isSnapped && withinGrace)
-                    {
-                        candidateSteps = _lastSnappedSteps;
-                        candidateOk = true;
-                    }
-                    else if (!_isSnapped && padAutoSnapOnRelease && freeNearestSteps == 0)
-                    {
-                        float ad = Mathf.Abs(freeDeltaDeg);
-                        if (ad >= padStepMinDegrees && (90f - ad) <= padAutoSnapDeg)
-                        {
-                            candidateSteps = (freeDeltaDeg > 0f) ? +1 : -1;
-                            var v = board.GetStepValidity(freeCenter, freeSize);
-                            candidateOk = IsStepAllowed(v, candidateSteps, board.devAllow180Rotation) &&
-                                          !board.AreaContainsLockedExceptCenter(freeCenter, freeSize);
-                        }
-                    }
-
-                    if (padCommitImmediateOnRelease)
-                    {
-                        if (candidateOk && candidateSteps != 0)
-                        {
-                            freeNearestSteps = candidateSteps;
-                            freeStepOK = true;
-                            EndPreviewAndCommit();
-                            return;
-                        }
-                        else if (!candidateOk && padCancelIfNotSnappedOnRelease)
-                        {
-                            CancelIfNeeded();
-                            return;
-                        }
-                    }
-
-                    if (Time.time - _padLeftInactiveSince >= padCommitIdleSeconds)
-                    {
-                        if (candidateOk && candidateSteps != 0)
-                        {
-                            freeNearestSteps = candidateSteps;
-                            freeStepOK = true;
-                            EndPreviewAndCommit();
-                        }
-                        else
-                        {
-                            if (padCancelIfNotSnappedOnRelease)
-                                CancelIfNeeded();
-                            else
-                                EndPreviewAndCommit();
-                        }
-                        return;
-                    }
-                }
-                else
-                {
-                    _padLeftInactiveSince = 0f;
                 }
             }
         }

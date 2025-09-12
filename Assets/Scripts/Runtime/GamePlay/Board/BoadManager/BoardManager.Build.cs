@@ -3,6 +3,17 @@ using UnityEngine;
 
 public partial class BoardManager
 {
+    // 追加: 通常Floor用のキャッシュ
+    private Material floorNormalMat;
+
+    private void EnsureFloorNormalMat()
+    {
+        if (floorNormalMat != null) return;
+        if (pfFloor == null) return;
+        var r = pfFloor.GetComponentInChildren<Renderer>();
+        if (r != null) floorNormalMat = r.sharedMaterial;
+    }
+
     /// <summary>
     /// 参照の初期化とレベル生成を行う。
     /// </summary>
@@ -354,83 +365,6 @@ public partial class BoardManager
     }
 
     /// <summary>
-    /// 単一セルのタイルを配置し、見た目を整える。
-    /// </summary>
-    private void PlaceTile(CellType t, Vector2Int p)
-    {
-        bool isOuterF = IsOuterFloor(p);
-
-        GameObject prefab =
-            (t == CellType.Wall) ? pfWall :
-            (t == CellType.Exit) ? pfExit :
-            (t == CellType.Anchor) ? pfAnchor :
-            (t == CellType.Pit) ? pfPit : pfFloor;
-
-        var go = Instantiate(prefab, GridToWorld(p), Quaternion.identity, tilesRoot);
-        go.name = isOuterF ? $"OuterFloor_{p.x}_{p.y}" : $"{t}_{p.x}_{p.y}";
-        tileGOs[p.y, p.x] = go;
-
-        // 外周 Floor 用マテリアル
-        if (isOuterF && outerRingFloorMat != null)
-        {
-            var rend = go.GetComponentInChildren<Renderer>();
-            if (rend) rend.sharedMaterial = outerRingFloorMat;
-        }
-
-        if (autoAlign2D && (IsQuadMesh(go) || HasSpriteRenderer(go)))
-        {
-            AutoAlign2DObject(go, false);
-            if (t == CellType.Exit)
-            {
-                var pos = go.transform.position;
-                pos.y = floorY + exitTopOffset;
-                go.transform.position = pos;
-            }
-        }
-        else
-        {
-            if (t == CellType.Wall) AlignBottomToY(go, floorY);
-            else if (t == CellType.Floor || isOuterF) AlignTopToY(go, floorY);
-            else if (t == CellType.Exit) AlignTopToY(go, floorY + exitTopOffset);
-        }
-
-        if (t == CellType.Wall)
-            UpdateWallAppearanceAt(p);
-    }
-
-    /// <summary>
-    /// 指定セルの壁マテリアルをCore/Outerに応じて更新する。
-    /// </summary>
-    private void UpdateWallAppearanceAt(Vector2Int p)
-    {
-        if (!InBounds(p)) return;
-        if (cells[p.y, p.x] != CellType.Wall) return;
-        if (!autoGenerateOuterRings) return;
-        if (wallNormalMat == null || wallOuterMat == null) return;
-
-        var go = tileGOs[p.y, p.x];
-        if (!go) return;
-        var rend = go.GetComponentInChildren<Renderer>();
-        if (!rend) return;
-
-        bool outsideCore = !IsInsideCore(p);
-        var origin = wallOrigin[p.y, p.x];
-        rend.sharedMaterial = (origin == WallOrigin.Outer && outsideCore) ? wallOuterMat : wallNormalMat;
-    }
-
-    /// <summary>
-    /// 盤面中の全壁マテリアルを更新する。
-    /// </summary>
-    private void UpdateAllWallAppearances()
-    {
-        if (!autoGenerateOuterRings) return;
-        for (int y = 0; y < Height; y++)
-            for (int x = 0; x < Width; x++)
-                if (cells[y, x] == CellType.Wall)
-                    UpdateWallAppearanceAt(new Vector2Int(x, y));
-    }
-
-    /// <summary>
     /// 盤面を再構築する（ロジック→見た目→アクター/アイテム生成→視界/Exit更新）。
     /// </summary>
     public void Build()
@@ -445,6 +379,9 @@ public partial class BoardManager
         }
 
         ClearAll();
+
+        // 追加: 通常Floorマテリアルの確保
+        EnsureFloorNormalMat();
 
         int h = Height;
         int w = Width;
@@ -585,12 +522,126 @@ public partial class BoardManager
 
         RefreshAllGuardVision();
 
+        // 壁見た目の一括更新は無効化（no-op化）
         UpdateAllWallAppearances();
+
+        // 追加: 床見た目の一括更新
+        UpdateAllFloorAppearances();
+
         var overlay = GetComponent<SelectionFramesOverlay>();
         if (overlay == null) overlay = gameObject.AddComponent<SelectionFramesOverlay>();
         overlay.board = this;
         overlay.innerSize = 3;
         overlay.outerRadius = 3;
+    }
+
+    /// <summary>
+    /// 単一セルのタイルを配置し、見た目を整える。
+    /// </summary>
+    private void PlaceTile(CellType t, Vector2Int p)
+    {
+        bool isOuterF = IsOuterFloor(p);
+
+        GameObject prefab =
+            (t == CellType.Wall) ? pfWall :
+            (t == CellType.Exit) ? pfExit :
+            (t == CellType.Anchor) ? pfAnchor :
+            (t == CellType.Pit) ? pfPit : pfFloor;
+
+        var go = Instantiate(prefab, GridToWorld(p), Quaternion.identity, tilesRoot);
+        go.name = isOuterF ? $"OuterFloor_{p.x}_{p.y}" : $"{t}_{p.x}_{p.y}";
+        tileGOs[p.y, p.x] = go;
+
+        // 床の見た目（外周⇔内側）
+        var rend = go.GetComponentInChildren<Renderer>();
+        if (t == CellType.Floor && rend != null)
+        {
+            if (isOuterF && outerRingFloorMat != null)
+            {
+                rend.sharedMaterial = outerRingFloorMat;
+            }
+            else
+            {
+                EnsureFloorNormalMat();
+                if (floorNormalMat != null) rend.sharedMaterial = floorNormalMat;
+            }
+        }
+
+        if (autoAlign2D && (IsQuadMesh(go) || HasSpriteRenderer(go)))
+        {
+            AutoAlign2DObject(go, false);
+            if (t == CellType.Exit)
+            {
+                var pos = go.transform.position;
+                pos.y = floorY + exitTopOffset;
+                go.transform.position = pos;
+            }
+        }
+        else
+        {
+            if (t == CellType.Wall) AlignBottomToY(go, floorY);
+            else if (t == CellType.Floor || isOuterF) AlignTopToY(go, floorY);
+            else if (t == CellType.Exit) AlignTopToY(go, floorY + exitTopOffset);
+        }
+
+        // 壁見た目の個別更新は無効化（no-op化）
+        if (t == CellType.Wall)
+            UpdateWallAppearanceAt(p);
+    }
+
+    /// <summary>
+    /// 単一セルのFloor見た目をOuter/Coreに応じて更新する。
+    /// </summary>
+    private void UpdateFloorAppearanceAt(Vector2Int p)
+    {
+        if (!InBounds(p)) return;
+        if (cells[p.y, p.x] != CellType.Floor) return;
+
+        var go = tileGOs[p.y, p.x];
+        if (!go) return;
+
+        var rend = go.GetComponentInChildren<Renderer>();
+        if (!rend) return;
+
+        bool isOuterF = IsOuterFloor(p);
+        if (isOuterF && outerRingFloorMat != null)
+        {
+            rend.sharedMaterial = outerRingFloorMat;
+        }
+        else
+        {
+            EnsureFloorNormalMat();
+            if (floorNormalMat != null) rend.sharedMaterial = floorNormalMat;
+        }
+    }
+
+    /// <summary>
+    /// 盤面中の全Floor見た目を更新する。
+    /// </summary>
+    private void UpdateAllFloorAppearances()
+    {
+        for (int y = 0; y < Height; y++)
+            for (int x = 0; x < Width; x++)
+                if (cells[y, x] == CellType.Floor)
+                    UpdateFloorAppearanceAt(new Vector2Int(x, y));
+    }
+
+    /// <summary>
+    /// 壁の見た目更新（無効化: 見た目だけの機能のため）
+    /// </summary>
+    private void UpdateWallAppearanceAt(Vector2Int p)
+    {
+        // no-op（実行ロジックに影響なし）
+        return;
+    }
+
+    /// <summary>
+    /// 全壁の見た目更新（無効化: 見た目だけの機能のため）
+    /// </summary>
+    private void UpdateAllWallAppearances()
+    {
+        // no-op（実行ロジックに影響なし）
+        return;
     }
 
     /// <summary>

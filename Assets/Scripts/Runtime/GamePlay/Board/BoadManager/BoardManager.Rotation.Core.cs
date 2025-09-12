@@ -12,7 +12,7 @@ public partial class BoardManager
     }
 
     /// <summary>
-    /// 指定中心とサイズのプレビュー情報を生成する。領域外やCore外が含まれる場合は valid=false。
+    /// 指定中心とサイズのプレビュー情報を生成する。領域外のみ無効。Core外は許可（外周を含む回転のため）。
     /// </summary>
     public RotatePreview GetPreview(Vector2Int center, int size, int dir)
     {
@@ -25,7 +25,7 @@ public partial class BoardManager
                 var gp = new Vector2Int(center.x + i, center.y + j);
                 p.area.Add(gp);
                 if (!InBounds(gp)) p.valid = false;
-                if (autoGenerateOuterRings && !IsInsideCore(gp)) p.valid = false;
+                // Core外はプレビューOK（外周へタイル/アイテム搬送を許可）
             }
         }
         return p;
@@ -93,6 +93,30 @@ public partial class BoardManager
         return !IsWalkableTileType(after);
     }
 
+    // プレイヤーが回転で Core 外に出てしまうか（±90°）
+    private bool PlayerWouldEndOutsideCore(Vector2Int center, int size, int dir)
+    {
+        if (!autoGenerateOuterRings) return false;
+        if (player == null) return false;
+        if (!rotatePlayerWithArea) return false;
+        if (!IsPlayerInsideArea(center, size)) return false;
+
+        var dest = GetPlayerCheckPosForRotation(center, size, dir);
+        return !IsInsideCore(dest);
+    }
+
+    // プレイヤーが回転で Core 外に出てしまうか（180°）
+    private bool PlayerWouldEndOutsideCore180(Vector2Int center, int size)
+    {
+        if (!autoGenerateOuterRings) return false;
+        if (player == null) return false;
+        if (!rotatePlayerWithArea) return false;
+        if (!IsPlayerInsideArea(center, size)) return false;
+
+        var dest = EngineRot180(player.pos, center);
+        return !IsInsideCore(dest);
+    }
+
     // ガード足元に回転後 Wall が来るか（±90°）…Wall なら回転キャンセル。Pit はキャンセルしない（後で死亡処理）
     private bool WouldGuardGetWallUnderfoot(Vector2Int center, int size, int dir)
     {
@@ -125,9 +149,11 @@ public partial class BoardManager
     {
         var pv = GetPreview(center, size, dir);
         if (!pv.valid) return false;
-        if (AreaCrossesOuterRing(center, size)) return false;
         if (forbidAnchorInArea && AreaContainsLocked(center, size)) return false;
         if (EngineAreaHasExit(center, size)) return false;
+
+        // プレイヤーが外周に出る回転はNG
+        if (PlayerWouldEndOutsideCore(center, size, dir)) return false;
 
         if (WouldPlayerBeBlockedByTileAfter(center, size, dir)) return false;
         if (WouldGuardGetWallUnderfoot(center, size, dir)) return false;
@@ -138,9 +164,11 @@ public partial class BoardManager
     {
         var pv = GetPreview(center, size, dir);
         if (!pv.valid) return false;
-        if (AreaCrossesOuterRing(center, size)) return false;
         if (forbidAnchorInArea && AreaContainsLocked(center, size)) return false;
         if (EngineAreaHasExit(center, size)) return false;
+
+        // プレイヤーが外周に出る回転はNG
+        if (PlayerWouldEndOutsideCore(center, size, dir)) return false;
 
         if (WouldPlayerBeBlockedByTileAfter(center, size, dir, map)) return false;
         if (WouldGuardGetWallUnderfoot(center, size, dir, map)) return false;
@@ -151,9 +179,12 @@ public partial class BoardManager
     {
         var pv = GetPreview(center, size, 0);
         if (!pv.valid) return false;
-        if (AreaCrossesOuterRing(center, size)) return false;
         if (forbidAnchorInArea && AreaContainsLocked(center, size)) return false;
         if (EngineAreaHasExit(center, size)) return false;
+
+        // プレイヤーが外周に出る回転はNG
+        if (PlayerWouldEndOutsideCore180(center, size)) return false;
+
         return true;
     }
 
@@ -308,6 +339,8 @@ public partial class BoardManager
             }
         }
         tileGOs = newTileGOs;
+        
+        UpdateAllFloorAppearances();
 
         if (itemAt != null && itemAt.Count > 0)
         {
